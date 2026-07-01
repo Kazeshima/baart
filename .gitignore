@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.vite/
+src-tauri/target/
+src-tauri/WixTools/
+.DS_Store
+Thumbs.db
+.env
+
+# Generated/exported reference cards
+/10100_*.png
+/10100_*.svg
+/other_reference_card.png

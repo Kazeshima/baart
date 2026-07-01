@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BAART",
+  "version": "1.0.0",
+  "identifier": "com.kazeshima.baart",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1421",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "BAART — Blue Archive Arena Rating Tool",
+        "width": 1400,
+        "height": 860,
+        "minWidth": 1100,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "transparent": false,
+        "decorations": true,
+        "visible": true,
+        "additionalBrowserArgs": "--disable-features=HardwareMediaKeyHandling,OverlayScrollbar --disable-gpu-compositing"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
