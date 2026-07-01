@@ -491,7 +491,7 @@ ${commonStyles(p, options.fontCss)}
 <rect width="${width}" height="${height}" fill="url(#bg)"/>
 <g class="ui">
   <rect x="26" y="26" width="${portrait}" height="${height - 52}" rx="8" fill="${p.panel}" stroke="${p.stroke}"/>
-  <image href="${portraitUrl}" x="-36" y="28" width="430" height="${height - 56}" preserveAspectRatio="xMidYMid meet" opacity="0.82"/>
+  <image href="${portraitUrl}" x="-36" y="28" width="430" height="${height - 56}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>
   <rect x="26" y="26" width="${portrait}" height="${height - 52}" rx="8" fill="none" stroke="${p.stroke}"/>
   <rect x="28" y="${height - 160}" width="${portrait - 4}" height="132" fill="#06080fcc"/>
   <text x="50" y="${height - 108}" class="title">${esc(student.name)}</text>
