@@ -11,7 +11,7 @@ It loads student information from [SchaleDB](https://schaledb.com), combines fiv
 - Search students using localized SchaleDB data.
 - Display role, attack and armor types, weapon, range, cover behavior, equipment, and terrain adaptation.
 - Rate five arena-focused dimensions from S to E.
-- Calculate or manually override a five-level overall rating.
+- Calculate or manually override a five-level overall rating, with independent none/half/full weights for every dimension.
 - Store ratings locally and import/export them as JSON.
 - Export compact and full rating cards as SVG or PNG.
 - Batch-export rated students in a ZIP archive.

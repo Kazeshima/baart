@@ -9,6 +9,7 @@ import {
   DEFENSE_ICON,
   COVER_ICON,
   SEASONS,
+  DEFAULT_RATINGS,
 } from "../utils/constants.js";
 import {
   DIMENSION_LABELS,
@@ -20,6 +21,7 @@ import {
   t,
   terrainLabel,
 } from "../utils/i18n.js";
+import { recalculateRatings, weightMultiplier } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 
 const CARD = {
@@ -39,36 +41,12 @@ function filenamePart(value) {
   return String(value || "student").replace(/[\\/:*?"<>|]/g, "_").slice(0, 80);
 }
 
-function exportScore(ratings) {
-  const dims = ["blindshot", "counter", "defense", "counterDef"];
-  const weights = dims.map(key => ({ key, weight: 1 }));
-  if (ratings.costWeight === "full") weights.push({ key: "cost", weight: 1 });
-  if (ratings.costWeight === "half" || !ratings.costWeight) weights.push({ key: "cost", weight: 0.5 });
-  const available = weights.filter(({ key }) => ratings[key] !== null && ratings[key] !== undefined);
-  if (available.length === 0) return null;
-  const totalWeight = available.reduce((sum, item) => sum + item.weight, 0);
-  return available.reduce((sum, item) => sum + TIER_SCORES[ratings[item.key]] * item.weight, 0) / totalWeight;
-}
-
-function exportLevel(score) {
-  if (score === null) return null;
-  if (score >= 4) return 4;
-  if (score >= 3) return 3;
-  if (score >= 2) return 2;
-  if (score >= 1) return 1;
-  return 0;
-}
-
 function normalizeExportRatings(raw) {
-  const ratings = { costWeight: "half", ...raw };
-  const score = exportScore(ratings);
-  if (ratings.overallAuto !== false) {
-    ratings.overall = exportLevel(score);
-  } else if (typeof ratings.overall === "string") {
+  const ratings = { ...DEFAULT_RATINGS(), ...raw };
+  if (typeof ratings.overall === "string") {
     ratings.overall = { E: 0, D: 0, C: 1, B: 2, A: 3, S: 4 }[ratings.overall] ?? null;
   }
-  ratings.overallScore = score;
-  return ratings;
+  return recalculateRatings(ratings);
 }
 
 async function svgToPngBytes(svg, width, height) {
@@ -263,17 +241,20 @@ function compactSummary(student, labels, uiLanguage) {
   return { role, weapon };
 }
 
-function costWeightSentence(ratings, uiLanguage, p, x, y) {
-  const key = ratings.costWeight === "none" ? "costNone" : ratings.costWeight === "full" ? "costFull" : "costHalf";
-  const term = t(uiLanguage, key);
-  if (localeFor(uiLanguage) === "en") {
-    return `<text x="${x}" y="${y}" font-size="17" font-weight="800" fill="${p.sub}">
-      Overall score uses <tspan fill="#f0b429" font-weight="900">${esc(term)}</tspan> cost weight.
-    </text>`;
-  }
-  return `<text x="${x}" y="${y}" font-size="17" font-weight="800" fill="${p.sub}">
-    综合分造价权重：<tspan fill="#f0b429" font-weight="900">${esc(term)}</tspan>
-  </text>`;
+function weightSummarySvg(ratings, uiLanguage, p, x, y, fontSize = 14) {
+  const labels = DIMENSION_LABELS[localeFor(uiLanguage)] || DIMENSION_LABELS.zh;
+  const items = DIMENSIONS.map(({ key }) => ({
+    label: labels[key][0],
+    value: weightMultiplier(ratings.dimensionWeights[key]),
+  }));
+  const groups = [items.slice(0, 2), items.slice(2)];
+  const line = (group, lineY) => `<text x="${x}" y="${lineY}" font-size="${fontSize}" font-weight="800" fill="${p.sub}">${group.map((item, index) => `${index ? `<tspan fill="${p.muted}"> · </tspan>` : ""}<tspan>${esc(item.label)} </tspan><tspan fill="#f0b429" font-weight="900">×${item.value}</tspan>`).join("")}</text>`;
+  return `
+  <g>
+    <text x="${x}" y="${y}" class="label">${esc(t(uiLanguage, "weightsUsed"))}</text>
+    ${line(groups[0], y + 20)}
+    ${line(groups[1], y + 40)}
+  </g>`;
 }
 
 function palette(theme = "dark") {
@@ -409,7 +390,6 @@ function studentMetaRows(student, ratings, season, uiLanguage) {
     [t(uiLanguage, "weapon"), `${student.weaponType} ${weaponLabel} / ${t(uiLanguage, "range")} ${student.range}`],
     [t(uiLanguage, "cover"), `${coverLabel} / ${t(uiLanguage, "position")} ${student.position}`],
     [t(uiLanguage, "terrain"), terrainText],
-    [t(uiLanguage, "scoreWeight"), t(uiLanguage, ratings.costWeight === "none" ? "costNone" : ratings.costWeight === "full" ? "costFull" : "costHalf")],
   ];
 }
 
@@ -486,7 +466,7 @@ ${commonStyles(p, options.fontCss)}
   <text x="48" y="376" class="value">${esc(trimText(summary.weapon, 38))}</text>
   ${noteBlock(ratings.notes, 48, 398, 510, 86, options.uiLanguage, p, { maxChars: 42, maxLines: 3, fontSize: 18, lineGap: 21, hideLabel: true, textY: 424 })}
   ${buildRadarSVG(ratings, { x: 594, y: 92, size: radar, uiLanguage: options.uiLanguage, theme: options.theme })}
-  ${costWeightSentence(ratings, options.uiLanguage, p, 604, 464)}
+  ${weightSummarySvg(ratings, options.uiLanguage, p, 604, 442, 13)}
   <text x="${width - 44}" y="${height - 34}" text-anchor="end" class="watermark">BAART</text>
 </g>
 </svg>`;
@@ -528,6 +508,7 @@ ${commonStyles(p, options.fontCss)}
   ${rows.map(([k, v], i) => `
     <text x="376" y="${342 + i * 34}" class="label">${esc(k)}</text>
     <text x="502" y="${342 + i * 34}" class="value" font-size="23">${esc(trimText(v, labels.locale === "en" ? 24 : 28))}</text>`).join("")}
+  ${weightSummarySvg(ratings, options.uiLanguage, p, 376, 506, 14)}
   ${noteBlock(ratings.notes, 376, 560, 410, 100, options.uiLanguage, p, { maxChars: 34, maxLines: 3, fontSize: 20, lineGap: 23 })}
   ${buildRadarSVG(ratings, { x: 806, y: 238, size: radar, uiLanguage: options.uiLanguage, theme: options.theme })}
   <text x="${width - 40}" y="${height - 34}" text-anchor="end" class="watermark">BAART</text>

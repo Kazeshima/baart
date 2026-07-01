@@ -135,6 +135,13 @@ export const DEFAULT_RATINGS = () => ({
   overall:    null,
   overallScore: null,
   overallAuto: true,   // if true, overall is computed from dimensions
+  dimensionWeights: {
+    blindshot: "full",
+    counter: "full",
+    defense: "full",
+    counterDef: "full",
+    cost: "half",
+  },
   costWeight: "half",
   notes: "",
 });

@@ -5,6 +5,12 @@ import {
 import { DIMENSION_LABELS, localeFor, t } from "../utils/i18n.js";
 import { useRatingStore } from "../store/ratingStore.js";
 
+const WEIGHT_OPTIONS = [
+  ["none", "costNone"],
+  ["half", "costHalf"],
+  ["full", "costFull"],
+];
+
 const TIER_BG = {
   S: "#b8860022", A: "#ef444422", B: "#a855f722",
   C: "#38bdf822", D: "#22c55e22", E: "#64748b22",
@@ -13,7 +19,7 @@ const TIER_BG = {
 export default function RatingPanel() {
   const {
     selectedStudent, getCurrentRatings,
-    setDimensionRating, uiLanguage,
+    setDimensionRating, setDimensionWeight, uiLanguage,
   } = useRatingStore();
 
   if (!selectedStudent) return null;
@@ -35,6 +41,7 @@ export default function RatingPanel() {
 
         {DIMENSIONS.map(dim => {
           const current = ratings[dim.key];
+          const currentWeight = ratings.dimensionWeights[dim.key];
           return (
             <div key={dim.key} className="dim-row">
               <div className="dim-label">
@@ -61,6 +68,18 @@ export default function RatingPanel() {
                     </button>
                   );
                 })}
+              </div>
+              <div className="dim-weight-row">
+                <span>{t(uiLanguage, "dimensionWeight")}</span>
+                {WEIGHT_OPTIONS.map(([weight, labelKey]) => (
+                  <button
+                    key={weight}
+                    className={`weight-btn weight-btn--compact ${currentWeight === weight ? "active" : ""}`}
+                    onClick={() => setDimensionWeight(dim.key, weight)}
+                  >
+                    {t(uiLanguage, labelKey)}
+                  </button>
+                ))}
               </div>
             </div>
           );

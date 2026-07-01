@@ -1,7 +1,8 @@
 import {
-  OVERALL_LEVELS, OVERALL_COLORS,
+  DIMENSIONS, OVERALL_LEVELS, OVERALL_COLORS,
 } from "../utils/constants.js";
-import { OVERALL_LABELS, localeFor, t } from "../utils/i18n.js";
+import { DIMENSION_LABELS, OVERALL_LABELS, localeFor, t } from "../utils/i18n.js";
+import { weightMultiplier } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 
 const TIER_BG_MAP = {
@@ -13,13 +14,14 @@ export default function OverallRating() {
   const {
     selectedStudent, getCurrentRatings,
     setOverallRating, setOverallAuto,
-    setCostWeight, setNotes, uiLanguage,
+    setNotes, uiLanguage,
   } = useRatingStore();
 
   if (!selectedStudent) return null;
   const ratings = getCurrentRatings();
-  const { overall, overallScore, overallAuto, costWeight, notes } = ratings;
+  const { overall, overallScore, overallAuto, dimensionWeights, notes } = ratings;
   const locale = localeFor(uiLanguage);
+  const dimensionLabels = DIMENSION_LABELS[locale] || DIMENSION_LABELS.zh;
 
   const overallColor = overall !== null ? OVERALL_COLORS[overall] : "var(--text-muted)";
   const displayLabel = overall !== null ? OVERALL_LABELS[locale][overall] : "?";
@@ -56,21 +58,15 @@ export default function OverallRating() {
             </button>
           </div>
 
-          <div className="weight-control">
-            <span>{t(uiLanguage, "scoreWeight")}</span>
-            {[
-              ["none", t(uiLanguage, "costNone")],
-              ["half", t(uiLanguage, "costHalf")],
-              ["full", t(uiLanguage, "costFull")],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                className={`weight-btn ${costWeight === value ? "active" : ""}`}
-                onClick={() => setCostWeight(value)}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="weight-summary">
+            <span className="weight-summary__label">{t(uiLanguage, "weightsUsed")}</span>
+            <div className="weight-summary__items">
+              {DIMENSIONS.map(({ key }) => (
+                <span key={key} className="weight-summary__item">
+                  {dimensionLabels[key][0]} <strong>×{weightMultiplier(dimensionWeights[key])}</strong>
+                </span>
+              ))}
+            </div>
           </div>
 
           {/* Manual override tier buttons */}

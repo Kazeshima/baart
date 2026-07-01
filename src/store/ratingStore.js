@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { DEFAULT_RATINGS, TIER_SCORES } from "../utils/constants.js";
+import { DEFAULT_RATINGS } from "../utils/constants.js";
+import { recalculateRatings } from "../utils/scoring.js";
 
 const LS_LANG = "ba_rating_lang";
 const LS_UI_LANG = "ba_rating_ui_lang";
@@ -11,7 +12,7 @@ const RATINGS_KEY = "ba_pvp_ratings";  // localStorage key for all saved ratings
 const RATINGS_FILE = "ratings/ba_pvp_ratings.json";
 
 function loadRatings() {
-  try { return JSON.parse(localStorage.getItem(RATINGS_KEY) || "{}"); }
+  try { return normalizeRatingCollection(JSON.parse(localStorage.getItem(RATINGS_KEY) || "{}")); }
   catch { return {}; }
 }
 function saveRatings(r) {
@@ -24,39 +25,15 @@ function normalizeRatings(ratings) {
     const legacy = { E: 0, D: 0, C: 1, B: 2, A: 3, S: 4 };
     normalized.overall = legacy[normalized.overall] ?? null;
   }
-  if (!["none", "half", "full"].includes(normalized.costWeight)) {
-    normalized.costWeight = "half";
-  }
-  if (normalized.overallAuto) {
-    normalized.overall = computeOverall(normalized);
-  }
-  normalized.overallScore = computeOverallScore(normalized);
-  return normalized;
+  return recalculateRatings(normalized);
 }
 
-function computeOverallScore(ratings) {
-  const dims = ["blindshot", "counter", "defense", "counterDef"];
-  const weights = dims.map(key => ({ key, weight: 1 }));
-  if (ratings.costWeight === "full") weights.push({ key: "cost", weight: 1 });
-  if (ratings.costWeight === "half") weights.push({ key: "cost", weight: 0.5 });
-
-  const available = weights.filter(({ key }) => ratings[key] !== null);
-  if (available.length === 0) return null;
-
-  const totalWeight = available.reduce((sum, item) => sum + item.weight, 0);
-  return available.reduce((sum, item) => sum + TIER_SCORES[ratings[item.key]] * item.weight, 0) / totalWeight;
-}
-
-// Compute five-level overall result from dimension ratings.
-function computeOverall(ratings) {
-  const avg = computeOverallScore(ratings);
-  if (avg === null) return null;
-
-  if (avg >= 4) return 4;
-  if (avg >= 3) return 3;
-  if (avg >= 2) return 2;
-  if (avg >= 1) return 1;
-  return 0;
+function normalizeRatingCollection(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+  return Object.fromEntries(Object.entries(data).map(([studentId, ratings]) => [
+    studentId,
+    normalizeRatings(ratings || {}),
+  ]));
 }
 
 function downloadTextFile(filename, contents) {
@@ -161,12 +138,7 @@ export const useRatingStore = create((set, get) => ({
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = { ...existing, [dim]: tier };
-    // Auto-compute overall if auto mode
-    if (updated.overallAuto) {
-      updated.overall = computeOverall(updated);
-    }
-    updated.overallScore = computeOverallScore(updated);
+    const updated = recalculateRatings({ ...existing, [dim]: tier });
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     // Auto-save on every change
@@ -178,7 +150,7 @@ export const useRatingStore = create((set, get) => ({
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = { ...existing, overall: tier, overallAuto: false, overallScore: computeOverallScore(existing) };
+    const updated = recalculateRatings({ ...existing, overall: tier, overallAuto: false });
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     saveRatings(allRatings);
@@ -189,28 +161,27 @@ export const useRatingStore = create((set, get) => ({
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = { ...existing, overallAuto: auto };
-    if (auto) updated.overall = computeOverall(updated);
-    updated.overallScore = computeOverallScore(updated);
+    const updated = recalculateRatings({ ...existing, overallAuto: auto });
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     saveRatings(allRatings);
   },
 
-  setCostWeight: (costWeight) => {
+  setDimensionWeight: (dimension, weight) => {
     const s = get();
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = { ...existing, costWeight };
-    if (updated.overallAuto) {
-      updated.overall = computeOverall(updated);
-    }
-    updated.overallScore = computeOverallScore(updated);
+    const updated = recalculateRatings({
+      ...existing,
+      dimensionWeights: { ...existing.dimensionWeights, [dimension]: weight },
+    });
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     saveRatings(allRatings);
   },
+
+  setCostWeight: (costWeight) => get().setDimensionWeight("cost", costWeight),
 
   setNotes: (notes) => {
     const s = get();
@@ -247,7 +218,7 @@ export const useRatingStore = create((set, get) => ({
 
   importRatingsJSON: (jsonText) => {
     try {
-      const data = JSON.parse(jsonText);
+      const data = normalizeRatingCollection(JSON.parse(jsonText));
       saveRatings(data);
       set({ allRatings: data });
       return true;
@@ -258,7 +229,7 @@ export const useRatingStore = create((set, get) => ({
     if (!isTauri()) return null;
     const text = await invoke("open_text_file", { filters: JSON_FILTER });
     if (!text) return null;
-    const data = JSON.parse(text);
+    const data = normalizeRatingCollection(JSON.parse(text));
     saveRatings(data);
     set({ allRatings: data, fileStatus: "loaded JSON" });
     return data;
