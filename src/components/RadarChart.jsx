@@ -2,26 +2,26 @@ import { DIMENSIONS, TIER_SCORES, TIER_COLORS, OVERALL_COLORS } from "../utils/c
 import { DIMENSION_LABELS, localeFor } from "../utils/i18n.js";
 import {
   RADAR_ANGLES, RADAR_CENTER, RADAR_LEVELS, RADAR_RADIUS, RADAR_VIEWBOX,
-  radarPoint, radarPolygon, radarScanPoint, radarScanPolygon,
+  radarPoint, radarPolygon, radarScanPoint, radarScanTrail,
 } from "../utils/radar.js";
 
 const SIZE = RADAR_VIEWBOX;
 
-function LabelText({ label, x, y, color, score }) {
+function LabelText({ label, x, y, color, score, resultProgress = 1 }) {
   const isLongZh = /进攻对策性|特防对策性/.test(label);
   if (isLongZh) {
     return (
       <text x={x} y={y - 7} textAnchor="middle" fill={color} fontSize={14} fontFamily="Rajdhani, Noto Sans SC, sans-serif" fontWeight={800}>
         <tspan x={x}>{label.slice(0, 2)}</tspan>
         <tspan x={x} dy="15">{label.slice(2)}</tspan>
-        {score && <tspan x={x} dy="16" fontSize={15}>{score}</tspan>}
+        {score && <tspan x={x} dy="16" fontSize={15} opacity={resultProgress}>{score}</tspan>}
       </text>
     );
   }
   return (
     <text x={x} y={y - 5} textAnchor="middle" fill={color} fontSize={14} fontFamily="Rajdhani, Noto Sans SC, sans-serif" fontWeight={800}>
       {label}
-      {score && <tspan x={x} dy="16" fontSize={15}>{score}</tspan>}
+      {score && <tspan x={x} dy="16" fontSize={15} opacity={resultProgress}>{score}</tspan>}
     </text>
   );
 }
@@ -53,12 +53,8 @@ export default function RadarChart({
   const fillColor = ratings.overall !== null && ratings.overall !== undefined
     ? OVERALL_COLORS[ratings.overall]
     : "#4a6080";
-  const scanLines = scanProgress !== null && scanBeamIntensity > 0
-    ? [0, -6, -12].map(offset => radarScanPoint(scanProgress, undefined, offset))
-    : [];
-  const scanSector = scanProgress !== null && scanBeamIntensity > 0
-    ? radarScanPolygon(scanProgress)
-    : null;
+  const scanPoint = scanProgress !== null && scanBeamIntensity > 0 ? radarScanPoint(scanProgress) : null;
+  const scanTrail = scanPoint ? radarScanTrail(scanProgress) : [];
 
   return (
     <svg
@@ -66,21 +62,21 @@ export default function RadarChart({
       viewBox={`0 0 ${RADAR_VIEWBOX} ${RADAR_VIEWBOX}`}
       style={{ display: "block" }}
     >
-      {scanSector ? <polygon
-        points={scanSector}
+      {scanTrail.map((segment, index) => <polygon
+        key={`scan-trail-${index}`}
+        points={segment.points}
         fill="#38bdf8"
-        opacity={scanBeamIntensity * 0.12}
-      /> : null}
-      {scanLines.map(([x, y], index) => <line
-        key={`scan-${index}`}
+        opacity={scanBeamIntensity * 0.11 * segment.opacity}
+      />)}
+      {scanPoint ? <line
         x1={RADAR_CENTER}
         y1={RADAR_CENTER}
-        x2={x}
-        y2={y}
+        x2={scanPoint[0]}
+        y2={scanPoint[1]}
         stroke="#38bdf8"
-        strokeWidth={index === 0 ? 2.5 : 1.5}
-        opacity={scanBeamIntensity * (1 - index * 0.22)}
-      />)}
+        strokeWidth={2.4}
+        opacity={scanBeamIntensity}
+      /> : null}
 
       {/* Background rings */}
       {Array.from({ length: RADAR_LEVELS }, (_, lvl) => {
@@ -120,9 +116,8 @@ export default function RadarChart({
         const score = ratings[DIMENSIONS[i].key] !== null ? TIER_SCORES[ratings[DIMENSIONS[i].key]] : 0;
         if (score === 0) return null;
         const ptColor = TIER_COLORS[ratings[DIMENSIONS[i].key]] || "#888";
-        return (
-          <circle key={i} cx={x} cy={y} r={4} fill={ptColor} stroke="#000" strokeWidth={1} />
-        );
+        const progress = dataProgress[i] ?? 1;
+        return <circle key={i} cx={x} cy={y} r={4 * progress} opacity={progress} fill={ptColor} stroke="#000" strokeWidth={1} />;
       })}
 
       {/* Labels */}
@@ -133,8 +128,8 @@ export default function RadarChart({
         const tierColor = score ? TIER_COLORS[score] : "#4a6080";
         return (
           <g key={i}>
-            <g opacity={axisProgress[i] ?? 1}>
-              <LabelText label={labels[d.key][0]} x={x} y={y} color={tierColor} score={score} />
+            <g opacity={dataProgress[i] ?? 1}>
+              <LabelText label={labels[d.key][0]} x={x} y={y} color={tierColor} score={score} resultProgress={dataProgress[i] ?? 1} />
             </g>
           </g>
         );

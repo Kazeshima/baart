@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   DEFAULT_VIDEO_SETTINGS,
   clampProgress,
+  dimensionRevealProgress,
+  dimensionScanFrame,
   estimateCommentScroll,
   getTimeline,
   totalDurationInFrames,
@@ -14,7 +16,8 @@ import { sortRatingRecords } from "../video/core/sorting.js";
 import { applyJobProgress, cancelJob, isActiveRenderStatus } from "../video/core/renderJob.js";
 import { readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
-import { radarScanPoint, radarScanPolygon } from "../src/utils/radar.js";
+import { schoolLabel } from "../src/utils/i18n.js";
+import { radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -40,6 +43,14 @@ test("chronological mode preserves legacy insertion order before timestamps", ()
 test("ID and school sorting are deterministic", () => {
   assert.deepEqual(ids(sortRatingRecords(records, { mode: "id", direction: "asc" })), [10001, 10002, 10003]);
   assert.deepEqual(ids(sortRatingRecords(records, { mode: "school", direction: "asc" })), [10001, 10003, 10002]);
+});
+
+test("overall score sorting supports both directions and keeps missing scores last", () => {
+  const scored = parseVideoProject(fixture).records;
+  assert.deepEqual(ids(sortRatingRecords(scored, { mode: "score", direction: "desc" })), [10003, 10001, 10002]);
+  assert.deepEqual(ids(sortRatingRecords(scored, { mode: "score", direction: "asc" })), [10002, 10001, 10003]);
+  const missing = { ...scored[0], student: { ...scored[0].student, id: 10999 }, ratings: { ...scored[0].ratings, overallScore: null } };
+  assert.equal(sortRatingRecords([...scored, missing], { mode: "score", direction: "desc" }).at(-1).student.id, 10999);
 });
 
 test("manual order appends unlisted students by ID", () => {
@@ -89,13 +100,24 @@ test("render job state clamps progress and cancellation is idempotent", () => {
   assert.equal(clampProgress(Number.NaN), 0);
 });
 
-test("radar scan geometry is finite across its full rotation", () => {
+test("radar scan geometry and synchronized dimension reveals are deterministic", () => {
+  const timeline = getTimeline(DEFAULT_VIDEO_SETTINGS);
   for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
-    const points = radarScanPolygon(progress).split(" ").flatMap(point => point.split(",").map(Number));
-    assert.equal(points.length, 6);
-    assert.ok(points.every(Number.isFinite));
+    const trail = radarScanTrail(progress);
+    assert.equal(trail.length, 20);
+    assert.ok(trail.every(segment => segment.points.split(" ").flatMap(point => point.split(",").map(Number)).every(Number.isFinite)));
     assert.ok(radarScanPoint(progress).every(Number.isFinite));
   }
+  assert.equal(dimensionRevealProgress(0.19, 1), 0);
+  assert.ok(dimensionRevealProgress(0.24, 1) > 0);
+  assert.equal(dimensionScanFrame(timeline, 0), timeline.radarStart);
+  assert.equal(dimensionScanFrame(timeline, 4), timeline.radarStart + Math.round(timeline.radarDuration * 0.8));
+});
+
+test("school names localize without changing canonical English keys", () => {
+  assert.equal(schoolLabel("zh", "Millennium"), "千禧年");
+  assert.equal(schoolLabel("zh", "WildHunt"), "狂猎艺术学院");
+  assert.equal(schoolLabel("en", "Trinity"), "Trinity");
 });
 
 test("PNG header reader reports exact supported render dimensions", () => {

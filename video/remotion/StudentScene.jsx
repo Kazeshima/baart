@@ -46,7 +46,7 @@ export default function StudentScene({ record, settings }) {
 
       <header className="video-title" style={enterStyle(frame, timeline.infoStart)}>
         <div className="video-title__season">{settings.arenaSeason} · ARENA GUIDE</div>
-        <StudentIdentity student={student} nameClassName="video-title__name" metaClassName="video-title__meta" />
+        <StudentIdentity student={student} language={settings.uiLanguage} nameClassName="video-title__name" metaClassName="video-title__meta" />
       </header>
 
       <section className="video-info" style={enterStyle(frame, timeline.infoStart + timeline.infoStep)}>
@@ -65,7 +65,7 @@ export default function StudentScene({ record, settings }) {
         </div>
       </section>
 
-      <section className="video-radar-panel" style={enterStyle(frame, timeline.axesStart - Math.round(fps * 0.25), Math.round(fps * 0.5), 18)}>
+      <section className="video-radar-panel" style={enterStyle(frame, timeline.radarStart - Math.round(fps * 0.25), Math.round(fps * 0.5), 18)}>
         <AnimatedRadar ratings={ratings} language={settings.uiLanguage} settings={settings} size={540} />
         <div className="video-weights">
           <span className="video-weights__label">{t(settings.uiLanguage, "weightsUsed")}</span>

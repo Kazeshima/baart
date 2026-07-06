@@ -3,18 +3,17 @@ import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import RadarChart from "../../src/components/RadarChart.jsx";
 import { DIMENSIONS, TIER_SCORES, TIER_COLORS } from "../../src/utils/constants.js";
 import { RADAR_ANGLES, RADAR_RADIUS, radarPoint } from "../../src/utils/radar.js";
-import { getTimeline, phaseProgress } from "../core/config.js";
+import { dimensionRevealProgress, dimensionScanFrame, getTimeline, phaseProgress } from "../core/config.js";
 
 export default function AnimatedRadar({ ratings, language, settings, size = 570 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const timeline = getTimeline({ ...settings, fps });
-  const axisProgress = DIMENSIONS.map((_, index) => phaseProgress(frame, timeline.axesStart + index * timeline.axisStep, timeline.axisStep));
-  const dataProgress = DIMENSIONS.map((_, index) => phaseProgress(frame, timeline.dataStart + index * timeline.dataStep, timeline.dataStep));
-  const scanStart = timeline.axesStart;
-  const scanEnd = timeline.polygonEnd;
-  const scanProgress = phaseProgress(frame, scanStart, scanEnd - scanStart);
-  const beamOpacity = frame >= scanStart && frame <= scanEnd ? settings.scanBeamIntensity : 0;
+  const scanProgress = phaseProgress(frame, timeline.radarStart, timeline.radarDuration);
+  const dataProgress = DIMENSIONS.map((_, index) => dimensionRevealProgress(scanProgress, index, DIMENSIONS.length));
+  const ringProgress = phaseProgress(frame, timeline.radarStart - Math.round(fps * 0.35), Math.round(fps * 0.5));
+  const axisProgress = DIMENSIONS.map(() => ringProgress);
+  const beamOpacity = frame >= timeline.radarStart && frame <= timeline.radarEnd ? settings.scanBeamIntensity : 0;
 
   return (
     <div className="video-radar" style={{ width: size, height: size }}>
@@ -24,7 +23,7 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
         language={language}
         axisProgress={axisProgress}
         dataProgress={dataProgress}
-        ringProgress={phaseProgress(frame, timeline.axesStart - Math.round(fps * 0.3), Math.round(fps * 0.5))}
+        ringProgress={ringProgress}
         scanProgress={scanProgress}
         scanBeamIntensity={beamOpacity}
       />
@@ -34,7 +33,7 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
           if (tier !== "S" && tier !== "A") return [];
           const score = TIER_SCORES[tier];
           const [x, y] = radarPoint(RADAR_ANGLES[index], RADAR_RADIUS * score / 5);
-          const start = timeline.dataStart + index * timeline.dataStep + timeline.dataStep;
+          const start = dimensionScanFrame(timeline, index, DIMENSIONS.length) + Math.round(timeline.radarDuration * 0.07);
           return Array.from({ length: settings.rippleCount }, (_, rippleIndex) => {
             const delay = rippleIndex * Math.round(fps * 0.13);
             const rippleFrames = Math.max(1, Math.round(settings.rippleDuration * fps));

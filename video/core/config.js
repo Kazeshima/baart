@@ -10,9 +10,7 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   fadeIn: 0.7,
   fadeOut: 0.7,
   infoStagger: 0.14,
-  radarAxisStep: 0.22,
-  radarDataStep: 0.25,
-  polygonReveal: 0.45,
+  radarScanDuration: 3.2,
   overallReveal: 0.7,
   rippleCount: 3,
   rippleDuration: 0.9,
@@ -51,12 +49,10 @@ export function getTimeline(settings = DEFAULT_VIDEO_SETTINGS) {
   const infoStart = Math.round(fadeIn * 0.35);
   const infoStep = frames(value.infoStagger, fps);
   const infoEnd = infoStart + infoStep * 6 + frames(0.45, fps);
-  const axesStart = Math.max(fadeIn, infoEnd);
-  const axisStep = frames(value.radarAxisStep, fps);
-  const dataStart = axesStart + axisStep * 5 + frames(0.15, fps);
-  const dataStep = frames(value.radarDataStep, fps);
-  const polygonEnd = dataStart + dataStep * 5 + frames(value.polygonReveal, fps);
-  const overallStart = polygonEnd;
+  const radarStart = Math.max(fadeIn, infoEnd);
+  const radarDuration = frames(value.radarScanDuration, fps);
+  const radarEnd = radarStart + radarDuration;
+  const overallStart = radarEnd + frames(0.2, fps);
   const overallEnd = overallStart + frames(value.overallReveal, fps);
   const fadeOutStart = duration - fadeOut;
 
@@ -68,11 +64,9 @@ export function getTimeline(settings = DEFAULT_VIDEO_SETTINGS) {
     infoStart,
     infoStep,
     infoEnd,
-    axesStart,
-    axisStep,
-    dataStart,
-    dataStep,
-    polygonEnd,
+    radarStart,
+    radarDuration,
+    radarEnd,
     overallStart,
     overallEnd,
     holdFrames: fadeOutStart - overallEnd,
@@ -88,9 +82,10 @@ export function validateVideoSettings(settings) {
   if (![24, 25, 30, 50, 60].includes(Number(value.fps))) errors.push("FPS must be 24, 25, 30, 50, or 60.");
   if (!['mp4', 'png'].includes(value.format)) errors.push("Output format must be MP4 or PNG frames.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
+  if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");
   const nonNegativeFields = [
-    "fadeIn", "fadeOut", "infoStagger", "radarAxisStep", "radarDataStep",
-    "polygonReveal", "overallReveal", "rippleDuration", "rippleScale",
+    "fadeIn", "fadeOut", "infoStagger",
+    "overallReveal", "rippleDuration", "rippleScale",
     "commentScrollDelay", "commentScrollSpeed",
   ];
   if (nonNegativeFields.some(key => !Number.isFinite(value[key]) || value[key] < 0)) {
@@ -113,6 +108,16 @@ export function clampProgress(value) {
 
 export function totalDurationInFrames(studentCount, settings) {
   return Math.max(1, studentCount * getTimeline(settings).duration);
+}
+
+export function dimensionRevealProgress(scanProgress, index, count = 5) {
+  const threshold = index / count;
+  const revealWindow = 0.07;
+  return clamp01((scanProgress - threshold) / revealWindow);
+}
+
+export function dimensionScanFrame(timeline, index, count = 5) {
+  return timeline.radarStart + Math.round(timeline.radarDuration * (index / count));
 }
 
 export function estimateCommentScroll(notes, language = "zh", options = {}) {

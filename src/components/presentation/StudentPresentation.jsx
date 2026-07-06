@@ -12,6 +12,7 @@ import {
   TYPE_LABELS_BY_LOCALE,
   WEAPON_LABELS_BY_LOCALE,
   localeFor,
+  schoolLabel,
   t,
   terrainLabel,
 } from "../../utils/i18n.js";
@@ -30,10 +31,10 @@ export function studentPresentation(student, language) {
   };
 }
 
-export function StudentIdentity({ student, nameClassName, metaClassName, children }) {
+export function StudentIdentity({ student, language = "zh", nameClassName, metaClassName, children }) {
   return <>
     <div className={nameClassName}>{student.name}</div>
-    <div className={metaClassName}>{student.devName} · #{student.id}{student.school ? ` · ${student.school}` : ""}</div>
+    <div className={metaClassName}>{student.devName} · #{student.id}{student.school ? ` · ${schoolLabel(language, student.school)}` : ""}</div>
     {children}
   </>;
 }

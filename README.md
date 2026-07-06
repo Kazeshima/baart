@@ -73,7 +73,7 @@ The regular `npm run dev` server also exposes the render API. For direct composi
 npm run video:studio
 ```
 
-Video Studio loads ratings from local storage or imported rating JSON. A `.baart-video.json` project manifest snapshots normalized ratings, resolved student metadata, manual ordering, language, theme, timing, effects, resolution, and output settings for reproducible renders. Students can be sorted chronologically, by ID, by school, or by drag-and-drop manual order.
+Video Studio loads ratings from local storage or imported rating JSON. A `.baart-video.json` project manifest snapshots normalized ratings, resolved student metadata, manual ordering, language, theme, timing, effects, resolution, and output settings for reproducible renders. Students can be sorted chronologically, by overall score, by ID, by school, or by drag-and-drop manual order.
 
 MP4 and lossless PNG sequences support 720p, 1080p, and 4K output. PNG frames are rendered directly from the React composition with Remotion's [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API and are never extracted from an encoded video. This is the server-side equivalent of Remotion's documented [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) CLI mode. MP4 output uses `renderMedia()`. Generated files are written under the ignored `video-output/` directory. The first render may download Remotion's compatible Chrome for Testing build.
 

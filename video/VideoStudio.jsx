@@ -4,6 +4,7 @@ import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { SortableContext, arrayMove, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { LANG_URLS } from "../src/utils/constants.js";
+import { schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
 import ArenaRatingVideo from "./remotion/ArenaRatingVideo.jsx";
 import { DEFAULT_VIDEO_SETTINGS, getTimeline, totalDurationInFrames, validateVideoSettings } from "./core/config.js";
@@ -25,11 +26,11 @@ function NumberControl({ label, value, onChange, min = 0, max, step = 0.1 }) {
   return <label className="studio-control"><span>{label}</span><input type="number" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))} /></label>;
 }
 
-function SortableStudent({ record }) {
+function SortableStudent({ record, language }) {
   const id = String(record.student.id);
   const sortable = useSortable({ id });
   return <div ref={sortable.setNodeRef} className="studio-order-item" style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }} {...sortable.attributes} {...sortable.listeners}>
-    <span className="studio-order-handle">⋮⋮</span><span>{record.student.name}</span><small>#{record.student.id} · {record.student.school}</small>
+    <span className="studio-order-handle">⋮⋮</span><span>{record.student.name}</span><small>#{record.student.id} · {schoolLabel(language, record.student.school)}</small>
   </div>;
 }
 
@@ -226,9 +227,7 @@ export default function VideoStudio() {
           <NumberControl label={vt(language, "fadeIn")} value={settings.fadeIn} onChange={value => updateSetting("fadeIn", value)} />
           <NumberControl label={vt(language, "fadeOut")} value={settings.fadeOut} onChange={value => updateSetting("fadeOut", value)} />
           <NumberControl label={vt(language, "infoStagger")} value={settings.infoStagger} step={0.02} onChange={value => updateSetting("infoStagger", value)} />
-          <NumberControl label={vt(language, "radarAxisStep")} value={settings.radarAxisStep} step={0.02} onChange={value => updateSetting("radarAxisStep", value)} />
-          <NumberControl label={vt(language, "radarDataStep")} value={settings.radarDataStep} step={0.02} onChange={value => updateSetting("radarDataStep", value)} />
-          <NumberControl label={vt(language, "polygonReveal")} value={settings.polygonReveal} step={0.05} onChange={value => updateSetting("polygonReveal", value)} />
+          <NumberControl label={vt(language, "radarScanDuration")} value={settings.radarScanDuration} min={0.5} step={0.1} onChange={value => updateSetting("radarScanDuration", value)} />
           <NumberControl label={vt(language, "overallReveal")} value={settings.overallReveal} step={0.05} onChange={value => updateSetting("overallReveal", value)} />
         </section>
         <section className="studio-panel"><h2>{vt(language, "effects")}</h2>
@@ -241,9 +240,12 @@ export default function VideoStudio() {
           <NumberControl label={vt(language, "commentSpeed")} value={settings.commentScrollSpeed} step={2} onChange={value => updateSetting("commentScrollSpeed", value)} />
         </section>
         <section className="studio-panel"><h2>{vt(language, "order")}</h2>
-          <label className="studio-control"><span>{vt(language, "sort")}</span><select value={order.mode} onChange={event => setOrder(current => ({ ...current, mode: event.target.value }))}><option value="chronological">{vt(language, "chronological")}</option><option value="id">{vt(language, "studentId")}</option><option value="school">{vt(language, "school")}</option><option value="manual">{vt(language, "manual")}</option></select></label>
+          <label className="studio-control"><span>{vt(language, "sort")}</span><select value={order.mode} onChange={event => {
+            const mode = event.target.value;
+            setOrder(current => ({ ...current, mode, direction: mode === "score" ? "desc" : current.direction }));
+          }}><option value="chronological">{vt(language, "chronological")}</option><option value="score">{vt(language, "overallScore")}</option><option value="id">{vt(language, "studentId")}</option><option value="school">{vt(language, "school")}</option><option value="manual">{vt(language, "manual")}</option></select></label>
           <label className="studio-control"><span>{vt(language, "direction")}</span><select value={order.direction} onChange={event => setOrder(current => ({ ...current, direction: event.target.value }))}><option value="asc">{vt(language, "ascending")}</option><option value="desc">{vt(language, "descending")}</option></select></label>
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}><SortableContext items={ordered.map(record => String(record.student.id))} strategy={verticalListSortingStrategy}><div className="studio-order-list">{ordered.map(record => <SortableStudent key={record.student.id} record={record} />)}</div></SortableContext></DndContext>
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}><SortableContext items={ordered.map(record => String(record.student.id))} strategy={verticalListSortingStrategy}><div className="studio-order-list">{ordered.map(record => <SortableStudent key={record.student.id} record={record} language={language} />)}</div></SortableContext></DndContext>
         </section>
         <button className="studio-render-button" disabled={!project || !records.length || errors.length > 0 || activeRender} onClick={startRender}>{settings.format === "mp4" ? vt(language, "renderMp4") : vt(language, "renderPng")}</button>
       </aside>

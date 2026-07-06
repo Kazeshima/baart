@@ -29,6 +29,20 @@ export function sortRatingRecords(records, order = DEFAULT_ORDER) {
     });
     return result;
   }
+  if (config.mode === "score") {
+    const direction = config.direction === "desc" ? -1 : 1;
+    result.sort((a, b) => {
+      const aScore = Number(a.ratings.overallScore);
+      const bScore = Number(b.ratings.overallScore);
+      const aValid = a.ratings.overallScore !== null && a.ratings.overallScore !== undefined && Number.isFinite(aScore);
+      const bValid = b.ratings.overallScore !== null && b.ratings.overallScore !== undefined && Number.isFinite(bScore);
+      if (!aValid && !bValid) return byId(a, b);
+      if (!aValid) return 1;
+      if (!bValid) return -1;
+      return (aScore - bScore) * direction || byId(a, b);
+    });
+    return result;
+  }
   if (config.mode === "id") result.sort(byId);
   else if (config.mode === "school") {
     result.sort((a, b) => String(a.student.school || "").localeCompare(String(b.student.school || "")) || byId(a, b));

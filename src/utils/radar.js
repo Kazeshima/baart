@@ -13,17 +13,24 @@ export function radarPolygon(points) {
   return points.map(([x, y]) => `${x},${y}`).join(" ");
 }
 
-export function radarScanPolygon(progress, radius = RADAR_RADIUS * 1.5, spread = 24) {
+export function radarScanAngle(progress) {
   const normalized = Math.max(0, Math.min(1, Number(progress) || 0));
-  const angle = RADAR_ANGLES[0] + normalized * 360;
-  return radarPolygon([
-    [RADAR_CENTER, RADAR_CENTER],
-    radarPoint(angle - spread, radius),
-    radarPoint(angle + spread, radius),
-  ]);
+  return RADAR_ANGLES[0] + normalized * 360;
 }
 
-export function radarScanPoint(progress, radius = RADAR_RADIUS * 1.35, offsetDegrees = 0) {
-  const normalized = Math.max(0, Math.min(1, Number(progress) || 0));
-  return radarPoint(RADAR_ANGLES[0] + normalized * 360 + offsetDegrees, radius);
+export function radarScanTrail(progress, segments = 20, trailDegrees = 60, radius = RADAR_RADIUS) {
+  const angle = radarScanAngle(progress);
+  const step = trailDegrees / segments;
+  return Array.from({ length: segments }, (_, index) => ({
+    points: radarPolygon([
+      [RADAR_CENTER, RADAR_CENTER],
+      radarPoint(angle - index * step, radius),
+      radarPoint(angle - (index + 1) * step, radius),
+    ]),
+    opacity: ((segments - index) / segments) ** 2,
+  }));
+}
+
+export function radarScanPoint(progress, radius = RADAR_RADIUS, offsetDegrees = 0) {
+  return radarPoint(radarScanAngle(progress) + offsetDegrees, radius);
 }
