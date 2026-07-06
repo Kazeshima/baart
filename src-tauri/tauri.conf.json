@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "com.kazeshima.baart",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "devUrl": "http://localhost:1421",
+    "beforeDevCommand": "npm run desktop:dev",
+    "beforeBuildCommand": "npm run desktop:build",
+    "devUrl": "http://127.0.0.1:1421",
     "frontendDist": "../dist"
   },
   "app": {
@@ -32,6 +32,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": [
+      "binaries/baart-node"
+    ],
+    "resources": {
+      "generated/renderer/app/": "renderer/app/",
+      "generated/renderer/composition/": "renderer/composition/",
+      "generated/renderer/licenses/": "renderer/licenses/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

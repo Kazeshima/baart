@@ -12,7 +12,7 @@ import {
 } from "../video/core/config.js";
 import { createVideoProject, parseVideoProject, ratingsFromProjectRecords } from "../video/core/manifest.js";
 import { sortRatingRecords } from "../video/core/sorting.js";
-import { applyJobProgress, cancelJob, isActiveRenderStatus } from "../video/core/renderJob.js";
+import { applyJobProgress, browserDownloadPercent, cancelJob, isActiveRenderStatus } from "../video/core/renderJob.js";
 import { readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
 import { schoolLabel } from "../src/utils/i18n.js";
@@ -104,6 +104,8 @@ test("render job state clamps progress and cancellation is idempotent", () => {
   assert.equal(isActiveRenderStatus("encoding"), true);
   assert.equal(isActiveRenderStatus("complete"), false);
   assert.equal(clampProgress(Number.NaN), 0);
+  assert.equal(browserDownloadPercent(0.42), 42);
+  assert.equal(browserDownloadPercent(120), 100);
 });
 
 test("radar scan geometry and synchronized dimension reveals are deterministic", () => {
@@ -119,7 +121,7 @@ test("radar scan geometry and synchronized dimension reveals are deterministic",
 });
 
 test("school names localize without changing canonical English keys", () => {
-  assert.equal(schoolLabel("zh", "Millennium"), "千禧年");
+  assert.equal(schoolLabel("zh", "Millennium"), "千年科学学园");
   assert.equal(schoolLabel("zh", "WildHunt"), "狂猎艺术学院");
   assert.equal(schoolLabel("en", "Trinity"), "Trinity");
 });

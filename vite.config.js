@@ -7,7 +7,7 @@ import { renderApiPlugin } from "./video/render-api-plugin.mjs";
 const root = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig(({ command }) => ({
-  plugins: [react(), ...(command === "serve" ? [renderApiPlugin()] : [])],
+  plugins: [react(), ...(command !== "build" ? [renderApiPlugin()] : [])],
   clearScreen: false,
   server: { host: "127.0.0.1", port: 1421, strictPort: true, watch: { ignored: ["**/src-tauri/**"] } },
   envPrefix: ["VITE_", "TAURI_ENV_"],

@@ -24,6 +24,10 @@ button, input, select { font: inherit; }
 .studio-control input:focus, .studio-control select:focus { border-color: var(--accent-blue); }
 .studio-actions { display: flex; gap: 7px; }
 .studio-actions button { flex: 1; cursor: pointer; }
+.studio-output-location { display: grid; gap: 5px; color: var(--text-secondary); font-size: 12px; }
+.studio-output-location > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.studio-output-location code { min-width: 0; padding: 7px 8px; overflow: hidden; border: 1px solid var(--border); border-radius: 5px; color: var(--text-muted); background: var(--bg-card); font-family: var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.studio-output-location button { padding: 0 10px; border: 1px solid var(--border-bright); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: pointer; }
 .studio-order-list { max-height: 270px; overflow-y: auto; display: grid; gap: 5px; }
 .studio-order-item { min-height: 38px; padding: 5px 8px; display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: grab; touch-action: none; }
 .studio-order-item small { color: var(--text-muted); }

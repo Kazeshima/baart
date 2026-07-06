@@ -47,6 +47,8 @@ npm run dev
 npm run tauri dev
 ```
 
+在 Windows x64 上，Tauri 命令会自动准备独立渲染器：下载并校验固定版本的 Node.js 24.18.0，安装仅用于生产渲染的 Remotion 依赖，并预构建合成包。生成的运行时文件不会纳入 Git。
+
 构建 Web 生产版本：
 
 ```powershell
@@ -77,7 +79,11 @@ npm run video:studio
 
 雷达动画可分别调整机械扫描、数据点缓动展开和扫描后多边形显示的时长。默认扫描时长为 1.5 秒，每个维度会在扫描线经过对应轴时开始显示。
 
-MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令在服务端 API 中的对应方式。MP4 使用 `renderMedia()` 渲染。生成文件保存在已忽略的 `video-output/` 目录。首次渲染可能会下载 Remotion 兼容的 Chrome for Testing。
+MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令的程序化对应方式。MP4 使用 `renderMedia()` 渲染。
+
+在 Windows x64 桌面应用中，MP4 使用系统原生“另存为”对话框；PNG 图片序列使用系统文件夹对话框，并创建新的 `<名称>-frames` 子文件夹，不会覆盖已有序列。绝对保存路径仅保留在本机状态中，不会写入便携项目清单。首次渲染会下载 Remotion 兼容的 Chrome for Testing，之后复用缓存，因此首次渲染需要联网。
+
+浏览器开发模式使用本地主机渲染 API，并将结果写入已忽略的 `video-output/` 目录。`npm run dev` 和 `npm run video:preview` 都会提供该 API；若服务器错误返回 HTML 等非 JSON 内容，界面会显示明确的传输错误。
 
 无需打开控制面板也可渲染已保存项目：
 
@@ -85,7 +91,7 @@ MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 
 npm run video:render -- path\to\project.baart-video.json
 ```
 
-打包后的 Tauri 应用可预览和编辑视频工作室项目；Node 渲染仍需要本地主机开发服务运行。
+打包后的 Tauri 应用包含固定版本的 Node 运行时、Remotion 渲染模块、Windows 合成器二进制文件和预构建合成包，无需用户另行安装 Node.js，也无需运行本地主机服务即可渲染。目前独立渲染器仅支持 Windows x64，并会明显增加可执行文件和安装包体积。
 
 ## 评级数据
 

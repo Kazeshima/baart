@@ -47,6 +47,8 @@ Run the desktop application:
 npm run tauri dev
 ```
 
+On Windows x64, the Tauri command automatically prepares the standalone renderer: it downloads and verifies the pinned Node.js 24.18.0 runtime, installs production-only Remotion dependencies, and prebuilds the composition bundle. Generated runtime files are ignored by Git.
+
 Create a production web build:
 
 ```powershell
@@ -77,7 +79,11 @@ Video Studio loads ratings from local storage or imported rating JSON. A `.baart
 
 Radar timing controls independently configure the mechanical scan, eased point deployment, and post-scan polygon reveal. The default scan completes in 1.5 seconds, while each dimension starts revealing when the sweep reaches its axis.
 
-MP4 and lossless PNG sequences support 720p, 1080p, and 4K output. PNG frames are rendered directly from the React composition with Remotion's [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API and are never extracted from an encoded video. This is the server-side equivalent of Remotion's documented [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) CLI mode. MP4 output uses `renderMedia()`. Generated files are written under the ignored `video-output/` directory. The first render may download Remotion's compatible Chrome for Testing build.
+MP4 and lossless PNG sequences support 720p, 1080p, and 4K output. PNG frames are rendered directly from the React composition with Remotion's [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API and are never extracted from an encoded video. This is the programmatic equivalent of Remotion's documented [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) CLI mode. MP4 output uses `renderMedia()`.
+
+In the Windows x64 desktop application, MP4 uses a native Save As dialog. PNG sequence output uses a native folder dialog and creates a new `<name>-frames` folder without overwriting an existing sequence. Absolute destinations stay local to the machine and are not stored in portable project manifests. The first render downloads Remotion's compatible Chrome for Testing build and reuses the cached browser afterward, so the first render requires internet access.
+
+Browser development uses the localhost render API and writes to the ignored `video-output/` directory. Both `npm run dev` and `npm run video:preview` expose this API and reject non-JSON responses with a clear transport error.
 
 Render a saved project without the dashboard:
 
@@ -85,7 +91,7 @@ Render a saved project without the dashboard:
 npm run video:render -- path\to\project.baart-video.json
 ```
 
-The packaged Tauri application can preview and edit Video Studio projects. Node-based rendering requires the localhost development service to be running.
+The packaged Tauri application includes a pinned Node runtime, Remotion renderer modules, platform compositor binaries, and the prebuilt composition. It renders without a separately installed Node.js or localhost service. This standalone renderer currently targets Windows x64 and materially increases executable and installer size.
 
 ## Rating Data
 

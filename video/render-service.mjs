@@ -1,7 +1,6 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { bundle } from "@remotion/bundler";
 import { makeCancelSignal, renderFrames, renderMedia, selectComposition } from "@remotion/renderer";
 import { parseVideoProject } from "./core/manifest.js";
 import { clampProgress, validateVideoSettings } from "./core/config.js";
@@ -28,6 +27,7 @@ async function uniqueOutput(base, extension = "") {
 
 async function getBundle(onProgress) {
   if (!bundlePromise) {
+    const { bundle } = await import("@remotion/bundler");
     bundlePromise = bundle({
       entryPoint: path.join(videoDir, "remotion", "index.jsx"),
       onProgress: progress => onProgress?.(clampProgress(progress > 1 ? progress / 100 : progress) * 0.08),
@@ -46,7 +46,7 @@ function browserDownloadCallback(callbacks) {
   });
 }
 
-async function renderProject({ project, serveUrl, composition, inputProps, output, callbacks, cancellation }) {
+async function renderProject({ project, serveUrl, composition, inputProps, output, callbacks, cancellation, binariesDirectory }) {
   const frameCount = composition.durationInFrames;
   const scale = project.settings.width / 1920;
   const onBrowserDownload = browserDownloadCallback(callbacks);
@@ -55,6 +55,7 @@ async function renderProject({ project, serveUrl, composition, inputProps, outpu
       serveUrl, composition, inputProps, outputDir: output,
       imageFormat: "png", imageSequencePattern: "frame-[frame].[ext]",
       scale, concurrency: 1, chromeMode: "chrome-for-testing",
+      binariesDirectory,
       cancelSignal: cancellation.cancelSignal, onBrowserDownload,
       onStart: () => undefined,
       onFrameUpdate: rendered => callbacks.onProgress?.(clampProgress(0.08 + (rendered / frameCount) * 0.92)),
@@ -65,6 +66,7 @@ async function renderProject({ project, serveUrl, composition, inputProps, outpu
     serveUrl, composition, inputProps, outputLocation: output,
     codec: "h264", imageFormat: "png", pixelFormat: "yuv420p",
     scale, concurrency: 1, chromeMode: "chrome-for-testing",
+    binariesDirectory,
     cancelSignal: cancellation.cancelSignal, onBrowserDownload,
     overwrite: true, licenseKey: null, isProduction: true,
     onProgress: progress => {
@@ -75,7 +77,7 @@ async function renderProject({ project, serveUrl, composition, inputProps, outpu
   return output;
 }
 
-export async function renderVideoProject(rawProject, callbacks = {}) {
+export async function renderVideoProject(rawProject, callbacks = {}, options = {}) {
   const project = parseVideoProject(rawProject);
   const errors = validateVideoSettings(project.settings);
   if (errors.length) throw new Error(errors.join(" "));
@@ -88,18 +90,35 @@ export async function renderVideoProject(rawProject, callbacks = {}) {
     cancellation.cancel();
   });
   callbacks.onStatus?.("preparing");
-  const serveUrl = await getBundle(callbacks.onProgress);
+  const serveUrl = options.serveUrl || await getBundle(callbacks.onProgress);
   if (cancelled) throw new Error("Render cancelled.");
   const inputProps = { project };
-  const composition = await selectComposition({ serveUrl, id: "ArenaRatingVideo", inputProps, chromeMode: "chrome-for-testing" });
+  const composition = await selectComposition({
+    serveUrl,
+    id: "ArenaRatingVideo",
+    inputProps,
+    chromeMode: "chrome-for-testing",
+    binariesDirectory: options.binariesDirectory,
+  });
   if (cancelled) throw new Error("Render cancelled.");
 
   callbacks.onStatus?.("rendering");
   const base = safeName(project.settings.outputName);
-  const output = project.settings.format === "png"
+  const output = options.outputLocation || (project.settings.format === "png"
     ? await uniqueOutput(`${base}-frames`)
-    : await uniqueOutput(base, ".mp4");
-  const result = await renderProject({ project, serveUrl, composition, inputProps, output, callbacks, cancellation });
+    : await uniqueOutput(base, ".mp4"));
+  if (project.settings.format === "png") await fs.mkdir(output, { recursive: true });
+  else await fs.mkdir(path.dirname(output), { recursive: true });
+  const result = await renderProject({
+    project,
+    serveUrl,
+    composition,
+    inputProps,
+    output,
+    callbacks,
+    cancellation,
+    binariesDirectory: options.binariesDirectory,
+  });
   callbacks.onProgress?.(1);
   return result;
 }

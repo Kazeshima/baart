@@ -13,7 +13,10 @@
     "video:studio": "remotion studio video/remotion/index.jsx",
     "video:render": "node video/render-cli.mjs",
     "video:smoke": "node video/smoke-render.mjs",
-    "video:compositions": "remotion compositions video/remotion/index.jsx"
+    "video:compositions": "remotion compositions video/remotion/index.jsx",
+    "renderer:prepare": "node scripts/prepare-renderer-runtime.mjs",
+    "desktop:dev": "npm run renderer:prepare && npm run dev",
+    "desktop:build": "npm run renderer:prepare && npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

@@ -18,6 +18,13 @@ import {
 import { DEFAULT_ORDER } from "./core/sorting.js";
 import { vt } from "./core/i18n.js";
 import { isActiveRenderStatus } from "./core/renderJob.js";
+import {
+  cancelRenderJob,
+  chooseRenderOutput,
+  getRenderJob,
+  startRenderJob,
+  usesTauriRenderTransport,
+} from "./render-client.js";
 
 const RATINGS_KEY = "ba_pvp_ratings";
 const PROJECT_KEY = "baart_video_project_settings";
@@ -56,6 +63,7 @@ export default function VideoStudio() {
   const [snapshotRecords, setSnapshotRecords] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [renderJob, setRenderJob] = useState(null);
+  const [outputLocation, setOutputLocation] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
   const playerRef = useRef(null);
   const importRef = useRef(null);
@@ -127,6 +135,7 @@ export default function VideoStudio() {
         setSnapshotRecords(imported.records);
         setSettings(imported.settings);
         setOrder(imported.order);
+        setOutputLocation("");
       } else {
         setSnapshotRecords(null);
         setRatingsSource(parsed);
@@ -151,12 +160,15 @@ export default function VideoStudio() {
   const startRender = async () => {
     if (!project) return;
     try {
-      const response = await fetch("/api/render", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ project }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Render could not start");
-      setRenderJob(result);
+      let destination = outputLocation;
+      if (usesTauriRenderTransport() && !destination) {
+        destination = await chooseRenderOutput(settings.format, settings.outputName);
+        if (!destination) return;
+        setOutputLocation(destination);
+      }
+      setRenderJob(await startRenderJob(project, destination));
     } catch (error) {
-      const message = error instanceof TypeError ? vt(language, "renderUnavailable") : String(error);
+      const message = error instanceof TypeError ? vt(language, "renderUnavailable") : (error instanceof Error ? error.message : String(error));
       setRenderJob({ status: "error", error: message, progress: 0 });
     }
   };
@@ -165,19 +177,36 @@ export default function VideoStudio() {
     if (!renderJob?.id || !isActiveRenderStatus(renderJob.status)) return undefined;
     const timer = setInterval(async () => {
       try {
-        const response = await fetch(`/api/render/${renderJob.id}`);
-        if (response.ok) setRenderJob(await response.json());
-      } catch {
-        setRenderJob(current => ({ ...current, status: "error", error: vt(language, "renderUnavailable") }));
+        const result = await getRenderJob(renderJob.id);
+        if (result) setRenderJob(result);
+      } catch (error) {
+        setRenderJob(current => ({ ...current, status: "error", error: error instanceof Error ? error.message : vt(language, "renderUnavailable") }));
       }
     }, 750);
     return () => clearInterval(timer);
   }, [language, renderJob?.id, renderJob?.status]);
 
+  useEffect(() => {
+    if (usesTauriRenderTransport() && renderJob?.status === "complete") setOutputLocation("");
+  }, [renderJob?.status]);
+
   const cancelRender = async () => {
     if (!renderJob?.id) return;
-    const response = await fetch(`/api/render/${renderJob.id}/cancel`, { method: "POST" });
-    if (response.ok) setRenderJob(await response.json());
+    try {
+      const result = await cancelRenderJob(renderJob.id);
+      if (result) setRenderJob(result);
+    } catch (error) {
+      setRenderJob(current => ({ ...current, status: "error", error: error instanceof Error ? error.message : String(error) }));
+    }
+  };
+
+  const chooseDestination = async () => {
+    try {
+      const destination = await chooseRenderOutput(settings.format, settings.outputName);
+      if (destination) setOutputLocation(destination);
+    } catch (error) {
+      setRenderJob({ status: "error", error: error instanceof Error ? error.message : String(error), progress: 0 });
+    }
   };
 
   const statusLabel = renderJob ? vt(language, renderJob.status) : "";
@@ -211,8 +240,9 @@ export default function VideoStudio() {
         <section className="studio-panel"><h2>{vt(language, "output")}</h2>
           <label className="studio-control"><span>{vt(language, "preset")}</span><select value={`${settings.width}x${settings.height}`} onChange={event => { const [width, height] = event.target.value.split("x").map(Number); setSettings(current => ({ ...current, width, height })); }}><option value="1920x1080">1080p</option><option value="3840x2160">4K</option><option value="1280x720">720p</option></select></label>
           <label className="studio-control"><span>FPS</span><select value={settings.fps} onChange={event => updateSetting("fps", Number(event.target.value))}>{[24, 25, 30, 50, 60].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label className="studio-control"><span>{vt(language, "format")}</span><select value={settings.format} onChange={event => updateSetting("format", event.target.value)}><option value="mp4">MP4</option><option value="png">PNG</option></select></label>
-          <label className="studio-control"><span>{vt(language, "filename")}</span><input value={settings.outputName} onChange={event => updateSetting("outputName", event.target.value)} /></label>
+          <label className="studio-control"><span>{vt(language, "format")}</span><select value={settings.format} onChange={event => { updateSetting("format", event.target.value); setOutputLocation(""); }}><option value="mp4">MP4</option><option value="png">{vt(language, "pngSequence")}</option></select></label>
+          <label className="studio-control"><span>{vt(language, "filename")}</span><input value={settings.outputName} onChange={event => { updateSetting("outputName", event.target.value); setOutputLocation(""); }} /></label>
+          <div className="studio-output-location"><span>{vt(language, "outputLocation")}</span><div><code title={outputLocation}>{outputLocation || (usesTauriRenderTransport() ? vt(language, "notSelected") : vt(language, "developmentOutput"))}</code>{usesTauriRenderTransport() ? <button type="button" onClick={chooseDestination}>{vt(language, "chooseOutput")}</button> : null}</div></div>
         </section>
         <section className="studio-panel"><h2>{vt(language, "presentation")}</h2>
           <label className="studio-control"><span>{vt(language, "theme")}</span><select value={settings.theme} onChange={event => updateSetting("theme", event.target.value)}><option value="dark">{vt(language, "night")}</option><option value="light">{vt(language, "day")}</option></select></label>

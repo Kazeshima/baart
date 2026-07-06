@@ -15,3 +15,7 @@ Thumbs.db
 /video-output/
 .remotion/
 /.tmp/
+/.cache/
+/src-tauri/binaries/baart-node-*.exe
+/src-tauri/generated/
+/video/sidecar/node_modules/
