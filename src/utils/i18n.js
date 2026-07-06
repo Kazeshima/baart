@@ -195,10 +195,10 @@ export const TERRAIN_LABELS_BY_LOCALE = {
 
 export const SCHOOL_LABELS_BY_LOCALE = {
   zh: {
-    Abydos: "阿拜多斯", Arius: "阿里乌斯", ETC: "其他", Gehenna: "格黑娜",
-    Highlander: "海兰德", Hyakkiyako: "百鬼夜行", Millennium: "千禧年", RedWinter: "赤冬",
-    SRT: "SRT特殊学园", Sakugawa: "栅川中学", Shanhaijing: "山海经", Tokiwadai: "常盘台",
-    Trinity: "圣三一", Valkyrie: "瓦尔基里", WildHunt: "狂猎艺术学院",
+    Abydos: "阿拜多斯高级中学", Arius: "阿里乌斯分校", ETC: "其他", Gehenna: "格黑娜学园",
+    Highlander: "海兰德铁道学园", Hyakkiyako: "百鬼夜行联合学园", Millennium: "千年科学学园", RedWinter: "红冬联邦学园",
+    SRT: "SRT特殊学园", Sakugawa: "栅川中学", Shanhaijing: "山海经高级中学", Tokiwadai: "常盘台中学",
+    Trinity: "三一综合学园", Valkyrie: "瓦尔基里警察学校", WildHunt: "狂猎艺术学院",
   },
   en: {},
 };
