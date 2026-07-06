@@ -1,16 +1,33 @@
 import React from "react";
-import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { Easing, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import RadarChart from "../../src/components/RadarChart.jsx";
 import { DIMENSIONS, TIER_SCORES, TIER_COLORS } from "../../src/utils/constants.js";
 import { RADAR_ANGLES, RADAR_RADIUS, radarPoint } from "../../src/utils/radar.js";
-import { dimensionRevealProgress, dimensionScanFrame, getTimeline, phaseProgress } from "../core/config.js";
+import { dimensionScanFrame, getTimeline, phaseProgress } from "../core/config.js";
 
 export default function AnimatedRadar({ ratings, language, settings, size = 570 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const timeline = getTimeline({ ...settings, fps });
   const scanProgress = phaseProgress(frame, timeline.radarStart, timeline.radarDuration);
-  const dataProgress = DIMENSIONS.map((_, index) => dimensionRevealProgress(scanProgress, index, DIMENSIONS.length));
+  const dataProgress = DIMENSIONS.map((_, index) => {
+    const start = dimensionScanFrame(timeline, index, DIMENSIONS.length);
+    return interpolate(frame, [start, start + timeline.pointDuration], [0, 1], {
+      easing: Easing.bezier(0.65, 0, 0.35, 1),
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+  });
+  const polygonProgress = interpolate(frame, [timeline.polygonStart, timeline.polygonEnd], [0, 1], {
+    easing: Easing.bezier(0.16, 1, 0.3, 1),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const polygonOpacity = interpolate(frame, [timeline.polygonStart, timeline.polygonStart + Math.max(1, timeline.polygonDuration * 0.7)], [0, 1], {
+    easing: Easing.out(Easing.cubic),
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
   const ringProgress = phaseProgress(frame, timeline.radarStart - Math.round(fps * 0.35), Math.round(fps * 0.5));
   const axisProgress = DIMENSIONS.map(() => ringProgress);
   const beamOpacity = frame >= timeline.radarStart && frame <= timeline.radarEnd ? settings.scanBeamIntensity : 0;
@@ -24,8 +41,11 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
         axisProgress={axisProgress}
         dataProgress={dataProgress}
         ringProgress={ringProgress}
+        polygonProgress={polygonProgress}
+        polygonOpacity={polygonOpacity}
         scanProgress={scanProgress}
         scanBeamIntensity={beamOpacity}
+        labelColor={settings.theme === "light" ? "#53677e" : "#8da4be"}
       />
       <svg className="video-radar__ripples" viewBox="0 0 420 420">
         {DIMENSIONS.flatMap((dimension, index) => {
@@ -33,7 +53,7 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
           if (tier !== "S" && tier !== "A") return [];
           const score = TIER_SCORES[tier];
           const [x, y] = radarPoint(RADAR_ANGLES[index], RADAR_RADIUS * score / 5);
-          const start = dimensionScanFrame(timeline, index, DIMENSIONS.length) + Math.round(timeline.radarDuration * 0.07);
+          const start = dimensionScanFrame(timeline, index, DIMENSIONS.length) + timeline.pointDuration;
           return Array.from({ length: settings.rippleCount }, (_, rippleIndex) => {
             const delay = rippleIndex * Math.round(fps * 0.13);
             const rippleFrames = Math.max(1, Math.round(settings.rippleDuration * fps));

@@ -7,21 +7,21 @@ import {
 
 const SIZE = RADAR_VIEWBOX;
 
-function LabelText({ label, x, y, color, score, resultProgress = 1 }) {
+function LabelText({ label, x, y, labelColor, scoreColor, score, resultProgress = 1 }) {
   const isLongZh = /进攻对策性|特防对策性/.test(label);
   if (isLongZh) {
     return (
-      <text x={x} y={y - 7} textAnchor="middle" fill={color} fontSize={14} fontFamily="Rajdhani, Noto Sans SC, sans-serif" fontWeight={800}>
+      <text x={x} y={y - 10} textAnchor="middle" fill={labelColor} fontSize={17} fontFamily="Rajdhani, Noto Sans SC, sans-serif" fontWeight={800}>
         <tspan x={x}>{label.slice(0, 2)}</tspan>
-        <tspan x={x} dy="15">{label.slice(2)}</tspan>
-        {score && <tspan x={x} dy="16" fontSize={15} opacity={resultProgress}>{score}</tspan>}
+        <tspan x={x} dy="18">{label.slice(2)}</tspan>
+        {score && <tspan x={x} dy="20" fill={scoreColor} fontSize={20} opacity={resultProgress}>{score}</tspan>}
       </text>
     );
   }
   return (
-    <text x={x} y={y - 5} textAnchor="middle" fill={color} fontSize={14} fontFamily="Rajdhani, Noto Sans SC, sans-serif" fontWeight={800}>
+    <text x={x} y={y - 7} textAnchor="middle" fill={labelColor} fontSize={17} fontFamily="Rajdhani, Noto Sans SC, sans-serif" fontWeight={800}>
       {label}
-      {score && <tspan x={x} dy="16" fontSize={15} opacity={resultProgress}>{score}</tspan>}
+      {score && <tspan x={x} dy="20" fill={scoreColor} fontSize={20} opacity={resultProgress}>{score}</tspan>}
     </text>
   );
 }
@@ -33,22 +33,31 @@ export default function RadarChart({
   axisProgress = [1, 1, 1, 1, 1],
   dataProgress = [1, 1, 1, 1, 1],
   ringProgress = 1,
+  polygonProgress = 1,
+  polygonOpacity = 1,
   scanProgress = null,
   scanBeamIntensity = 0,
+  labelColor = "var(--text-secondary)",
 }) {
   const labels = DIMENSION_LABELS[localeFor(language)] || DIMENSION_LABELS.zh;
 
   // Data polygon
-  const dataPoints = DIMENSIONS.map((d, i) => {
+  const targetPoints = DIMENSIONS.map((d, i) => {
     const score = ratings[d.key] !== null ? TIER_SCORES[ratings[d.key]] : 0;
     const frac  = score / 5;
-    const [targetX, targetY] = radarPoint(RADAR_ANGLES[i], RADAR_RADIUS * frac);
+    return radarPoint(RADAR_ANGLES[i], RADAR_RADIUS * frac);
+  });
+  const dataPoints = targetPoints.map(([targetX, targetY], i) => {
     const progress = dataProgress[i] ?? 1;
     return [
       RADAR_CENTER + (targetX - RADAR_CENTER) * progress,
       RADAR_CENTER + (targetY - RADAR_CENTER) * progress,
     ];
   });
+  const polygonPoints = targetPoints.map(([targetX, targetY]) => [
+    RADAR_CENTER + (targetX - RADAR_CENTER) * polygonProgress,
+    RADAR_CENTER + (targetY - RADAR_CENTER) * polygonProgress,
+  ]);
 
   const fillColor = ratings.overall !== null && ratings.overall !== undefined
     ? OVERALL_COLORS[ratings.overall]
@@ -104,11 +113,12 @@ export default function RadarChart({
 
       {/* Data polygon */}
       <polygon
-        points={radarPolygon(dataPoints)}
+        points={radarPolygon(polygonPoints)}
         fill={`${fillColor}30`}
         stroke={fillColor}
         strokeWidth={2}
         strokeLinejoin="round"
+        opacity={polygonOpacity}
       />
 
       {/* Data points */}
@@ -129,7 +139,7 @@ export default function RadarChart({
         return (
           <g key={i}>
             <g opacity={dataProgress[i] ?? 1}>
-              <LabelText label={labels[d.key][0]} x={x} y={y} color={tierColor} score={score} resultProgress={dataProgress[i] ?? 1} />
+              <LabelText label={labels[d.key][0]} x={x} y={y} labelColor={labelColor} scoreColor={tierColor} score={score} resultProgress={dataProgress[i] ?? 1} />
             </g>
           </g>
         );

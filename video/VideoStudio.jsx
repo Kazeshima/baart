@@ -228,6 +228,8 @@ export default function VideoStudio() {
           <NumberControl label={vt(language, "fadeOut")} value={settings.fadeOut} onChange={value => updateSetting("fadeOut", value)} />
           <NumberControl label={vt(language, "infoStagger")} value={settings.infoStagger} step={0.02} onChange={value => updateSetting("infoStagger", value)} />
           <NumberControl label={vt(language, "radarScanDuration")} value={settings.radarScanDuration} min={0.5} step={0.1} onChange={value => updateSetting("radarScanDuration", value)} />
+          <NumberControl label={vt(language, "radarPointDuration")} value={settings.radarPointDuration} min={0.1} step={0.05} onChange={value => updateSetting("radarPointDuration", value)} />
+          <NumberControl label={vt(language, "radarPolygonDuration")} value={settings.radarPolygonDuration} min={0.1} step={0.05} onChange={value => updateSetting("radarPolygonDuration", value)} />
           <NumberControl label={vt(language, "overallReveal")} value={settings.overallReveal} step={0.05} onChange={value => updateSetting("overallReveal", value)} />
         </section>
         <section className="studio-panel"><h2>{vt(language, "effects")}</h2>

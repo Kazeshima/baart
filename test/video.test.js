@@ -4,7 +4,6 @@ import test from "node:test";
 import {
   DEFAULT_VIDEO_SETTINGS,
   clampProgress,
-  dimensionRevealProgress,
   dimensionScanFrame,
   estimateCommentScroll,
   getTimeline,
@@ -26,6 +25,11 @@ const ids = values => values.map(record => record.student.id);
 test("timeline assigns every student the same frame count", () => {
   const timeline = getTimeline(DEFAULT_VIDEO_SETTINGS);
   assert.equal(timeline.duration, 360);
+  assert.equal(timeline.radarDuration, 45);
+  assert.equal(timeline.pointDuration, 14);
+  assert.equal(timeline.polygonDuration, 17);
+  assert.ok(timeline.polygonStart >= timeline.radarEnd);
+  assert.ok(timeline.polygonStart >= timeline.radarDataEnd);
   assert.equal(totalDurationInFrames(3, DEFAULT_VIDEO_SETTINGS), timeline.duration * 3);
   assert.ok(timeline.overallEnd <= timeline.fadeOutStart);
 });
@@ -66,6 +70,8 @@ test("video project manifests validate and retain reproducible records", () => {
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, format: "gif" } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, width: 1000, height: 1000 } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, rippleOpacity: 2 } }));
+  assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, radarPointDuration: 0 } }));
+  assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, radarPolygonDuration: 0 } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, uiLanguage: "jp" } }));
 });
 
@@ -108,8 +114,6 @@ test("radar scan geometry and synchronized dimension reveals are deterministic",
     assert.ok(trail.every(segment => segment.points.split(" ").flatMap(point => point.split(",").map(Number)).every(Number.isFinite)));
     assert.ok(radarScanPoint(progress).every(Number.isFinite));
   }
-  assert.equal(dimensionRevealProgress(0.19, 1), 0);
-  assert.ok(dimensionRevealProgress(0.24, 1) > 0);
   assert.equal(dimensionScanFrame(timeline, 0), timeline.radarStart);
   assert.equal(dimensionScanFrame(timeline, 4), timeline.radarStart + Math.round(timeline.radarDuration * 0.8));
 });

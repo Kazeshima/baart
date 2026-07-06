@@ -32,7 +32,11 @@ export default function StudentScene({ record, settings }) {
     phaseProgress(frame, 0, timeline.fadeIn),
     1 - phaseProgress(frame, timeline.fadeOutStart, timeline.fadeOut || 1),
   );
-  const scroll = estimateCommentScroll(ratings.notes, settings.uiLanguage);
+  const scroll = estimateCommentScroll(ratings.notes, settings.uiLanguage, {
+    charsPerLine: settings.uiLanguage === "en" ? 42 : 24,
+    lineHeight: 42,
+    viewportHeight: 378,
+  });
   const scrollStart = timeline.overallEnd + Math.round(settings.commentScrollDelay * fps);
   const scrollY = Math.min(scroll.distance, Math.max(0, frame - scrollStart) / fps * settings.commentScrollSpeed);
 
@@ -59,14 +63,14 @@ export default function StudentScene({ record, settings }) {
       </section>
 
       <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2)}>
-        <div className="video-section-label">{t(settings.uiLanguage, "notes")}</div>
+        <div className="video-section-label">{t(settings.uiLanguage, "comments")}</div>
         <div className="video-comments__viewport">
           <div className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{ratings.notes || "—"}</div>
         </div>
       </section>
 
       <section className="video-radar-panel" style={enterStyle(frame, timeline.radarStart - Math.round(fps * 0.25), Math.round(fps * 0.5), 18)}>
-        <AnimatedRadar ratings={ratings} language={settings.uiLanguage} settings={settings} size={540} />
+        <AnimatedRadar ratings={ratings} language={settings.uiLanguage} settings={settings} size={620} />
         <div className="video-weights">
           <span className="video-weights__label">{t(settings.uiLanguage, "weightsUsed")}</span>
           {DIMENSIONS.map(({ key }) => <span key={key}>{dimensionLabels[key][0]} <strong>×{weightMultiplier(ratings.dimensionWeights?.[key])}</strong></span>)}

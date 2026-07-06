@@ -10,7 +10,9 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   fadeIn: 0.7,
   fadeOut: 0.7,
   infoStagger: 0.14,
-  radarScanDuration: 3.2,
+  radarScanDuration: 1.5,
+  radarPointDuration: 0.45,
+  radarPolygonDuration: 0.55,
   overallReveal: 0.7,
   rippleCount: 3,
   rippleDuration: 0.9,
@@ -52,7 +54,13 @@ export function getTimeline(settings = DEFAULT_VIDEO_SETTINGS) {
   const radarStart = Math.max(fadeIn, infoEnd);
   const radarDuration = frames(value.radarScanDuration, fps);
   const radarEnd = radarStart + radarDuration;
-  const overallStart = radarEnd + frames(0.2, fps);
+  const pointDuration = frames(value.radarPointDuration, fps);
+  const lastPointStart = radarStart + Math.round(radarDuration * (4 / 5));
+  const radarDataEnd = lastPointStart + pointDuration;
+  const polygonStart = Math.max(radarEnd, radarDataEnd);
+  const polygonDuration = frames(value.radarPolygonDuration, fps);
+  const polygonEnd = polygonStart + polygonDuration;
+  const overallStart = polygonEnd + frames(0.2, fps);
   const overallEnd = overallStart + frames(value.overallReveal, fps);
   const fadeOutStart = duration - fadeOut;
 
@@ -67,6 +75,11 @@ export function getTimeline(settings = DEFAULT_VIDEO_SETTINGS) {
     radarStart,
     radarDuration,
     radarEnd,
+    pointDuration,
+    radarDataEnd,
+    polygonStart,
+    polygonDuration,
+    polygonEnd,
     overallStart,
     overallEnd,
     holdFrames: fadeOutStart - overallEnd,
@@ -83,6 +96,8 @@ export function validateVideoSettings(settings) {
   if (!['mp4', 'png'].includes(value.format)) errors.push("Output format must be MP4 or PNG frames.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
   if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");
+  if (!Number.isFinite(value.radarPointDuration) || value.radarPointDuration <= 0) errors.push("Radar point duration must be positive.");
+  if (!Number.isFinite(value.radarPolygonDuration) || value.radarPolygonDuration <= 0) errors.push("Radar polygon duration must be positive.");
   const nonNegativeFields = [
     "fadeIn", "fadeOut", "infoStagger",
     "overallReveal", "rippleDuration", "rippleScale",
@@ -108,12 +123,6 @@ export function clampProgress(value) {
 
 export function totalDurationInFrames(studentCount, settings) {
   return Math.max(1, studentCount * getTimeline(settings).duration);
-}
-
-export function dimensionRevealProgress(scanProgress, index, count = 5) {
-  const threshold = index / count;
-  const revealWindow = 0.07;
-  return clamp01((scanProgress - threshold) / revealWindow);
 }
 
 export function dimensionScanFrame(timeline, index, count = 5) {

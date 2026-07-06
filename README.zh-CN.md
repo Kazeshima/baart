@@ -75,6 +75,8 @@ npm run video:studio
 
 视频工作室可从本地存储或评级 JSON 读取数据。`.baart-video.json` 项目清单会保存标准化评级、已解析的学生资料、手动顺序、语言、主题、时间、特效、分辨率和输出设置，以便重复生成相同结果。学生可按评级时间、综合分、ID、学校分组排序，也可拖放手动排序。
 
+雷达动画可分别调整机械扫描、数据点缓动展开和扫描后多边形显示的时长。默认扫描时长为 1.5 秒，每个维度会在扫描线经过对应轴时开始显示。
+
 MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令在服务端 API 中的对应方式。MP4 使用 `renderMedia()` 渲染。生成文件保存在已忽略的 `video-output/` 目录。首次渲染可能会下载 Remotion 兼容的 Chrome for Testing。
 
 无需打开控制面板也可渲染已保存项目：

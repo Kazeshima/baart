@@ -18,6 +18,8 @@ export const videoSettingsSchema = z.object({
   fadeOut: finiteNonNegative,
   infoStagger: finiteNonNegative,
   radarScanDuration: z.number().finite().positive(),
+  radarPointDuration: z.number().finite().positive(),
+  radarPolygonDuration: z.number().finite().positive(),
   overallReveal: finiteNonNegative,
   rippleCount: z.number().int().min(0).max(6),
   rippleDuration: finiteNonNegative,
