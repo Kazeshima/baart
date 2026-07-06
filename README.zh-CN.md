@@ -17,6 +17,7 @@
 - 将所有已评级学生批量导出为 ZIP。
 - 支持简体中文、英文以及深色、浅色主题。
 - 通过 Tauri 使用 Windows 原生文件对话框。
+- 提供可配置的 Remotion 视频工作室，以 16:9 竞技场攻略形式预览和渲染全部已评级学生。
 
 ## 技术栈
 
@@ -57,6 +58,32 @@ npm run build
 ```powershell
 npm run tauri build
 ```
+
+## 视频工作室
+
+启动评级工具、视频工作室和本地渲染 API：
+
+```powershell
+npm run video:preview
+```
+
+普通的 `npm run dev` 也会提供渲染 API。如需直接在 Remotion Studio 中检查合成，可运行：
+
+```powershell
+npm run video:studio
+```
+
+视频工作室可从本地存储或评级 JSON 读取数据。`.baart-video.json` 项目清单会保存标准化评级、已解析的学生资料、手动顺序、语言、主题、时间、特效、分辨率和输出设置，以便重复生成相同结果。学生可按评级时间、ID、学校分组排序，也可拖放手动排序。
+
+MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令在服务端 API 中的对应方式。MP4 使用 `renderMedia()` 渲染。生成文件保存在已忽略的 `video-output/` 目录。首次渲染可能会下载 Remotion 兼容的 Chrome for Testing。
+
+无需打开控制面板也可渲染已保存项目：
+
+```powershell
+npm run video:render -- path\to\project.baart-video.json
+```
+
+打包后的 Tauri 应用可预览和编辑视频工作室项目；Node 渲染仍需要本地主机开发服务运行。
 
 ## 评级数据
 
