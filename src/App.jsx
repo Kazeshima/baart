@@ -7,45 +7,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import StudentInfo from "./components/StudentInfo.jsx";
 import RatingPanel from "./components/RatingPanel.jsx";
 import OverallRating from "./components/OverallRating.jsx";
-
-function parseStudents(raw) {
-  const applyWeaponAdaptation = (student, terrainKey, baseValue) => {
-    const weapon = student.Weapon || {};
-    if (weapon.AdaptationType !== terrainKey || typeof weapon.AdaptationValue !== "number") {
-      return undefined;
-    }
-    return Math.min(5, (baseValue ?? 0) + weapon.AdaptationValue);
-  };
-
-  return Object.values(raw)
-    .filter(s => s.IsReleased?.[0] === true)
-    .map(s => ({
-      id:           s.Id,
-      name:         s.Name || s.DevName,
-      devName:      s.DevName,
-      school:       s.School,
-      squadType:    s.SquadType,
-      tacticRole:   s.TacticRole,
-      position:     s.Position,
-      bulletType:   s.BulletType,
-      armorType:    s.ArmorType,
-      weaponType:   s.WeaponType,
-      range:        s.Range,
-      cover:        s.Cover,
-      equipment:    s.Equipment || [],
-      streetAdapt:  s.StreetBattleAdaptation,
-      outdoorAdapt: s.OutdoorBattleAdaptation,
-      indoorAdapt:  s.IndoorBattleAdaptation,
-      // UE50 terrain upgrade is stored in SchaleDB's Weapon.AdaptationType/Value.
-      ueStreetAdapt:  s.StreetBattleAdaptationAfterUG ?? applyWeaponAdaptation(s, "Street", s.StreetBattleAdaptation),
-      ueOutdoorAdapt: s.OutdoorBattleAdaptationAfterUG ?? applyWeaponAdaptation(s, "Outdoor", s.OutdoorBattleAdaptation),
-      ueIndoorAdapt:  s.IndoorBattleAdaptationAfterUG ?? applyWeaponAdaptation(s, "Indoor", s.IndoorBattleAdaptation),
-      weaponAdaptationType: s.Weapon?.AdaptationType,
-      weaponAdaptationValue: s.Weapon?.AdaptationValue,
-      starGrade:    s.StarGrade,
-    }))
-    .sort((a, b) => a.id - b.id);
-}
+import { parseStudents } from "./utils/students.js";
 
 export default function App() {
   const {
@@ -194,6 +156,9 @@ export default function App() {
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={() => { window.location.href = "./video.html"; }} title={t(uiLanguage, "videoStudio")}>
+            {t(uiLanguage, "videoStudio")}
+          </button>
           {selectedStudent && (
             <>
             <button className="btn btn-gold" onClick={() => exportCard("compact", "svg")} title={t(uiLanguage, "compactCard")}>

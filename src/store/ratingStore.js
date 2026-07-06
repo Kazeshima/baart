@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { DEFAULT_RATINGS } from "../utils/constants.js";
 import { recalculateRatings } from "../utils/scoring.js";
+import { timestampRating } from "../utils/ratingTimestamps.js";
 
 const LS_LANG = "ba_rating_lang";
 const LS_UI_LANG = "ba_rating_ui_lang";
@@ -137,8 +138,9 @@ export const useRatingStore = create((set, get) => ({
     const s = get();
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
+    const isNew = !Object.hasOwn(s.allRatings, id);
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = recalculateRatings({ ...existing, [dim]: tier });
+    const updated = timestampRating(recalculateRatings({ ...existing, [dim]: tier }), isNew);
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     // Auto-save on every change
@@ -149,8 +151,9 @@ export const useRatingStore = create((set, get) => ({
     const s = get();
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
+    const isNew = !Object.hasOwn(s.allRatings, id);
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = recalculateRatings({ ...existing, overall: tier, overallAuto: false });
+    const updated = timestampRating(recalculateRatings({ ...existing, overall: tier, overallAuto: false }), isNew);
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     saveRatings(allRatings);
@@ -160,8 +163,9 @@ export const useRatingStore = create((set, get) => ({
     const s = get();
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
+    const isNew = !Object.hasOwn(s.allRatings, id);
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = recalculateRatings({ ...existing, overallAuto: auto });
+    const updated = timestampRating(recalculateRatings({ ...existing, overallAuto: auto }), isNew);
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     saveRatings(allRatings);
@@ -171,11 +175,12 @@ export const useRatingStore = create((set, get) => ({
     const s = get();
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
+    const isNew = !Object.hasOwn(s.allRatings, id);
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = recalculateRatings({
+    const updated = timestampRating(recalculateRatings({
       ...existing,
       dimensionWeights: { ...existing.dimensionWeights, [dimension]: weight },
-    });
+    }), isNew);
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     saveRatings(allRatings);
@@ -187,8 +192,9 @@ export const useRatingStore = create((set, get) => ({
     const s = get();
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
+    const isNew = !Object.hasOwn(s.allRatings, id);
     const existing = normalizeRatings(s.allRatings[id] || {});
-    const updated = { ...existing, notes };
+    const updated = timestampRating({ ...existing, notes }, isNew);
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
     saveRatings(allRatings);

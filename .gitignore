@@ -11,3 +11,7 @@ Thumbs.db
 /10100_*.png
 /10100_*.svg
 /other_reference_card.png
+/test_data/
+/video-output/
+.remotion/
+/.tmp/
