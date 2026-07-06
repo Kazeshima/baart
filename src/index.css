@@ -1,41 +1,7 @@
+@import "./styles/theme.css";
+
 /* ─── Reset ─────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg-deep:       #06080f;
-  --bg-panel:      #0d1120;
-  --bg-card:       #111827;
-  --bg-card-hover: #16202e;
-  --border:        #1e2d42;
-  --border-bright: #2a3f5a;
-
-  --accent-blue:   #38bdf8;
-  --accent-gold:   #f0b429;
-  --accent-red:    #ef4444;
-  --accent-purple: #a855f7;
-  --accent-green:  #22c55e;
-
-  --text-primary:  #e8f0fe;
-  --text-secondary:#8da4be;
-  --text-muted:    #4a6080;
-
-  --font-ui:   'Rajdhani', 'Noto Sans SC', sans-serif;
-  --font-mono: 'Share Tech Mono', monospace;
-  --font-zh:   'Ma Shan Zheng', 'Cooper Black', 'Segoe UI Black', 'Arial Rounded MT Bold', 'Noto Sans SC', sans-serif;
-  --radius:    6px;
-}
-
-.app-root[data-theme="light"] {
-  --bg-deep:       #edf3f8;
-  --bg-panel:      #f8fbff;
-  --bg-card:       #e7eef6;
-  --bg-card-hover: #dce7f2;
-  --border:        #b9c8d8;
-  --border-bright: #91a8bf;
-  --text-primary:  #1b2b3d;
-  --text-secondary:#53677e;
-  --text-muted:    #71839a;
-}
 
 html, body, #root {
   height: 100%; width: 100%;

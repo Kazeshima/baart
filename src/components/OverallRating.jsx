@@ -4,6 +4,7 @@ import {
 import { DIMENSION_LABELS, OVERALL_LABELS, localeFor, t } from "../utils/i18n.js";
 import { weightMultiplier } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
+import OverallBadge from "./presentation/OverallBadge.jsx";
 
 const TIER_BG_MAP = {
   4: "#f0b42922", 3: "#ef444422", 2: "#a855f722",
@@ -23,21 +24,11 @@ export default function OverallRating() {
   const locale = localeFor(uiLanguage);
   const dimensionLabels = DIMENSION_LABELS[locale] || DIMENSION_LABELS.zh;
 
-  const overallColor = overall !== null ? OVERALL_COLORS[overall] : "var(--text-muted)";
-  const displayLabel = overall !== null ? OVERALL_LABELS[locale][overall] : "?";
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="overall-section">
         {/* Big badge */}
-        <div
-          className={`overall-badge ${locale === "en" ? "overall-badge--latin" : ""}`}
-          style={{ color: overallColor }}
-          title={overall !== null ? `${t(uiLanguage, "overall")}: ${displayLabel}` : "暂无评级"}
-        >
-          {displayLabel}
-          <span className="overall-score">{overallScore !== null ? overallScore.toFixed(1) : "--"}</span>
-        </div>
+        <OverallBadge overall={overall} overallScore={overallScore} language={uiLanguage} />
 
         {/* Controls */}
         <div className="overall-controls">

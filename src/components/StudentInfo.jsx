@@ -1,81 +1,26 @@
 import { useState } from "react";
 import {
-  TYPE_COLORS, TYPE_LABELS,
-  ADAPT_ICON_URL,
   EQUIP_ICONS,
-  COVER_ICON, ATTACK_ICON, DEFENSE_ICON, SEASONS,
+  COVER_ICON,
 } from "../utils/constants.js";
 import {
   ROLE_LABELS_BY_LOCALE,
-  TYPE_LABELS_BY_LOCALE,
   WEAPON_LABELS_BY_LOCALE,
   localeFor,
   t,
-  terrainLabel,
 } from "../utils/i18n.js";
 import { useRatingStore } from "../store/ratingStore.js";
+import {
+  StudentIdentity,
+  StudentTerrainIndicators,
+  StudentTypeIndicators,
+} from "./presentation/StudentPresentation.jsx";
 
 const EQUIP_LABELS = {
   Hat: "帽", Glove: "手", Shoe: "鞋", Shoes: "鞋",
   Hairpin: "发", Badge: "徽", Bag: "包",
   Watch: "表", Necklace: "链", Talisman: "符", Charm: "符",
 };
-
-function TypeBadge({ icon, color, label, title }) {
-  return (
-    <div
-      title={title}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        padding: "3px 8px", borderRadius: 20,
-        background: `${color}22`, border: `1px solid ${color}`,
-        fontSize: 11, fontWeight: 700, color,
-      }}
-    >
-      <img src={icon} alt={label}
-        style={{ width: 13, height: 13, filter: "brightness(0) invert(1)" }} />
-      {label}
-    </div>
-  );
-}
-
-function TerrainBar({ student, activeSeason, uiLanguage }) {
-  const terrainMap = {
-    Street:  student.streetAdapt,
-    Outdoor: student.outdoorAdapt,
-    Indoor:  student.indoorAdapt,
-  };
-  // UE50 upgraded adaptation if available
-  const ueTerrainMap = {
-    Street:  student.ueStreetAdapt,
-    Outdoor: student.ueOutdoorAdapt,
-    Indoor:  student.ueIndoorAdapt,
-  };
-
-  return (
-    <div className="terrain-row">
-      {SEASONS.map(s => {
-        const base  = terrainMap[s.key] ?? 0;
-        const ue    = ueTerrainMap[s.key];
-        const level = base;
-        const isActive = s.key === activeSeason;
-        return (
-          <div key={s.key} className={`terrain-item ${isActive ? "active" : ""}`}>
-            <img src={s.icon} alt={terrainLabel(uiLanguage, s.key)} style={{ width: 22, height: 22 }} />
-            <div className="terrain-adapt" title={`${t(uiLanguage, "level")} ${level}`}>
-              <img src={ADAPT_ICON_URL(level)} alt={`level ${level}`} />
-              {ue !== undefined && ue !== base && (
-                <span className="terrain-ue">
-                  → <img src={ADAPT_ICON_URL(ue)} alt={`UE50 level ${ue}`} /> {t(uiLanguage, "ue50")}
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function EquipBadge({ type, isUnique }) {
   const icon = EQUIP_ICONS[type];
@@ -101,13 +46,8 @@ export default function StudentInfo({ student }) {
   const portraitUrl = `https://schaledb.com/images/student/portrait/${student.id}.webp`;
   const collectionUrl = `https://schaledb.com/images/student/collection/${student.id}.webp`;
 
-  const attackColor  = TYPE_COLORS[student.bulletType]  || "#888";
-  const defenseColor = TYPE_COLORS[student.armorType]   || "#888";
-  const typeLabels = TYPE_LABELS_BY_LOCALE[locale] || TYPE_LABELS;
   const weaponLabels = WEAPON_LABELS_BY_LOCALE[locale] || {};
   const roleLabels = ROLE_LABELS_BY_LOCALE[locale] || {};
-  const attackLabel  = typeLabels[student.bulletType]  || student.bulletType;
-  const defenseLabel = typeLabels[student.armorType]   || student.armorType;
   const squadLabel = student.squadType === "Support"
     ? roleLabels.SupportSquad
     : roleLabels.Main;
@@ -126,8 +66,7 @@ export default function StudentInfo({ student }) {
           <img src={collectionUrl} alt={student.name} />
         )}
         <div className="student-card__portrait-overlay">
-          <div className="student-card__name">{student.name}</div>
-          <div className="student-card__devname">{student.devName} · #{student.id}</div>
+          <StudentIdentity student={{ ...student, school: "" }} nameClassName="student-card__name" metaClassName="student-card__devname" />
         </div>
       </div>
 
@@ -147,14 +86,13 @@ export default function StudentInfo({ student }) {
         {/* Attack & armor type */}
         <div className="info-row">
           <span className="info-label">{t(uiLanguage, "type")}</span>
-          <TypeBadge icon={ATTACK_ICON}  color={attackColor}  label={attackLabel}  title={`攻击属性: ${student.bulletType}`} />
-          <TypeBadge icon={DEFENSE_ICON} color={defenseColor} label={defenseLabel} title={`防御类型: ${student.armorType}`} />
+          <StudentTypeIndicators student={student} language={uiLanguage} />
         </div>
 
         {/* Terrain */}
         <div className="info-row" style={{ flexDirection: "column", alignItems: "flex-start" }}>
           <span className="info-label" style={{ marginBottom: 4 }}>{t(uiLanguage, "terrainAdapt")}</span>
-          <TerrainBar student={student} activeSeason={season} uiLanguage={uiLanguage} />
+          <StudentTerrainIndicators student={student} activeSeason={season} language={uiLanguage} />
         </div>
 
         {/* Weapon & range */}

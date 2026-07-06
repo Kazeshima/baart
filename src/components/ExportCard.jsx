@@ -21,6 +21,7 @@ import {
   t,
   terrainLabel,
 } from "../utils/i18n.js";
+import { RADAR_ANGLES } from "../utils/radar.js";
 import { recalculateRatings, weightMultiplier } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 
@@ -578,7 +579,7 @@ function buildRadarSVG(ratings, options) {
   const cx = x + size / 2;
   const cy = y + size / 2;
   const r = size * 0.255;
-  const angles = [-72, 0, 72, 144, 216];
+  const angles = RADAR_ANGLES;
   const polar = (angle, radius) => {
     const rad = (angle - 90) * (Math.PI / 180);
     return [cx + radius * Math.cos(rad), cy + radius * Math.sin(rad)];

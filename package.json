@@ -8,15 +8,30 @@
     "build": "vite build",
     "test": "node --test",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "video:preview": "vite --config video/vite.config.js --open /video.html",
+    "video:studio": "remotion studio video/remotion/index.jsx",
+    "video:render": "node video/render-cli.mjs",
+    "video:smoke": "node video/smoke-render.mjs",
+    "video:compositions": "remotion compositions video/remotion/index.jsx"
   },
   "dependencies": {
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
+    "@remotion/google-fonts": "4.0.484",
+    "@remotion/player": "4.0.484",
+    "@tauri-apps/api": "^2.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "zustand": "^4.5.2",
-    "@tauri-apps/api": "^2.1.1"
+    "remotion": "4.0.484",
+    "zod": "4.3.6",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@remotion/bundler": "4.0.484",
+    "@remotion/cli": "4.0.484",
+    "@remotion/renderer": "4.0.484",
     "@tauri-apps/cli": "^2.1.0",
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.3.4"

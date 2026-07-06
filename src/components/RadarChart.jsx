@@ -1,23 +1,11 @@
 import { DIMENSIONS, TIER_SCORES, TIER_COLORS, OVERALL_COLORS } from "../utils/constants.js";
 import { DIMENSION_LABELS, localeFor } from "../utils/i18n.js";
+import {
+  RADAR_ANGLES, RADAR_CENTER, RADAR_LEVELS, RADAR_RADIUS, RADAR_VIEWBOX,
+  radarPoint, radarPolygon, radarScanPoint, radarScanPolygon,
+} from "../utils/radar.js";
 
-const SIZE   = 420;
-const CX     = SIZE / 2;
-const CY     = SIZE / 2;
-const R      = 128;   // outer ring radius
-const LEVELS = 5;     // S=5 rings
-
-function polygon(points) {
-  return points.map(([x, y]) => `${x},${y}`).join(" ");
-}
-
-// Get (x,y) for a point at angle and radius
-function polar(angle, r) {
-  const rad = (angle - 90) * (Math.PI / 180);
-  return [CX + r * Math.cos(rad), CY + r * Math.sin(rad)];
-}
-
-const ANGLES = [-72, 0, 72, 144, 216];
+const SIZE = RADAR_VIEWBOX;
 
 function LabelText({ label, x, y, color, score }) {
   const isLongZh = /进攻对策性|特防对策性/.test(label);
@@ -38,35 +26,70 @@ function LabelText({ label, x, y, color, score }) {
   );
 }
 
-export default function RadarChart({ ratings, size = SIZE, language = "zh" }) {
-  const scale = size / SIZE;
+export default function RadarChart({
+  ratings,
+  size = SIZE,
+  language = "zh",
+  axisProgress = [1, 1, 1, 1, 1],
+  dataProgress = [1, 1, 1, 1, 1],
+  ringProgress = 1,
+  scanProgress = null,
+  scanBeamIntensity = 0,
+}) {
   const labels = DIMENSION_LABELS[localeFor(language)] || DIMENSION_LABELS.zh;
 
   // Data polygon
   const dataPoints = DIMENSIONS.map((d, i) => {
     const score = ratings[d.key] !== null ? TIER_SCORES[ratings[d.key]] : 0;
     const frac  = score / 5;
-    return polar(ANGLES[i], R * frac);
+    const [targetX, targetY] = radarPoint(RADAR_ANGLES[i], RADAR_RADIUS * frac);
+    const progress = dataProgress[i] ?? 1;
+    return [
+      RADAR_CENTER + (targetX - RADAR_CENTER) * progress,
+      RADAR_CENTER + (targetY - RADAR_CENTER) * progress,
+    ];
   });
 
   const fillColor = ratings.overall !== null && ratings.overall !== undefined
     ? OVERALL_COLORS[ratings.overall]
     : "#4a6080";
+  const scanLines = scanProgress !== null && scanBeamIntensity > 0
+    ? [0, -6, -12].map(offset => radarScanPoint(scanProgress, undefined, offset))
+    : [];
+  const scanSector = scanProgress !== null && scanBeamIntensity > 0
+    ? radarScanPolygon(scanProgress)
+    : null;
 
   return (
     <svg
       width={size} height={size}
-      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      viewBox={`0 0 ${RADAR_VIEWBOX} ${RADAR_VIEWBOX}`}
       style={{ display: "block" }}
     >
+      {scanSector ? <polygon
+        points={scanSector}
+        fill="#38bdf8"
+        opacity={scanBeamIntensity * 0.12}
+      /> : null}
+      {scanLines.map(([x, y], index) => <line
+        key={`scan-${index}`}
+        x1={RADAR_CENTER}
+        y1={RADAR_CENTER}
+        x2={x}
+        y2={y}
+        stroke="#38bdf8"
+        strokeWidth={index === 0 ? 2.5 : 1.5}
+        opacity={scanBeamIntensity * (1 - index * 0.22)}
+      />)}
+
       {/* Background rings */}
-      {Array.from({ length: LEVELS }, (_, lvl) => {
-        const r = R * ((lvl + 1) / LEVELS);
-        const pts = ANGLES.map(a => polar(a, r));
+      {Array.from({ length: RADAR_LEVELS }, (_, lvl) => {
+        const radius = RADAR_RADIUS * ((lvl + 1) / RADAR_LEVELS) * ringProgress;
+        const pts = RADAR_ANGLES.map(angle => radarPoint(angle, radius));
         return (
           <polygon
             key={lvl}
-            points={polygon(pts)}
+            points={radarPolygon(pts)}
             fill="none"
             stroke="#1e2d42"
             strokeWidth={1}
@@ -75,14 +98,17 @@ export default function RadarChart({ ratings, size = SIZE, language = "zh" }) {
       })}
 
       {/* Axis lines */}
-      {ANGLES.map((angle, i) => {
-        const [x, y] = polar(angle, R);
-        return <line key={i} x1={CX} y1={CY} x2={x} y2={y} stroke="#1e2d42" strokeWidth={1} />;
+      {RADAR_ANGLES.map((angle, i) => {
+        const [targetX, targetY] = radarPoint(angle, RADAR_RADIUS);
+        const progress = axisProgress[i] ?? 1;
+        const x = RADAR_CENTER + (targetX - RADAR_CENTER) * progress;
+        const y = RADAR_CENTER + (targetY - RADAR_CENTER) * progress;
+        return <line key={i} x1={RADAR_CENTER} y1={RADAR_CENTER} x2={x} y2={y} stroke="#1e2d42" strokeWidth={1} />;
       })}
 
       {/* Data polygon */}
       <polygon
-        points={polygon(dataPoints)}
+        points={radarPolygon(dataPoints)}
         fill={`${fillColor}30`}
         stroke={fillColor}
         strokeWidth={2}
@@ -101,19 +127,21 @@ export default function RadarChart({ ratings, size = SIZE, language = "zh" }) {
 
       {/* Labels */}
       {DIMENSIONS.map((d, i) => {
-        const angle  = ANGLES[i];
-        const [x, y] = polar(angle, R + 58);
+        const angle  = RADAR_ANGLES[i];
+        const [x, y] = radarPoint(angle, RADAR_RADIUS + 58);
         const score = ratings[d.key];
         const tierColor = score ? TIER_COLORS[score] : "#4a6080";
         return (
           <g key={i}>
-            <LabelText label={labels[d.key][0]} x={x} y={y} color={tierColor} score={score} />
+            <g opacity={axisProgress[i] ?? 1}>
+              <LabelText label={labels[d.key][0]} x={x} y={y} color={tierColor} score={score} />
+            </g>
           </g>
         );
       })}
 
       {/* Center */}
-      <circle cx={CX} cy={CY} r={3} fill="#1e2d42" />
+      <circle cx={RADAR_CENTER} cy={RADAR_CENTER} r={3} fill="#1e2d42" />
     </svg>
   );
 }
