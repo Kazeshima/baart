@@ -81,7 +81,7 @@ Radar timing controls independently configure the mechanical scan, eased point d
 
 MP4 and lossless PNG sequences support 720p, 1080p, and 4K output. PNG frames are rendered directly from the React composition with Remotion's [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API and are never extracted from an encoded video. This is the programmatic equivalent of Remotion's documented [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) CLI mode. MP4 output uses `renderMedia()`.
 
-In the Windows x64 desktop application, MP4 uses a native Save As dialog. PNG sequence output uses a native folder dialog and creates a new `<name>-frames` folder without overwriting an existing sequence. Absolute destinations stay local to the machine and are not stored in portable project manifests. The first render downloads Remotion's compatible Chrome for Testing build and reuses the cached browser afterward, so the first render requires internet access.
+In the Windows x64 desktop application, MP4 uses a native Save As dialog. PNG sequence output uses a native folder dialog and creates a new `<name>-frames` folder without overwriting an existing sequence. Absolute destinations stay local to the machine and are not stored in portable project manifests. The first render downloads Remotion's compatible Chrome for Testing build into BAART's writable application cache under `renderer-runtime/node_modules/.remotion`; later renders reuse it. The first render therefore requires internet access but never writes into the installation directory.
 
 Browser development uses the localhost render API and writes to the ignored `video-output/` directory. Both `npm run dev` and `npm run video:preview` expose this API and reject non-JSON responses with a clear transport error.
 
@@ -92,6 +92,10 @@ npm run video:render -- path\to\project.baart-video.json
 ```
 
 The packaged Tauri application includes a pinned Node runtime, Remotion renderer modules, platform compositor binaries, and the prebuilt composition. It renders without a separately installed Node.js or localhost service. This standalone renderer currently targets Windows x64 and materially increases executable and installer size.
+
+Renderer failures preserve the underlying Node or Remotion message together with the process exit code. For a packaged-runtime verification independent of development `node_modules`, run `npm run renderer:smoke`; add `-- --fresh-browser` to verify a clean Chrome download and cache reuse.
+
+On Windows, BAART converts Tauri's verbatim `\\?\` resource paths to conventional drive or UNC paths before invoking Node.js. This avoids Node treating the drive prefix as the script entry point while retaining Unicode and long-path-compatible internal file handling.
 
 ## Rating Data
 

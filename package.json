@@ -15,6 +15,7 @@
     "video:smoke": "node video/smoke-render.mjs",
     "video:compositions": "remotion compositions video/remotion/index.jsx",
     "renderer:prepare": "node scripts/prepare-renderer-runtime.mjs",
+    "renderer:smoke": "npm run renderer:prepare && node scripts/smoke-renderer-sidecar.mjs",
     "desktop:dev": "npm run renderer:prepare && npm run dev",
     "desktop:build": "npm run renderer:prepare && npm run build"
   },

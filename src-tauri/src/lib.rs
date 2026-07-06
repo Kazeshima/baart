@@ -192,6 +192,40 @@ fn remove_render_output(path: &Path) {
     }
 }
 
+fn renderer_work_dir(app_cache_dir: &Path) -> PathBuf {
+    app_cache_dir.join("renderer-runtime")
+}
+
+fn node_cli_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    if value.get(..8).is_some_and(|prefix| prefix.eq_ignore_ascii_case(r"\\?\UNC\")) {
+        return format!(r"\\{}", &value[8..]);
+    }
+    if value.starts_with(r"\\?\") {
+        return value[4..].to_string();
+    }
+    value.into_owned()
+}
+
+fn append_job_error(job: &mut VideoRenderJob, message: &str) {
+    let message = message.trim();
+    if message.is_empty() || job.error.contains(message) {
+        return;
+    }
+    if !job.error.is_empty() {
+        job.error.push_str("\n");
+    }
+    job.error.push_str(message);
+    const MAX_ERROR_LENGTH: usize = 12_000;
+    if job.error.len() > MAX_ERROR_LENGTH {
+        let mut boundary = MAX_ERROR_LENGTH;
+        while !job.error.is_char_boundary(boundary) {
+            boundary -= 1;
+        }
+        job.error.truncate(boundary);
+    }
+}
+
 fn finish_render_cleanup(manager: &VideoRenderManager, remove_output: bool) {
     if let Ok(mut manifest) = manager.manifest.lock() {
         if let Some(path) = manifest.take() {
@@ -322,7 +356,12 @@ fn start_video_render(
         }
     }
 
-    let jobs_dir = app.path().app_cache_dir().map_err(|error| format!("failed to resolve render cache: {error}"))?.join("video-render-jobs");
+    let app_cache_dir = app.path().app_cache_dir().map_err(|error| format!("failed to resolve render cache: {error}"))?;
+    let renderer_work_dir = renderer_work_dir(&app_cache_dir);
+    std::fs::create_dir_all(&renderer_work_dir).map_err(|error| format!("failed to create renderer cache: {error}"))?;
+    std::fs::write(renderer_work_dir.join("package.json"), "{\"private\":true}")
+        .map_err(|error| format!("failed to initialize renderer cache: {error}"))?;
+    let jobs_dir = app_cache_dir.join("video-render-jobs");
     std::fs::create_dir_all(&jobs_dir).map_err(|error| format!("failed to create render cache: {error}"))?;
     let sequence = manager.sequence.fetch_add(1, Ordering::Relaxed);
     let id = format!("{}-{sequence}", epoch_millis());
@@ -331,14 +370,15 @@ fn start_video_render(
         .map_err(|error| format!("failed to write render manifest: {error}"))?;
 
     let arguments = vec![
-        worker.to_string_lossy().to_string(),
-        manifest.to_string_lossy().to_string(),
-        serve_url.to_string_lossy().to_string(),
-        output.to_string_lossy().to_string(),
-        binaries.to_string_lossy().to_string(),
+        node_cli_path(&worker),
+        node_cli_path(&manifest),
+        node_cli_path(&serve_url),
+        node_cli_path(&output),
+        node_cli_path(&binaries),
     ];
+    let node_work_dir = PathBuf::from(node_cli_path(&renderer_work_dir));
     let command = match app.shell().sidecar("baart-node") {
-        Ok(command) => command.args(arguments),
+        Ok(command) => command.current_dir(&node_work_dir).args(arguments),
         Err(error) => {
             let _ = std::fs::remove_file(&manifest);
             return Err(format!("failed to prepare renderer sidecar: {error}"));
@@ -383,7 +423,7 @@ fn start_video_render(
                     if !message.is_empty() {
                         if let Ok(mut guard) = manager.job.lock() {
                             if let Some(job) = guard.as_mut() {
-                                if job.error.is_empty() { job.error = message; }
+                                append_job_error(job, &message);
                             }
                         }
                     }
@@ -392,7 +432,7 @@ fn start_video_render(
                     if let Ok(mut guard) = manager.job.lock() {
                         if let Some(job) = guard.as_mut() {
                             job.status = "error".to_string();
-                            job.error = error;
+                            append_job_error(job, &error);
                         }
                     }
                 }
@@ -402,7 +442,8 @@ fn start_video_render(
                         if let Some(job) = guard.as_mut() {
                             if job.is_active() {
                                 job.status = "error".to_string();
-                                job.error = format!("renderer exited before completion (code {:?})", payload.code);
+                                let exit_message = format!("renderer exited before completion (code {:?})", payload.code);
+                                append_job_error(job, &exit_message);
                             }
                             remove_output = matches!(job.status.as_str(), "error" | "cancelled");
                         }
@@ -452,6 +493,59 @@ mod tests {
         assert!(validate_output_path("mp4", Path::new(r"C:\video\ratings.mp4")).is_ok());
         assert!(validate_output_path("mp4", Path::new(r"C:\video\ratings.png")).is_err());
         assert!(validate_output_path("png", Path::new("relative-folder")).is_err());
+    }
+
+    #[test]
+    fn renderer_cache_is_derived_from_the_writable_app_cache() {
+        assert_eq!(renderer_work_dir(Path::new(r"C:\Users\Test\AppData\Local\baart")), PathBuf::from(r"C:\Users\Test\AppData\Local\baart\renderer-runtime"));
+    }
+
+    #[test]
+    fn node_cli_paths_remove_windows_verbatim_prefixes() {
+        assert_eq!(node_cli_path(Path::new(r"\\?\C:\Program Files\BAART\worker.mjs")), r"C:\Program Files\BAART\worker.mjs");
+        assert_eq!(node_cli_path(Path::new(r"\\?\UNC\server\share\worker.mjs")), r"\\server\share\worker.mjs");
+        assert_eq!(node_cli_path(Path::new(r"C:\BAART\worker.mjs")), r"C:\BAART\worker.mjs");
+        assert_eq!(node_cli_path(Path::new(r"C:\BAART\评级\worker.mjs")), r"C:\BAART\评级\worker.mjs");
+    }
+
+    #[test]
+    fn every_node_argument_uses_a_node_compatible_path() {
+        let inputs = [
+            Path::new(r"\\?\C:\BAART\worker.mjs"),
+            Path::new(r"\\?\C:\Cache\project.json"),
+            Path::new(r"\\?\C:\BAART\composition"),
+            Path::new(r"\\?\C:\Output\video.mp4"),
+            Path::new(r"\\?\C:\BAART\compositor"),
+        ];
+        let arguments: Vec<String> = inputs.iter().map(|path| node_cli_path(path)).collect();
+        assert!(arguments.iter().all(|argument| !argument.starts_with(r"\\?\")));
+    }
+
+    #[test]
+    fn renderer_exit_details_do_not_overwrite_the_root_error() {
+        let mut job = VideoRenderJob {
+            id: "test".to_string(), status: "rendering".to_string(), progress: 0.0,
+            output: String::new(), error: String::new(), browser_download: None,
+        };
+        append_job_error(&mut job, "Chrome cache is not writable");
+        append_job_error(&mut job, "renderer exited before completion (code Some(1))");
+        assert!(job.error.starts_with("Chrome cache is not writable"));
+        assert!(job.error.ends_with("code Some(1))"));
+    }
+
+    #[test]
+    fn failed_render_cleanup_removes_files_and_frame_directories() {
+        let parent = std::env::temp_dir().join(format!("baart-cleanup-test-{}", epoch_millis()));
+        let video = parent.join("partial.mp4");
+        let frames = parent.join("partial-frames");
+        std::fs::create_dir_all(&frames).unwrap();
+        std::fs::write(&video, b"partial").unwrap();
+        std::fs::write(frames.join("frame-00.png"), b"partial").unwrap();
+        remove_render_output(&video);
+        remove_render_output(&frames);
+        assert!(!video.exists());
+        assert!(!frames.exists());
+        std::fs::remove_dir_all(parent).unwrap();
     }
 
     #[test]

@@ -103,4 +103,24 @@ await bundle({
   symlinkPublicDir: false,
   onProgress: progress => process.stdout.write(`\rBundling renderer ${Math.round(progress)}%`),
 });
+
+const requiredRuntimeFiles = [
+  binaryPath,
+  path.join(runtimeAppDir, "package.json"),
+  path.join(runtimeAppDir, "video", "sidecar", "worker.mjs"),
+  path.join(runtimeAppDir, "video", "render-service.mjs"),
+  path.join(runtimeAppDir, "video", "core", "manifest.js"),
+  path.join(runtimeAppDir, "src", "utils", "constants.js"),
+  path.join(runtimeAppDir, "node_modules", "@remotion", "renderer", "package.json"),
+  path.join(runtimeAppDir, "node_modules", "@remotion", "compositor-win32-x64-msvc", "remotion.exe"),
+  path.join(compositionDir, "index.html"),
+];
+const missingRuntimeFiles = [];
+for (const file of requiredRuntimeFiles) {
+  if (!await exists(file)) missingRuntimeFiles.push(path.relative(root, file));
+}
+if (missingRuntimeFiles.length) {
+  throw new Error(`Renderer runtime is incomplete:\n${missingRuntimeFiles.join("\n")}`);
+}
+await run(binaryPath, ["--check", path.join(runtimeAppDir, "video", "sidecar", "worker.mjs")], runtimeAppDir);
 process.stdout.write("\nRenderer runtime prepared.\n");

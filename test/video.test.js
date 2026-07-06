@@ -17,6 +17,7 @@ import { readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
 import { schoolLabel } from "../src/utils/i18n.js";
 import { radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
+import { runWorker } from "../video/sidecar/worker.mjs";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -143,4 +144,16 @@ test("comment scrolling starts only when estimated text exceeds the viewport", (
   const long = estimateCommentScroll("Detailed arena note ".repeat(40), "en");
   assert.ok(long.lines > 3);
   assert.ok(long.distance > 0);
+});
+
+test("worker reports startup errors as structured sidecar events", async () => {
+  const events = [];
+  let exitCode;
+  const result = await runWorker([], {
+    emit: (type, value) => events.push({ type, ...value }),
+    exit: code => { exitCode = code; },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(exitCode, 1);
+  assert.deepEqual(events, [{ type: "error", error: "Usage: worker <project.json> <serve-url> <output> <binaries-directory>" }]);
 });
