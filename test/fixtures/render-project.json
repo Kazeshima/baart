@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "settings": {
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "format": "mp4",
+    "outputName": "baart-smoke",
+    "studentDuration": 3,
+    "fadeIn": 0.2,
+    "fadeOut": 0.2,
+    "infoStagger": 0.04,
+    "radarAxisStep": 0.08,
+    "radarDataStep": 0.08,
+    "polygonReveal": 0.1,
+    "overallReveal": 0.2,
+    "rippleCount": 2,
+    "rippleDuration": 0.25,
+    "rippleScale": 2,
+    "rippleOpacity": 0.45,
+    "scanBeamIntensity": 0.6,
+    "commentScrollDelay": 0.2,
+    "commentScrollSpeed": 30,
+    "portraitOpacity": 0.5,
+    "theme": "dark",
+    "uiLanguage": "en",
+    "dataLanguage": "en",
+    "season": "Street",
+    "arenaSeason": "S9"
+  },
+  "order": { "mode": "chronological", "direction": "asc", "manualIds": [] },
+  "records": [
+    {
+      "student": {
+        "id": 10001,
+        "name": "Synthetic Student",
+        "devName": "Synthetic",
+        "school": "Abydos",
+        "squadType": "Main",
+        "tacticRole": "DamageDealer",
+        "bulletType": "Explosion",
+        "armorType": "LightArmor",
+        "weaponType": "AR",
+        "range": 650,
+        "cover": true,
+        "streetAdapt": 4,
+        "ueStreetAdapt": 5,
+        "outdoorAdapt": 3,
+        "indoorAdapt": 2
+      },
+      "ratings": {
+        "blindshot": "S",
+        "counter": "A",
+        "defense": "B",
+        "counterDef": "A",
+        "cost": "B",
+        "overall": 3,
+        "overallScore": 3.8,
+        "overallAuto": false,
+        "notes": "Synthetic render fixture for BAART Video Studio.",
+        "dimensionWeights": { "blindshot": "full", "counter": "full", "defense": "full", "counterDef": "full", "cost": "half" },
+        "costWeight": "half"
+      },
+      "legacyOrder": 0
+    }
+  ]
+}

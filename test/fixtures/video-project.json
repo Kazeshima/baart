@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "settings": {
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "format": "mp4",
+    "studentDuration": 12,
+    "outputName": "baart-test"
+  },
+  "order": {
+    "mode": "chronological",
+    "direction": "asc",
+    "manualIds": []
+  },
+  "records": [
+    {
+      "student": { "id": 10002, "name": "Legacy Two", "school": "Trinity" },
+      "ratings": { "blindshot": "B", "counter": "A", "defense": "B", "counterDef": "C", "cost": "B" },
+      "legacyOrder": 1
+    },
+    {
+      "student": { "id": 10001, "name": "Legacy One", "school": "Abydos" },
+      "ratings": { "blindshot": "A", "counter": "A", "defense": "S", "counterDef": "B", "cost": "C" },
+      "legacyOrder": 0
+    },
+    {
+      "student": { "id": 10003, "name": "Timestamped", "school": "Gehenna" },
+      "ratings": { "blindshot": "S", "counter": "S", "defense": "A", "counterDef": "A", "cost": "B", "createdAt": "2026-07-05T10:00:00.000Z" },
+      "legacyOrder": 2
+    }
+  ]
+}
