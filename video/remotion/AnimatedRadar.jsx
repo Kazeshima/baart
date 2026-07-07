@@ -47,6 +47,8 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
         polygonOpacity={polygonOpacity}
         scanProgress={scanProgress}
         scanBeamIntensity={beamOpacity}
+        scanTrailSegments={settings.radarScanTrailSegments}
+        scanTrailDegrees={settings.radarScanTrailDegrees}
         labelColor={settings.theme === "light" ? "#53677e" : "#8da4be"}
         labelFontScale={1.25}
       />

@@ -11,7 +11,7 @@
 - 使用本地化的 SchaleDB 数据搜索学生。
 - 显示职责、攻击与防御类型、武器、射程、掩体、装备和地形适应信息。
 - 按 S 至 E 对五个竞技场维度评分。
-- 自动计算或手动指定五级综合评级，并可为每个维度设置不计、半权重或全权重。
+- 自动计算或手动指定五级综合评级，并可用归一化百分比滑杆设置每个维度的权重占比。
 - 本地保存评级，并通过 JSON 导入或导出。
 - 导出紧凑版和完整版 SVG、PNG 评级卡片。
 - 将所有已评级学生批量导出为 ZIP。
@@ -77,13 +77,15 @@ npm run video:studio
 
 视频工作室可从本地存储或评级 JSON 读取数据。`.baart-video.json` 项目清单会保存标准化评级、已解析的学生资料、手动顺序、语言、主题、时间、特效、分辨率和输出设置，以便重复生成相同结果。学生可按评级时间、综合分、ID、学校分组排序，也可拖放手动排序。
 
-雷达动画可分别调整机械扫描、数据点显示和扫描后多边形显示的时长。默认扫描时长为 1.5 秒；每个维度会在扫描线经过对应轴后，直接在最终位置淡入显示，高分 S/A 仍保留波纹强调效果。
+五个维度权重以归一化百分比保存，总和始终为 100%。移动一个均衡器式滑杆时，其他四个维度会按比例反向调整；综合分按 `sum(维度分 × 权重百分比) / 100` 计算。旧 JSON 中的不计、半权重和全权重会自动迁移为等价的归一化占比。
 
-渲染并行度默认值为自适应。BAART 会根据本机 CPU 预测一个保守的 worker 数，控制面板也提供基准测试按钮，可渲染一小段 PNG 序列样本，为当前机器和输出目标选择最快设置。基准测试进度以“步骤”显示：一个 IO 写入测试加上多个并行度候选。最佳结果会自动应用，自动、百分比和固定 worker 数选项仍保留用于手动调整。基准测试报告会分类瓶颈；“浏览器场景渲染或 PNG 编码”表示磁盘写入速度已明显高于实际渲染速度。
+雷达动画可分别调整机械扫描、扫描余辉、数据点显示、扫描后多边形显示、信息块入场、综合评级显示、辉光和评论滚动。默认扫描时长为 1.5 秒；每个维度会在扫描线经过对应轴后，直接在最终位置淡入显示，高分 S/A 仍保留波纹强调效果。长评论可选择适配停留时长滚动，也可使用固定像素/秒速度。
 
-MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令的程序化对应方式。MP4 使用 `renderMedia()` 渲染。
+渲染并行度默认值为自适应。BAART 会根据本机 CPU 预测一个保守的 worker 数，控制面板也提供基准测试按钮，可反复渲染短图片序列样本，为当前机器和输出目标选择最快且稳定的设置。基准测试进度以“步骤”显示：一个 IO 写入测试、多轮并行度候选，以及 PNG/JPEG 格式对比。最佳结果会自动应用，自动、100% 和固定 worker 数选项仍保留用于手动调整。基准测试报告会分类瓶颈；“浏览器场景渲染或图片编码”表示磁盘写入速度已明显高于实际渲染速度。
 
-在 Windows x64 桌面应用中，MP4 使用系统原生“另存为”对话框；PNG 图片序列使用系统文件夹对话框，并创建新的 `<名称>-frames` 子文件夹，不会覆盖已有序列。绝对保存路径仅保留在本机状态中，不会写入便携项目清单。首次渲染会把 Remotion 兼容的 Chrome for Testing 下载到 BAART 可写的应用缓存 `renderer-runtime/node_modules/.remotion` 中，之后复用该缓存。学生立绘和 UI 图标也会缓存到本机渲染缓存，避免逐帧重复从 SchaleDB 读取图片。因此首次渲染需要联网，但不会向安装目录写入文件。
+MP4、无损 PNG 序列和可选的有损 JPEG 序列支持 720p、1080p 与 4K。PNG/JPEG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令的程序化对应方式。MP4 使用 `renderMedia()` 渲染。
+
+在 Windows x64 桌面应用中，MP4 使用系统原生“另存为”对话框；PNG/JPEG 图片序列使用系统文件夹对话框，并创建新的 `<名称>-frames` 子文件夹，不会覆盖已有序列。绝对保存路径仅保留在本机状态中，不会写入便携项目清单。首次渲染会把 Remotion 兼容的 Chrome for Testing 下载到 BAART 可写的应用缓存 `renderer-runtime/node_modules/.remotion` 中，之后复用该缓存。学生立绘和 UI 图标也会缓存到本机渲染缓存，避免逐帧重复从 SchaleDB 读取图片。因此首次渲染需要联网，但不会向安装目录写入文件。
 
 浏览器开发模式使用本地主机渲染 API，并将结果写入已忽略的 `video-output/` 目录。`npm run dev` 和 `npm run video:preview` 都会提供该 API；若服务器错误返回 HTML 等非 JSON 内容，界面会显示明确的传输错误。
 
@@ -105,7 +107,7 @@ npm run video:render -- path\to\project.baart-video.json
 npm run video:profile -- --quick --frames=180
 ```
 
-该工具使用 Remotion 原生帧管线渲染有限长度的 1080p/60 样本，并把报告写入已忽略的 `.cache/video-profile/` 目录。报告包含渲染 FPS、输出字节数、MB/s、纯 IO 写入测试以及瓶颈分类。可用 `--case=full-8,full-50` 比较指定案例，用 `--case=full-adaptive-jpeg` 对比较轻图像格式以诊断 PNG 编码开销，用 `--ui-language=en --theme=light` 检查其他布局，或去掉 `--quick` 运行完整的模块/并行度 sweep。
+该工具使用 Remotion 原生帧管线渲染有限长度的 1080p/60 样本，并把报告写入已忽略的 `.cache/video-profile/` 目录。报告包含渲染 FPS、输出字节数、MB/s、纯 IO 写入测试以及瓶颈分类。可用 `--case=full-8,full-12` 比较指定案例，用 `--case=full-adaptive-jpeg` 对比较轻图像格式以诊断 PNG 编码开销，用 `--ui-language=en --theme=light` 检查其他布局，或去掉 `--quick` 运行完整的模块/并行度 sweep。
 
 ## 评级数据
 

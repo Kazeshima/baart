@@ -7,8 +7,8 @@ const fixture = JSON.parse(await fs.readFile(new URL("../test/fixtures/render-pr
 
 const requestedFormat = process.argv[2];
 const formats = requestedFormat ? [requestedFormat] : ["mp4", "png"];
-if (formats.some(format => !["mp4", "png"].includes(format))) {
-  throw new Error("Smoke format must be mp4 or png.");
+if (formats.some(format => !["mp4", "png", "jpeg"].includes(format))) {
+  throw new Error("Smoke format must be mp4, png, or jpeg.");
 }
 
 for (const format of formats) {
@@ -24,14 +24,20 @@ for (const format of formats) {
     onProgress: progress => process.stdout.write(`\r${format.toUpperCase()} ${Math.round(progress * 100)}%`),
   });
   const stat = await fs.stat(output);
-  if (format === "png") {
-    const frames = (await fs.readdir(output)).filter(name => name.endsWith(".png")).sort();
+  if (format === "png" || format === "jpeg") {
+    const extension = format === "jpeg" ? ".jpeg" : ".png";
+    const frames = (await fs.readdir(output)).filter(name => name.endsWith(extension)).sort();
     const expectedFrames = project.settings.studentDuration * project.settings.fps * project.records.length;
-    if (frames.length !== expectedFrames) throw new Error(`Expected ${expectedFrames} PNG frames, found ${frames.length}.`);
+    if (frames.length !== expectedFrames) throw new Error(`Expected ${expectedFrames} ${format.toUpperCase()} frames, found ${frames.length}.`);
     for (const name of [frames[0], frames[Math.floor(frames.length / 2)], frames.at(-1)]) {
-      const dimensions = readPngDimensions(await fs.readFile(path.join(output, name)));
-      if (dimensions.width !== project.settings.width || dimensions.height !== project.settings.height) {
-        throw new Error(`${name} is ${dimensions.width}x${dimensions.height}, expected ${project.settings.width}x${project.settings.height}.`);
+      const contents = await fs.readFile(path.join(output, name));
+      if (format === "png") {
+        const dimensions = readPngDimensions(contents);
+        if (dimensions.width !== project.settings.width || dimensions.height !== project.settings.height) {
+          throw new Error(`${name} is ${dimensions.width}x${dimensions.height}, expected ${project.settings.width}x${project.settings.height}.`);
+        }
+      } else if (contents[0] !== 0xff || contents[1] !== 0xd8) {
+        throw new Error(`${name} does not have a JPEG signature.`);
       }
     }
   } else if (stat.size < 10_000) {

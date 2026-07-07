@@ -59,7 +59,8 @@ test("render concurrency defaults to adaptive prediction and validates supported
   assert.equal(predictRenderConcurrency(24), 8);
   assert.equal(predictRenderConcurrency(32), 12);
   assert.equal(resolveRenderConcurrency("auto"), undefined);
-  assert.equal(resolveRenderConcurrency("50%"), "50%");
+  assert.equal(resolveRenderConcurrency("50%"), null);
+  assert.equal(resolveRenderConcurrency("100%"), "100%");
   assert.equal(resolveRenderConcurrency("4"), 4);
   assert.equal(resolveRenderConcurrency("12"), 12);
   assert.equal(resolveRenderConcurrency(8), 8);
@@ -71,7 +72,8 @@ test("video profiling cases cover scene blocks and concurrency choices", () => {
   const cases = createProfileCases();
   assert.ok(cases.some(item => item.name === "no-portrait-adaptive" && item.profile.disablePortrait));
   assert.ok(cases.some(item => item.name === "simple-radar-adaptive" && item.profile.simplifyRadar));
-  assert.ok(cases.some(item => item.name === "full-75" && item.renderConcurrency === "75%"));
+  assert.ok(!cases.some(item => item.renderConcurrency === "75%"));
+  assert.ok(cases.some(item => item.name === "full-2" && item.renderConcurrency === "2"));
   assert.ok(cases.some(item => item.name === "full-12" && item.renderConcurrency === "12"));
   assert.ok(cases.some(item => item.name === "full-adaptive-jpeg" && item.imageFormat === "jpeg"));
   assert.equal(safeProfileName("75%"), "75");
@@ -123,6 +125,7 @@ test("video project manifests validate and retain reproducible records", () => {
   assert.equal(created.records.length, 3);
   assert.throws(() => parseVideoProject({ ...fixture, version: 2 }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, format: "gif" } }));
+  assert.equal(parseVideoProject({ ...fixture, settings: { ...fixture.settings, format: "jpeg" } }).settings.format, "jpeg");
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, width: 1000, height: 1000 } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, rippleOpacity: 2 } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, radarPointDuration: 0 } }));
@@ -259,6 +262,10 @@ test("comment scrolling starts only when estimated text exceeds the viewport", (
   const long = estimateCommentScroll("Detailed arena note ".repeat(40), "en");
   assert.ok(long.lines > 3);
   assert.ok(long.distance > 0);
+  const wrapped = estimateCommentScroll("averyveryveryveryverylongunbrokentoken", "en", { charsPerLine: 8, lineHeight: 10, viewportHeight: 10 });
+  assert.ok(wrapped.lines > 1);
+  const cjk = estimateCommentScroll("这是很长的竞技场评价说明".repeat(8), "zh", { charsPerLine: 8, lineHeight: 10, viewportHeight: 10 });
+  assert.ok(cjk.distance > 0);
 });
 
 test("preview FPS estimate is based on frame events per elapsed time", () => {

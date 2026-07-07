@@ -22,7 +22,7 @@ import {
   terrainLabel,
 } from "../utils/i18n.js";
 import { RADAR_ANGLES } from "../utils/radar.js";
-import { recalculateRatings, weightMultiplier } from "../utils/scoring.js";
+import { formatWeightShare, recalculateRatings } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 import { studentDisplayName } from "../utils/studentDisplay.js";
 
@@ -246,10 +246,10 @@ function weightSummarySvg(ratings, uiLanguage, p, x, y, fontSize = 14) {
   const labels = DIMENSION_LABELS[localeFor(uiLanguage)] || DIMENSION_LABELS.zh;
   const items = DIMENSIONS.map(({ key }) => ({
     label: labels[key][0],
-    value: weightMultiplier(ratings.dimensionWeights[key]),
+    value: formatWeightShare(ratings.dimensionWeightShares?.[key]),
   }));
   const groups = [items.slice(0, 2), items.slice(2)];
-  const line = (group, lineY) => `<text x="${x}" y="${lineY}" font-size="${fontSize}" font-weight="800" fill="${p.sub}">${group.map((item, index) => `${index ? `<tspan fill="${p.muted}"> · </tspan>` : ""}<tspan>${esc(item.label)} </tspan><tspan fill="#f0b429" font-weight="900">×${item.value}</tspan>`).join("")}</text>`;
+  const line = (group, lineY) => `<text x="${x}" y="${lineY}" font-size="${fontSize}" font-weight="800" fill="${p.sub}">${group.map((item, index) => `${index ? `<tspan fill="${p.muted}"> · </tspan>` : ""}<tspan>${esc(item.label)} </tspan><tspan fill="#f0b429" font-weight="900">${item.value}</tspan>`).join("")}</text>`;
   return `
   <g>
     <text x="${x}" y="${y}" class="label">${esc(t(uiLanguage, "weightsUsed"))}</text>

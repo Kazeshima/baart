@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { DEFAULT_RATINGS } from "../utils/constants.js";
-import { recalculateRatings } from "../utils/scoring.js";
+import { adjustDimensionWeightShare, recalculateRatings } from "../utils/scoring.js";
 import { timestampRating } from "../utils/ratingTimestamps.js";
 
 const LS_LANG = "ba_rating_lang";
@@ -22,6 +22,9 @@ function saveRatings(r) {
 
 function normalizeRatings(ratings) {
   const normalized = { ...DEFAULT_RATINGS(), ...ratings };
+  if (!ratings || !Object.hasOwn(ratings, "dimensionWeightShares")) {
+    delete normalized.dimensionWeightShares;
+  }
   if (typeof normalized.overall === "string") {
     const legacy = { E: 0, D: 0, C: 1, B: 2, A: 3, S: 4 };
     normalized.overall = legacy[normalized.overall] ?? null;
@@ -180,6 +183,7 @@ export const useRatingStore = create((set, get) => ({
     const updated = timestampRating(recalculateRatings({
       ...existing,
       dimensionWeights: { ...existing.dimensionWeights, [dimension]: weight },
+      dimensionWeightShares: undefined,
     }), isNew);
     const allRatings = { ...s.allRatings, [id]: updated };
     set({ allRatings });
@@ -187,6 +191,21 @@ export const useRatingStore = create((set, get) => ({
   },
 
   setCostWeight: (costWeight) => get().setDimensionWeight("cost", costWeight),
+
+  setDimensionWeightShare: (dimension, share) => {
+    const s = get();
+    if (!s.selectedStudent) return;
+    const id = s.selectedStudent.id;
+    const isNew = !Object.hasOwn(s.allRatings, id);
+    const existing = normalizeRatings(s.allRatings[id] || {});
+    const updated = timestampRating(recalculateRatings({
+      ...existing,
+      dimensionWeightShares: adjustDimensionWeightShare(existing.dimensionWeightShares, dimension, share),
+    }), isNew);
+    const allRatings = { ...s.allRatings, [id]: updated };
+    set({ allRatings });
+    saveRatings(allRatings);
+  },
 
   setNotes: (notes) => {
     const s = get();

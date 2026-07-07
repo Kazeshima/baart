@@ -6,7 +6,7 @@ export const VIDEO_PROFILE_VARIANTS = Object.freeze([
   { name: "minimal", profile: { disablePortrait: true, simplifyRadar: true, disableComments: true, disableTypeIndicators: true } },
 ]);
 
-export const VIDEO_PROFILE_CONCURRENCY_SWEEP = Object.freeze(["adaptive", "auto", "50%", "75%", "100%", "4", "6", "8", "12", "16"]);
+export const VIDEO_PROFILE_CONCURRENCY_SWEEP = Object.freeze(["adaptive", "auto", "100%", "1", "2", "4", "6", "8", "12", "16"]);
 
 export function safeProfileName(value) {
   return String(value || "profile").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "profile";

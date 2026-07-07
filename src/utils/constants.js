@@ -50,6 +50,14 @@ export const DIMENSIONS = [
   { key: "cost",        labelZh: "造价",         labelEn: "Build Cost" },
 ];
 
+export const DEFAULT_DIMENSION_WEIGHT_SHARES = {
+  blindshot: 22.3,
+  counter: 22.2,
+  defense: 22.2,
+  counterDef: 22.2,
+  cost: 11.1,
+};
+
 // Bullet / Armor type colors
 export const TYPE_COLORS = {
   Explosion:    "#ef4444",
@@ -142,6 +150,7 @@ export const DEFAULT_RATINGS = () => ({
     counterDef: "full",
     cost: "half",
   },
+  dimensionWeightShares: { ...DEFAULT_DIMENSION_WEIGHT_SHARES },
   costWeight: "half",
   notes: "",
 });

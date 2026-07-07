@@ -302,8 +302,8 @@ fn select_video_output(format: String, output_name: String) -> Result<Option<Str
             .add_filter("MP4 Video", &["mp4"])
             .set_file_name(format!("{name}.mp4"))
             .save_file(),
-        "png" => rfd::FileDialog::new()
-            .set_title("Select parent folder for PNG sequence")
+        "png" | "jpeg" => rfd::FileDialog::new()
+            .set_title(if format == "jpeg" { "Select parent folder for JPEG sequence" } else { "Select parent folder for PNG sequence" })
             .pick_folder()
             .map(|parent| unique_frames_path(&parent, &name)),
         _ => return Err("unsupported render format".to_string()),
@@ -315,7 +315,7 @@ fn parse_project_format(project: &serde_json::Value) -> Result<&str, String> {
     project.get("settings")
         .and_then(|settings| settings.get("format"))
         .and_then(serde_json::Value::as_str)
-        .filter(|format| matches!(*format, "mp4" | "png"))
+        .filter(|format| matches!(*format, "mp4" | "png" | "jpeg"))
         .ok_or_else(|| "project settings contain an invalid render format".to_string())
 }
 
@@ -326,8 +326,8 @@ fn validate_output_path(format: &str, output: &Path) -> Result<(), String> {
     if format == "mp4" && output.extension().and_then(|value| value.to_str()).map(|value| value.eq_ignore_ascii_case("mp4")) != Some(true) {
         return Err("MP4 output must use the .mp4 extension".to_string());
     }
-    if format == "png" && output.exists() {
-        return Err("PNG sequence output folder already exists".to_string());
+    if matches!(format, "png" | "jpeg") && output.exists() {
+        return Err("image sequence output folder already exists".to_string());
     }
     Ok(())
 }
@@ -688,6 +688,7 @@ mod tests {
         assert!(validate_output_path("mp4", Path::new(r"C:\video\ratings.mp4")).is_ok());
         assert!(validate_output_path("mp4", Path::new(r"C:\video\ratings.png")).is_err());
         assert!(validate_output_path("png", Path::new("relative-folder")).is_err());
+        assert!(validate_output_path("jpeg", Path::new(r"C:\video\ratings-frames")).is_ok());
     }
 
     #[test]

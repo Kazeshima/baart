@@ -11,7 +11,7 @@ It loads student information from [SchaleDB](https://schaledb.com), combines fiv
 - Search students using localized SchaleDB data.
 - Display role, attack and armor types, weapon, range, cover behavior, equipment, and terrain adaptation.
 - Rate five arena-focused dimensions from S to E.
-- Calculate or manually override a five-level overall rating, with independent none/half/full weights for every dimension.
+- Calculate or manually override a five-level overall rating, with normalized percentage weight sliders for every dimension.
 - Store ratings locally and import/export them as JSON.
 - Export compact and full rating cards as SVG or PNG.
 - Batch-export rated students in a ZIP archive.
@@ -77,13 +77,15 @@ npm run video:studio
 
 Video Studio loads ratings from local storage or imported rating JSON. A `.baart-video.json` project manifest snapshots normalized ratings, resolved student metadata, manual ordering, language, theme, timing, effects, resolution, and output settings for reproducible renders. Students can be sorted chronologically, by overall score, by ID, by school, or by drag-and-drop manual order.
 
-Radar timing controls independently configure the mechanical scan, point reveal, and post-scan polygon reveal. The default scan completes in 1.5 seconds. Each dimension result fades in at its final radar position only after the sweep reaches that axis, and high S/A values keep their ripple emphasis.
+Dimension score weights are stored as normalized percentages that always add up to 100%. Moving one equalizer-style slider redistributes the opposite change across the other four dimensions, and the score is calculated as `sum(score × percentage) / 100`. Older JSON files that contain `none`, `half`, or `full` weights are migrated automatically into equivalent normalized shares.
 
-The render concurrency default is Adaptive. BAART predicts a conservative worker count from the local CPU, and the dashboard includes a benchmark button that renders a short PNG-sequence sample to choose the fastest value for the current machine and output target. Benchmark progress is reported as steps: one IO write test plus the concurrency candidates. The best result is applied automatically, while Auto, percentage, and fixed-worker options remain available for manual tuning. Benchmark reports classify bottlenecks; "browser scene rendering or PNG encoding" means disk write throughput is already much higher than render throughput.
+Radar timing controls independently configure the mechanical scan, scan trail, point reveal, post-scan polygon reveal, information block entrance, overall reveal, glow, and comment scrolling. The default scan completes in 1.5 seconds. Each dimension result fades in at its final radar position only after the sweep reaches that axis, and high S/A values keep their ripple emphasis. Long comments can either scroll to fit the hold phase or use a fixed pixel-per-second speed.
 
-MP4 and lossless PNG sequences support 720p, 1080p, and 4K output. PNG frames are rendered directly from the React composition with Remotion's [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API and are never extracted from an encoded video. This is the programmatic equivalent of Remotion's documented [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) CLI mode. MP4 output uses `renderMedia()`.
+The render concurrency default is Adaptive. BAART predicts a conservative worker count from the local CPU, and the dashboard includes a benchmark button that renders repeated short image-sequence samples to choose the fastest stable value for the current machine and output target. Benchmark progress is reported as steps: one IO write test, repeated concurrency trials, and a PNG/JPEG format comparison. The best result is applied automatically, while Auto, 100%, and fixed-worker options remain available for manual tuning. Benchmark reports classify bottlenecks; "browser scene rendering or image encoding" means disk write throughput is already much higher than render throughput.
 
-In the Windows x64 desktop application, MP4 uses a native Save As dialog. PNG sequence output uses a native folder dialog and creates a new `<name>-frames` folder without overwriting an existing sequence. Absolute destinations stay local to the machine and are not stored in portable project manifests. The first render downloads Remotion's compatible Chrome for Testing build into BAART's writable application cache under `renderer-runtime/node_modules/.remotion`; later renders reuse it. Portraits and UI icons are also cached locally for rendering so frames do not repeatedly load SchaleDB images from the network. The first render therefore requires internet access but never writes into the installation directory.
+MP4, lossless PNG sequences, and optional lossy JPEG sequences support 720p, 1080p, and 4K output. PNG and JPEG frames are rendered directly from the React composition with Remotion's [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API and are never extracted from an encoded video. This is the programmatic equivalent of Remotion's documented [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) CLI mode. MP4 output uses `renderMedia()`.
+
+In the Windows x64 desktop application, MP4 uses a native Save As dialog. PNG and JPEG sequence output use a native folder dialog and create a new `<name>-frames` folder without overwriting an existing sequence. Absolute destinations stay local to the machine and are not stored in portable project manifests. The first render downloads Remotion's compatible Chrome for Testing build into BAART's writable application cache under `renderer-runtime/node_modules/.remotion`; later renders reuse it. Portraits and UI icons are also cached locally for rendering so frames do not repeatedly load SchaleDB images from the network. The first render therefore requires internet access but never writes into the installation directory.
 
 Browser development uses the localhost render API and writes to the ignored `video-output/` directory. Both `npm run dev` and `npm run video:preview` expose this API and reject non-JSON responses with a clear transport error.
 
@@ -105,7 +107,7 @@ To profile rendering with the real test rating data, run:
 npm run video:profile -- --quick --frames=180
 ```
 
-The profiler renders bounded 1080p/60 ranges using the native Remotion frame pipeline and writes reports under the ignored `.cache/video-profile/` directory. Reports include render FPS, output bytes, MB/s, an IO-only write benchmark, and a bottleneck classification. Use `--case=full-8,full-50` to compare selected cases, `--case=full-adaptive-jpeg` to diagnose PNG encoding overhead against a lighter image format, `--ui-language=en --theme=light` to inspect other layouts, or omit `--quick` for the full block/concurrency sweep.
+The profiler renders bounded 1080p/60 ranges using the native Remotion frame pipeline and writes reports under the ignored `.cache/video-profile/` directory. Reports include render FPS, output bytes, MB/s, an IO-only write benchmark, and a bottleneck classification. Use `--case=full-8,full-12` to compare selected cases, `--case=full-adaptive-jpeg` to diagnose PNG encoding overhead against a lighter image format, `--ui-language=en --theme=light` to inspect other layouts, or omit `--quick` for the full block/concurrency sweep.
 
 ## Rating Data
 

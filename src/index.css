@@ -353,12 +353,27 @@ html, body, #root {
   gap: 5px;
   min-height: 26px;
 }
+.dim-weight-row--slider {
+  gap: 8px;
+}
 .dim-weight-row > span {
   min-width: 42px;
   color: var(--text-muted);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+}
+.dim-weight-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent-gold);
+}
+.dim-weight-row strong {
+  width: 44px;
+  color: var(--accent-gold);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: right;
 }
 .tier-btn {
   width: 36px; height: 36px;

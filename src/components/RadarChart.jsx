@@ -48,6 +48,8 @@ export default function RadarChart({
   polygonOpacity = 1,
   scanProgress = null,
   scanBeamIntensity = 0,
+  scanTrailSegments = 10,
+  scanTrailDegrees = 48,
   labelColor = "var(--text-secondary)",
   labelFontScale = 1,
 }) {
@@ -68,7 +70,7 @@ export default function RadarChart({
     ? OVERALL_COLORS[ratings.overall]
     : "#4a6080";
   const scanPoint = scanProgress !== null && scanBeamIntensity > 0 ? radarScanPoint(scanProgress) : null;
-  const scanTrail = scanPoint ? radarScanTrail(scanProgress, 10, 48) : [];
+  const scanTrail = scanPoint ? radarScanTrail(scanProgress, scanTrailSegments, scanTrailDegrees) : [];
 
   return (
     <svg

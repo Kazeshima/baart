@@ -14,9 +14,6 @@ export const videoSettingsSchema = z.object({
   renderConcurrency: z.union([
     z.literal("adaptive"),
     z.literal("auto"),
-    z.literal("25%"),
-    z.literal("50%"),
-    z.literal("75%"),
     z.literal("100%"),
     z.literal("1"),
     z.literal("2"),
@@ -33,22 +30,29 @@ export const videoSettingsSchema = z.object({
     z.literal(12),
     z.literal(16),
   ]).transform(value => String(value)),
-  format: z.enum(["mp4", "png"]),
+  format: z.enum(["mp4", "png", "jpeg"]),
   outputName: z.string().trim().min(1).max(128),
   studentDuration: z.number().finite().positive(),
   fadeIn: finiteNonNegative,
   fadeOut: finiteNonNegative,
   infoStagger: finiteNonNegative,
+  infoEnterDuration: finiteNonNegative,
+  infoEnterDistance: finiteNonNegative,
   radarScanDuration: z.number().finite().positive(),
   radarPointDuration: z.number().finite().positive(),
   radarPolygonDuration: z.number().finite().positive(),
+  radarScanTrailDegrees: z.number().finite().min(0).max(180),
+  radarScanTrailSegments: z.number().int().min(0).max(24),
   overallReveal: finiteNonNegative,
+  overallDelay: finiteNonNegative,
+  overallGlowStrength: finiteNonNegative,
   rippleCount: z.number().int().min(0).max(6),
   rippleDuration: finiteNonNegative,
   rippleScale: finiteNonNegative,
   rippleOpacity: opacity,
   scanBeamIntensity: opacity,
   commentScrollDelay: finiteNonNegative,
+  commentScrollMode: z.enum(["fitHold", "fixedSpeed"]),
   commentScrollSpeed: finiteNonNegative,
   portraitOpacity: opacity,
   theme: z.enum(["dark", "light"]),
@@ -75,6 +79,9 @@ export const videoProjectSchema = z.object({
 
 export function normalizeVideoRating(raw = {}) {
   const ratings = { ...DEFAULT_RATINGS(), ...raw };
+  if (!raw || !Object.hasOwn(raw, "dimensionWeightShares")) {
+    delete ratings.dimensionWeightShares;
+  }
   if (typeof ratings.overall === "string") {
     ratings.overall = { E: 0, D: 0, C: 1, B: 2, A: 3, S: 4 }[ratings.overall] ?? null;
   }

@@ -3,13 +3,8 @@ import {
   DIMENSIONS, TIERS, TIER_COLORS,
 } from "../utils/constants.js";
 import { DIMENSION_LABELS, localeFor, t } from "../utils/i18n.js";
+import { formatWeightShare } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
-
-const WEIGHT_OPTIONS = [
-  ["none", "costNone"],
-  ["half", "costHalf"],
-  ["full", "costFull"],
-];
 
 const TIER_BG = {
   S: "#b8860022", A: "#ef444422", B: "#a855f722",
@@ -19,7 +14,7 @@ const TIER_BG = {
 export default function RatingPanel() {
   const {
     selectedStudent, getCurrentRatings,
-    setDimensionRating, setDimensionWeight, uiLanguage,
+    setDimensionRating, setDimensionWeightShare, uiLanguage,
   } = useRatingStore();
 
   if (!selectedStudent) return null;
@@ -41,7 +36,7 @@ export default function RatingPanel() {
 
         {DIMENSIONS.map(dim => {
           const current = ratings[dim.key];
-          const currentWeight = ratings.dimensionWeights[dim.key];
+          const currentWeightShare = ratings.dimensionWeightShares[dim.key];
           return (
             <div key={dim.key} className="dim-row">
               <div className="dim-label">
@@ -69,18 +64,18 @@ export default function RatingPanel() {
                   );
                 })}
               </div>
-              <div className="dim-weight-row">
+              <label className="dim-weight-row dim-weight-row--slider">
                 <span>{t(uiLanguage, "dimensionWeight")}</span>
-                {WEIGHT_OPTIONS.map(([weight, labelKey]) => (
-                  <button
-                    key={weight}
-                    className={`weight-btn weight-btn--compact ${currentWeight === weight ? "active" : ""}`}
-                    onClick={() => setDimensionWeight(dim.key, weight)}
-                  >
-                    {t(uiLanguage, labelKey)}
-                  </button>
-                ))}
-              </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={currentWeightShare}
+                  onChange={event => setDimensionWeightShare(dim.key, Number(event.target.value))}
+                />
+                <strong>{formatWeightShare(currentWeightShare)}</strong>
+              </label>
             </div>
           );
         })}

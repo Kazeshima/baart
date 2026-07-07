@@ -11,16 +11,23 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   fadeIn: 0.7,
   fadeOut: 0.7,
   infoStagger: 0.14,
+  infoEnterDuration: 0.53,
+  infoEnterDistance: 28,
   radarScanDuration: 1.5,
   radarPointDuration: 0.45,
   radarPolygonDuration: 0.55,
+  radarScanTrailDegrees: 48,
+  radarScanTrailSegments: 10,
   overallReveal: 0.7,
+  overallDelay: 0.2,
+  overallGlowStrength: 50,
   rippleCount: 3,
   rippleDuration: 0.9,
   rippleScale: 2.4,
   rippleOpacity: 0.55,
   scanBeamIntensity: 0.7,
   commentScrollDelay: 0.8,
+  commentScrollMode: "fitHold",
   commentScrollSpeed: 38,
   portraitOpacity: 0.55,
   theme: "dark",
@@ -61,7 +68,7 @@ export function getTimeline(settings = DEFAULT_VIDEO_SETTINGS) {
   const polygonStart = Math.max(radarEnd, radarDataEnd);
   const polygonDuration = frames(value.radarPolygonDuration, fps);
   const polygonEnd = polygonStart + polygonDuration;
-  const overallStart = polygonEnd + frames(0.2, fps);
+  const overallStart = polygonEnd + frames(value.overallDelay, fps);
   const overallEnd = overallStart + frames(value.overallReveal, fps);
   const fadeOutStart = duration - fadeOut;
 
@@ -94,21 +101,24 @@ export function validateVideoSettings(settings) {
   if (!Number.isFinite(value.height) || value.height < 360) errors.push("Height must be at least 360px.");
   if (Number(value.width) * 9 !== Number(value.height) * 16) errors.push("Resolution must use a 16:9 aspect ratio.");
   if (![24, 25, 30, 50, 60].includes(Number(value.fps))) errors.push("FPS must be 24, 25, 30, 50, or 60.");
-  if (resolveRenderConcurrency(value.renderConcurrency) === null) errors.push("Render concurrency must be Adaptive, Auto, 25%, 50%, 75%, 100%, 1, 2, 4, 6, 8, 12, or 16.");
-  if (!['mp4', 'png'].includes(value.format)) errors.push("Output format must be MP4 or PNG frames.");
+  if (resolveRenderConcurrency(value.renderConcurrency) === null) errors.push("Render concurrency must be Adaptive, Auto, 100%, 1, 2, 4, 6, 8, 12, or 16.");
+  if (!['mp4', 'png', 'jpeg'].includes(value.format)) errors.push("Output format must be MP4, PNG frames, or JPEG frames.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
   if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");
   if (!Number.isFinite(value.radarPointDuration) || value.radarPointDuration <= 0) errors.push("Radar point duration must be positive.");
   if (!Number.isFinite(value.radarPolygonDuration) || value.radarPolygonDuration <= 0) errors.push("Radar polygon duration must be positive.");
   const nonNegativeFields = [
-    "fadeIn", "fadeOut", "infoStagger",
-    "overallReveal", "rippleDuration", "rippleScale",
+    "fadeIn", "fadeOut", "infoStagger", "infoEnterDuration", "infoEnterDistance",
+    "overallReveal", "overallDelay", "overallGlowStrength", "rippleDuration", "rippleScale",
     "commentScrollDelay", "commentScrollSpeed",
   ];
   if (nonNegativeFields.some(key => !Number.isFinite(value[key]) || value[key] < 0)) {
     errors.push("Timing and effect values must be finite and non-negative.");
   }
   if (value.rippleCount < 0 || value.rippleCount > 6) errors.push("Ripple count must be between 0 and 6.");
+  if (!["fitHold", "fixedSpeed"].includes(value.commentScrollMode)) errors.push("Comment scroll mode must be Fit Hold or Fixed Speed.");
+  if (!Number.isInteger(value.radarScanTrailSegments) || value.radarScanTrailSegments < 0 || value.radarScanTrailSegments > 24) errors.push("Radar trail segments must be between 0 and 24.");
+  if (!Number.isFinite(value.radarScanTrailDegrees) || value.radarScanTrailDegrees < 0 || value.radarScanTrailDegrees > 180) errors.push("Radar trail length must be between 0 and 180 degrees.");
   if (value.rippleOpacity < 0 || value.rippleOpacity > 1 || value.scanBeamIntensity < 0 || value.scanBeamIntensity > 1 || value.portraitOpacity < 0 || value.portraitOpacity > 1) {
     errors.push("Opacity values must be between 0 and 1.");
   }
@@ -153,7 +163,7 @@ export function benchmarkStorageKey(settings, logicalCores = detectLogicalCores(
 export function resolveRenderConcurrency(value = DEFAULT_VIDEO_SETTINGS.renderConcurrency, options = {}) {
   if (value === "adaptive") return predictRenderConcurrency(options.logicalCores);
   if (value === undefined || value === null || value === "" || value === "auto") return undefined;
-  if (["25%", "50%", "75%", "100%"].includes(value)) return value;
+  if (value === "100%") return value;
   const numeric = Number(value);
   if ([1, 2, 4, 6, 8, 12, 16].includes(numeric)) return numeric;
   return null;
@@ -177,10 +187,36 @@ export function dimensionScanFrame(timeline, index, count = 5) {
 export function estimateCommentScroll(notes, language = "zh", options = {}) {
   const text = String(notes || "").trim();
   if (!text) return { lines: 0, distance: 0 };
-  const charsPerLine = options.charsPerLine || (language === "en" ? 42 : 28);
+  const charsPerLine = options.charsPerLine || (language === "en" ? 22 : 14);
   const lineHeight = options.lineHeight || 34;
   const viewportHeight = options.viewportHeight || 116;
   const explicitLines = text.split(/\r?\n/);
-  const lines = explicitLines.reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
+  const wrapLine = line => {
+    if (!line) return 1;
+    if (language === "en") {
+      const words = line.trim().split(/\s+/);
+      let lines = 1;
+      let current = 0;
+      for (const word of words) {
+        const length = Math.max(1, word.length);
+        if (length > charsPerLine) {
+          if (current > 0) lines += 1;
+          lines += Math.ceil(length / charsPerLine) - 1;
+          current = length % charsPerLine;
+        } else if (current === 0 || current + 1 + length <= charsPerLine) {
+          current += (current === 0 ? 0 : 1) + length;
+        } else {
+          lines += 1;
+          current = length;
+        }
+      }
+      return lines;
+    }
+    const units = Array.from(line).reduce((sum, character) => {
+      return sum + (/[\u0000-\u007f]/.test(character) ? 0.55 : 1);
+    }, 0);
+    return Math.max(1, Math.ceil(units / charsPerLine));
+  };
+  const lines = explicitLines.reduce((sum, line) => sum + wrapLine(line), 0);
   return { lines, distance: Math.max(0, lines * lineHeight - viewportHeight) };
 }
