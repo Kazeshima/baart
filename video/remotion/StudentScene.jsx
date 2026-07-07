@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Img, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { DIMENSIONS, OVERALL_COLORS } from "../../src/utils/constants.js";
 import { DIMENSION_LABELS, localeFor, t } from "../../src/utils/i18n.js";
@@ -23,29 +23,32 @@ export default function StudentScene({ record, settings }) {
   const { fps } = useVideoConfig();
   const timeline = getTimeline({ ...settings, fps });
   const { student, ratings } = record;
+  const profile = settings.renderProfile || {};
+  const assetSrc = src => settings.assetMap?.[src] || src;
+  const AssetImg = props => <Img {...props} src={assetSrc(props.src)} />;
   const palette = palettes[settings.theme] || palettes.dark;
-  const presentation = studentPresentation(student, settings.uiLanguage);
-  const dimensionLabels = DIMENSION_LABELS[localeFor(settings.uiLanguage)] || DIMENSION_LABELS.zh;
+  const presentation = useMemo(() => studentPresentation(student, settings.uiLanguage), [student, settings.uiLanguage]);
+  const dimensionLabels = useMemo(() => DIMENSION_LABELS[localeFor(settings.uiLanguage)] || DIMENSION_LABELS.zh, [settings.uiLanguage]);
   const overallColor = ratings.overall !== null ? OVERALL_COLORS[ratings.overall] : palette.muted;
   const overallSpring = spring({ frame: frame - timeline.overallStart, fps, config: { damping: 14, stiffness: 115, mass: 0.8 } });
   const cardOpacity = Math.min(
     phaseProgress(frame, 0, timeline.fadeIn),
     1 - phaseProgress(frame, timeline.fadeOutStart, timeline.fadeOut || 1),
   );
-  const scroll = estimateCommentScroll(ratings.notes, settings.uiLanguage, {
-    charsPerLine: settings.uiLanguage === "en" ? 42 : 24,
-    lineHeight: 42,
-    viewportHeight: 378,
-  });
+  const scroll = useMemo(() => estimateCommentScroll(ratings.notes, settings.uiLanguage, {
+    charsPerLine: settings.uiLanguage === "en" ? 30 : 18,
+    lineHeight: 58,
+    viewportHeight: 386,
+  }), [ratings.notes, settings.uiLanguage]);
   const scrollStart = timeline.overallEnd + Math.round(settings.commentScrollDelay * fps);
   const scrollY = Math.min(scroll.distance, Math.max(0, frame - scrollStart) / fps * settings.commentScrollSpeed);
 
   return (
     <div className="video-scene baart-theme" data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text }}>
       <div className="video-scene__grid" />
-      <div className="video-portrait" style={{ opacity: settings.portraitOpacity }}>
-        <Img src={`https://schaledb.com/images/student/portrait/${student.id}.webp`} />
-      </div>
+      {!profile.disablePortrait ? <div className="video-portrait" style={{ opacity: settings.portraitOpacity }}>
+        <AssetImg src={`https://schaledb.com/images/student/portrait/${student.id}.webp`} />
+      </div> : null}
       <div className="video-portrait-shade" />
 
       <header className="video-title" style={enterStyle(frame, timeline.infoStart)}>
@@ -55,22 +58,22 @@ export default function StudentScene({ record, settings }) {
 
       <section className="video-info" style={enterStyle(frame, timeline.infoStart + timeline.infoStep)}>
         <div className="video-info__role">{presentation.squadLabel} / {presentation.roleLabel}</div>
-        <div className="video-facts">
-          <StudentTypeIndicators student={student} language={settings.uiLanguage} ImageComponent={Img} variant="video" mutedColor={palette.muted} />
-        </div>
+        {!profile.disableTypeIndicators ? <div className="video-facts">
+          <StudentTypeIndicators student={student} language={settings.uiLanguage} ImageComponent={AssetImg} variant="video" mutedColor={palette.muted} />
+        </div> : null}
         <div className="video-weapon">{student.weaponType} {presentation.weaponLabel} · {t(settings.uiLanguage, "range")} {student.range}</div>
-        <StudentTerrainIndicators student={student} activeSeason={settings.season} language={settings.uiLanguage} ImageComponent={Img} variant="video" />
+        <StudentTerrainIndicators student={student} activeSeason={settings.season} language={settings.uiLanguage} ImageComponent={AssetImg} variant="video" />
       </section>
 
-      <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2)}>
+      {!profile.disableComments ? <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2)}>
         <div className="video-section-label">{t(settings.uiLanguage, "comments")}</div>
         <div className="video-comments__viewport">
           <div className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{ratings.notes || "—"}</div>
         </div>
-      </section>
+      </section> : null}
 
       <section className="video-radar-panel" style={enterStyle(frame, timeline.radarStart - Math.round(fps * 0.25), Math.round(fps * 0.5), 18)}>
-        <AnimatedRadar ratings={ratings} language={settings.uiLanguage} settings={settings} size={620} />
+        <AnimatedRadar ratings={ratings} language={settings.uiLanguage} settings={settings} size={640} />
         <div className="video-weights">
           <span className="video-weights__label">{t(settings.uiLanguage, "weightsUsed")}</span>
           {DIMENSIONS.map(({ key }) => <span key={key}>{dimensionLabels[key][0]} <strong>×{weightMultiplier(ratings.dimensionWeights?.[key])}</strong></span>)}

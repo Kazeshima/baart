@@ -16,6 +16,7 @@ import {
   t,
   terrainLabel,
 } from "../../utils/i18n.js";
+import { studentDisplayName } from "../../utils/studentDisplay.js";
 
 export function studentPresentation(student, language) {
   const locale = localeFor(language);
@@ -33,7 +34,7 @@ export function studentPresentation(student, language) {
 
 export function StudentIdentity({ student, language = "zh", nameClassName, metaClassName, children }) {
   return <>
-    <div className={nameClassName}>{student.name}</div>
+    <div className={nameClassName}>{studentDisplayName(student, language)}</div>
     <div className={metaClassName}>{student.devName} · #{student.id}{student.school ? ` · ${schoolLabel(language, student.school)}` : ""}</div>
     {children}
   </>;

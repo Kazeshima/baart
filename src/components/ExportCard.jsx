@@ -24,6 +24,7 @@ import {
 import { RADAR_ANGLES } from "../utils/radar.js";
 import { recalculateRatings, weightMultiplier } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
+import { studentDisplayName } from "../utils/studentDisplay.js";
 
 const CARD = {
   compact: { width: 960, height: 540, avatar: 148, radar: 330 },
@@ -446,6 +447,7 @@ function buildCompactSVG(student, ratings, options) {
   const scoreText = ratings.overallScore !== null && ratings.overallScore !== undefined ? Number(ratings.overallScore).toFixed(1) : "--";
   const summary = compactSummary(student, labels, options.uiLanguage);
   const icon = `https://schaledb.com/images/student/icon/${student.id}.webp`;
+  const displayName = studentDisplayName(student, options.uiLanguage);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -456,7 +458,7 @@ ${commonStyles(p, options.fontCss)}
 <g class="ui">
   <image href="${icon}" x="48" y="54" width="${avatar}" height="${avatar}" preserveAspectRatio="xMidYMid slice"/>
   <rect x="48" y="54" width="${avatar}" height="${avatar}" rx="8" fill="none" stroke="#2a3f5a" stroke-width="2"/>
-  <text x="224" y="80" class="title">${esc(options.arenaSeason || "")} · ${esc(student.name)}</text>
+  <text x="224" y="80" class="title">${esc(options.arenaSeason || "")} · ${esc(displayName)}</text>
   <text x="226" y="110" class="sub mono">${esc(student.devName)} · #${student.id}</text>
   <text x="224" y="174" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 46 : 56}">${esc(overallText)}</text>
   <text x="224" y="204" fill="${overallColor}" font-size="19" font-weight="900">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
@@ -484,6 +486,7 @@ function buildFullSVG(student, ratings, options) {
   const scoreText = ratings.overallScore !== null && ratings.overallScore !== undefined ? Number(ratings.overallScore).toFixed(1) : "--";
   const rows = studentMetaRows(student, ratings, options.season, options.uiLanguage);
   const portraitUrl = `https://schaledb.com/images/student/portrait/${student.id}.webp`;
+  const displayName = studentDisplayName(student, options.uiLanguage);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -495,10 +498,10 @@ ${commonStyles(p, options.fontCss)}
   <image href="${portraitUrl}" x="-36" y="28" width="430" height="${height - 56}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>
   <rect x="26" y="26" width="${portrait}" height="${height - 52}" rx="8" fill="none" stroke="${p.stroke}"/>
   <rect x="28" y="${height - 160}" width="${portrait - 4}" height="132" fill="#06080fcc"/>
-  <text x="50" y="${height - 108}" class="title">${esc(student.name)}</text>
+  <text x="50" y="${height - 108}" class="title">${esc(displayName)}</text>
   <text x="52" y="${height - 74}" class="sub mono">${esc(student.devName)} · #${student.id}</text>
   <text x="376" y="78" class="title">${esc(options.arenaSeason || "")} Arena PvP Card</text>
-  <text x="376" y="112" class="sub mono">${esc(student.name)} · ${esc(student.devName)} · #${student.id}</text>
+  <text x="376" y="112" class="sub mono">${esc(displayName)} · ${esc(student.devName)} · #${student.id}</text>
   <rect x="842" y="42" width="398" height="168" rx="8" fill="${p.radarBg}" stroke="${overallColor}" stroke-width="2"/>
   <text x="866" y="76" class="label">${esc(t(options.uiLanguage, "overall"))}</text>
   <text x="866" y="158" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 58 : 76}">${esc(overallText)}</text>

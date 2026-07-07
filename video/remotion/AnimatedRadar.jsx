@@ -8,6 +8,7 @@ import { dimensionScanFrame, getTimeline, phaseProgress } from "../core/config.j
 export default function AnimatedRadar({ ratings, language, settings, size = 570 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const profile = settings.renderProfile || {};
   const timeline = getTimeline({ ...settings, fps });
   const scanProgress = phaseProgress(frame, timeline.radarStart, timeline.radarDuration);
   const dataProgress = DIMENSIONS.map((_, index) => {
@@ -30,7 +31,8 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
   });
   const ringProgress = phaseProgress(frame, timeline.radarStart - Math.round(fps * 0.35), Math.round(fps * 0.5));
   const axisProgress = DIMENSIONS.map(() => ringProgress);
-  const beamOpacity = frame >= timeline.radarStart && frame <= timeline.radarEnd ? settings.scanBeamIntensity : 0;
+  const beamOpacity = !profile.simplifyRadar && frame >= timeline.radarStart && frame <= timeline.radarEnd ? settings.scanBeamIntensity : 0;
+  const rippleCount = profile.simplifyRadar ? 0 : settings.rippleCount;
 
   return (
     <div className="video-radar" style={{ width: size, height: size }}>
@@ -46,6 +48,7 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
         scanProgress={scanProgress}
         scanBeamIntensity={beamOpacity}
         labelColor={settings.theme === "light" ? "#53677e" : "#8da4be"}
+        labelFontScale={1.25}
       />
       <svg className="video-radar__ripples" viewBox="0 0 420 420">
         {DIMENSIONS.flatMap((dimension, index) => {
@@ -54,7 +57,7 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
           const score = TIER_SCORES[tier];
           const [x, y] = radarPoint(RADAR_ANGLES[index], RADAR_RADIUS * score / 5);
           const start = dimensionScanFrame(timeline, index, DIMENSIONS.length) + timeline.pointDuration;
-          return Array.from({ length: settings.rippleCount }, (_, rippleIndex) => {
+          return Array.from({ length: rippleCount }, (_, rippleIndex) => {
             const delay = rippleIndex * Math.round(fps * 0.13);
             const rippleFrames = Math.max(1, Math.round(settings.rippleDuration * fps));
             const progress = phaseProgress(frame, start + delay, rippleFrames);

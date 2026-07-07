@@ -10,6 +10,8 @@ export function parseStudents(raw) {
     .map(student => ({
       id: student.Id,
       name: student.Name || student.DevName,
+      familyName: student.FamilyName || "",
+      personalName: student.PersonalName || "",
       devName: student.DevName,
       school: student.School,
       squadType: student.SquadType,

@@ -5,8 +5,10 @@ import {
   DEFAULT_VIDEO_SETTINGS,
   clampProgress,
   dimensionScanFrame,
+  estimatePreviewFps,
   estimateCommentScroll,
   getTimeline,
+  resolveRenderConcurrency,
   totalDurationInFrames,
   validateVideoSettings,
 } from "../video/core/config.js";
@@ -16,8 +18,12 @@ import { applyJobProgress, browserDownloadPercent, cancelJob, isActiveRenderStat
 import { readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
 import { schoolLabel } from "../src/utils/i18n.js";
+import { parseStudents } from "../src/utils/students.js";
 import { radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
+import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import { runWorker } from "../video/sidecar/worker.mjs";
+import { collectRenderAssetUrls, renderAssetCacheKey, studentPortraitUrl } from "../video/core/renderAssets.js";
+import { createProfileCases, safeProfileName } from "../video/core/profile.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -38,6 +44,25 @@ test("timeline assigns every student the same frame count", () => {
 test("timing validation rejects phases longer than a student slot", () => {
   const errors = validateVideoSettings({ ...DEFAULT_VIDEO_SETTINGS, studentDuration: 2 });
   assert.ok(errors.some(error => error.includes("exceed")));
+});
+
+test("render concurrency defaults to the measured worker count and validates supported choices", () => {
+  assert.equal(DEFAULT_VIDEO_SETTINGS.renderConcurrency, "8");
+  assert.equal(resolveRenderConcurrency(), 8);
+  assert.equal(resolveRenderConcurrency("auto"), undefined);
+  assert.equal(resolveRenderConcurrency("50%"), "50%");
+  assert.equal(resolveRenderConcurrency("4"), 4);
+  assert.equal(resolveRenderConcurrency(8), 8);
+  assert.equal(resolveRenderConcurrency("3"), null);
+  assert.ok(validateVideoSettings({ ...DEFAULT_VIDEO_SETTINGS, renderConcurrency: "3" }).some(error => error.includes("concurrency")));
+});
+
+test("video profiling cases cover scene blocks and concurrency choices", () => {
+  const cases = createProfileCases();
+  assert.ok(cases.some(item => item.name === "no-portrait-auto" && item.profile.disablePortrait));
+  assert.ok(cases.some(item => item.name === "simple-radar-auto" && item.profile.simplifyRadar));
+  assert.ok(cases.some(item => item.name === "full-75" && item.renderConcurrency === "75%"));
+  assert.equal(safeProfileName("75%"), "75");
 });
 
 test("chronological mode preserves legacy insertion order before timestamps", () => {
@@ -82,6 +107,7 @@ test("legacy manifests receive defaults and imported snapshots retain ratings", 
     settings: { width: 1280, height: 720, fps: 30, format: "png", outputName: "legacy" },
   });
   assert.equal(partial.settings.theme, DEFAULT_VIDEO_SETTINGS.theme);
+  assert.equal(partial.settings.renderConcurrency, "8");
   const ratings = ratingsFromProjectRecords(partial.records);
   assert.equal(ratings["10001"].notes, partial.records[0].ratings.notes);
   assert.deepEqual(partial.records.map(record => record.student), fixture.records.map(record => record.student));
@@ -127,6 +153,24 @@ test("school names localize without changing canonical English keys", () => {
   assert.equal(schoolLabel("en", "Trinity"), "Trinity");
 });
 
+test("student parser keeps SchaleDB surname fields for localized display names", () => {
+  const [student] = parseStudents({
+    10001: {
+      Id: 10001,
+      IsReleased: [true],
+      Name: "艾米",
+      FamilyName: "和泉元",
+      PersonalName: "艾米",
+      DevName: "Eimi",
+    },
+  });
+  assert.equal(student.familyName, "和泉元");
+  assert.equal(student.personalName, "艾米");
+  assert.equal(studentDisplayName(student, "zh"), "和泉元  艾米");
+  assert.equal(studentDisplayName({ ...student, familyName: "Izumimoto", personalName: "Eimi", name: "Eimi" }, "en"), "Izumimoto Eimi");
+  assert.equal(studentDisplayName({ ...student, familyName: "和泉元", name: "和泉元艾米", personalName: "" }, "zh"), "和泉元艾米");
+});
+
 test("PNG header reader reports exact supported render dimensions", () => {
   for (const [width, height] of [[1280, 720], [1920, 1080], [3840, 2160]]) {
     const png = Buffer.alloc(24);
@@ -139,11 +183,25 @@ test("PNG header reader reports exact supported render dimensions", () => {
   assert.throws(() => readPngDimensions(Buffer.from("not png")));
 });
 
+test("render asset collection includes portraits and stable cache keys", () => {
+  const project = parseVideoProject(fixture);
+  const urls = collectRenderAssetUrls(project);
+  assert.ok(urls.includes(studentPortraitUrl(10001)));
+  assert.ok(urls.some(url => url.includes("/images/ui/Type_Attack_s.png")));
+  assert.match(renderAssetCacheKey(studentPortraitUrl(10001)), /^[a-f0-9]{24}\.webp$/);
+});
+
 test("comment scrolling starts only when estimated text exceeds the viewport", () => {
   assert.equal(estimateCommentScroll("Short note", "en").distance, 0);
   const long = estimateCommentScroll("Detailed arena note ".repeat(40), "en");
   assert.ok(long.lines > 3);
   assert.ok(long.distance > 0);
+});
+
+test("preview FPS estimate is based on frame events per elapsed time", () => {
+  assert.equal(estimatePreviewFps(30, 1000), 30);
+  assert.equal(estimatePreviewFps(0, 1000), 0);
+  assert.equal(estimatePreviewFps(30, 0), 0);
 });
 
 test("worker reports startup errors as structured sidecar events", async () => {
