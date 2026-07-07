@@ -79,9 +79,11 @@ npm run video:studio
 
 雷达动画可分别调整机械扫描、数据点缓动展开和扫描后多边形显示的时长。默认扫描时长为 1.5 秒，每个维度会在扫描线经过对应轴时开始显示。
 
+渲染并行度默认值为 `8`，这是根据本地 1080p/60 PNG 序列渲染 profiling 得出的结果。控制面板仍保留自动、百分比和固定 worker 数选项，因为不同 CPU/GPU 上最快设置可能不同。
+
 MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令的程序化对应方式。MP4 使用 `renderMedia()` 渲染。
 
-在 Windows x64 桌面应用中，MP4 使用系统原生“另存为”对话框；PNG 图片序列使用系统文件夹对话框，并创建新的 `<名称>-frames` 子文件夹，不会覆盖已有序列。绝对保存路径仅保留在本机状态中，不会写入便携项目清单。首次渲染会把 Remotion 兼容的 Chrome for Testing 下载到 BAART 可写的应用缓存 `renderer-runtime/node_modules/.remotion` 中，之后复用该缓存。因此首次渲染需要联网，但不会向安装目录写入文件。
+在 Windows x64 桌面应用中，MP4 使用系统原生“另存为”对话框；PNG 图片序列使用系统文件夹对话框，并创建新的 `<名称>-frames` 子文件夹，不会覆盖已有序列。绝对保存路径仅保留在本机状态中，不会写入便携项目清单。首次渲染会把 Remotion 兼容的 Chrome for Testing 下载到 BAART 可写的应用缓存 `renderer-runtime/node_modules/.remotion` 中，之后复用该缓存。学生立绘和 UI 图标也会缓存到本机渲染缓存，避免逐帧重复从 SchaleDB 读取图片。因此首次渲染需要联网，但不会向安装目录写入文件。
 
 浏览器开发模式使用本地主机渲染 API，并将结果写入已忽略的 `video-output/` 目录。`npm run dev` 和 `npm run video:preview` 都会提供该 API；若服务器错误返回 HTML 等非 JSON 内容，界面会显示明确的传输错误。
 
@@ -96,6 +98,14 @@ npm run video:render -- path\to\project.baart-video.json
 渲染失败时，界面会保留底层 Node 或 Remotion 错误，并附带进程退出码。可运行 `npm run renderer:smoke` 独立验证打包运行时而不使用开发环境的 `node_modules`；添加 `-- --fresh-browser` 可验证全新 Chrome 下载及缓存复用。
 
 在 Windows 上，BAART 会在调用 Node.js 前将 Tauri 的 `\\?\` 原样资源路径转换为普通盘符或 UNC 路径，避免 Node 把盘符误判为脚本入口，同时保留应用内部对 Unicode 和长路径的支持。
+
+如需使用真实测试评级数据 profiling 渲染流程，可运行：
+
+```powershell
+npm run video:profile -- --quick --frames=180
+```
+
+该工具使用 Remotion 原生 PNG 帧管线渲染有限长度的 1080p/60 样本，并把报告写入已忽略的 `.cache/video-profile/` 目录。可用 `--case=full-8,full-50` 比较指定案例，或去掉 `--quick` 运行完整的模块/并行度 sweep。
 
 ## 评级数据
 
