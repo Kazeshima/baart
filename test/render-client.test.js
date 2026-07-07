@@ -12,11 +12,13 @@ test("render transport detects the Tauri runtime", () => {
 });
 
 test("HTTP render transport accepts JSON and reports server errors", async () => {
-  const success = new Response(JSON.stringify({ id: "job-1", status: "queued" }), {
+  const success = new Response(JSON.stringify({ id: "job-1", kind: "render", status: "queued" }), {
     status: 202,
     headers: { "content-type": "application/json; charset=utf-8" },
   });
-  assert.equal((await readJsonResponse(success)).id, "job-1");
+  const parsed = await readJsonResponse(success);
+  assert.equal(parsed.id, "job-1");
+  assert.equal(parsed.kind, "render");
 
   const failure = new Response(JSON.stringify({ error: "renderer failed" }), {
     status: 500,

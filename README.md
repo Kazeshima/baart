@@ -77,9 +77,9 @@ npm run video:studio
 
 Video Studio loads ratings from local storage or imported rating JSON. A `.baart-video.json` project manifest snapshots normalized ratings, resolved student metadata, manual ordering, language, theme, timing, effects, resolution, and output settings for reproducible renders. Students can be sorted chronologically, by overall score, by ID, by school, or by drag-and-drop manual order.
 
-Radar timing controls independently configure the mechanical scan, eased point deployment, and post-scan polygon reveal. The default scan completes in 1.5 seconds, while each dimension starts revealing when the sweep reaches its axis.
+Radar timing controls independently configure the mechanical scan, point reveal, and post-scan polygon reveal. The default scan completes in 1.5 seconds. Each dimension result fades in at its final radar position only after the sweep reaches that axis, and high S/A values keep their ripple emphasis.
 
-The render concurrency default is Adaptive. BAART predicts a conservative worker count from the local CPU, and the dashboard includes a benchmark button that renders a short PNG-sequence sample to choose the fastest value for the current machine and output target. Auto, percentage, and fixed-worker options remain available for manual tuning.
+The render concurrency default is Adaptive. BAART predicts a conservative worker count from the local CPU, and the dashboard includes a benchmark button that renders a short PNG-sequence sample to choose the fastest value for the current machine and output target. Benchmark progress is reported as steps: one IO write test plus the concurrency candidates. The best result is applied automatically, while Auto, percentage, and fixed-worker options remain available for manual tuning. Benchmark reports classify bottlenecks; "browser scene rendering or PNG encoding" means disk write throughput is already much higher than render throughput.
 
 MP4 and lossless PNG sequences support 720p, 1080p, and 4K output. PNG frames are rendered directly from the React composition with Remotion's [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API and are never extracted from an encoded video. This is the programmatic equivalent of Remotion's documented [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) CLI mode. MP4 output uses `renderMedia()`.
 
@@ -95,7 +95,7 @@ npm run video:render -- path\to\project.baart-video.json
 
 The packaged Tauri application includes a pinned Node runtime, Remotion renderer modules, platform compositor binaries, and the prebuilt composition. It renders without a separately installed Node.js or localhost service. This standalone renderer currently targets Windows x64 and materially increases executable and installer size.
 
-Renderer failures preserve the underlying Node or Remotion message together with the process exit code. For a packaged-runtime verification independent of development `node_modules`, run `npm run renderer:smoke`; add `-- --fresh-browser` to verify a clean Chrome download and cache reuse.
+Renderer failures preserve the underlying Node or Remotion message together with the process exit code. Warnings and browser retry messages are shown in the separate scrollable render log section instead of the progress summary. For a packaged-runtime verification independent of development `node_modules`, run `npm run renderer:smoke`; add `-- --fresh-browser` to verify a clean Chrome download and cache reuse.
 
 On Windows, BAART converts Tauri's verbatim `\\?\` resource paths to conventional drive or UNC paths before invoking Node.js. This avoids Node treating the drive prefix as the script entry point while retaining Unicode and long-path-compatible internal file handling.
 

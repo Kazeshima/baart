@@ -77,9 +77,9 @@ npm run video:studio
 
 视频工作室可从本地存储或评级 JSON 读取数据。`.baart-video.json` 项目清单会保存标准化评级、已解析的学生资料、手动顺序、语言、主题、时间、特效、分辨率和输出设置，以便重复生成相同结果。学生可按评级时间、综合分、ID、学校分组排序，也可拖放手动排序。
 
-雷达动画可分别调整机械扫描、数据点缓动展开和扫描后多边形显示的时长。默认扫描时长为 1.5 秒，每个维度会在扫描线经过对应轴时开始显示。
+雷达动画可分别调整机械扫描、数据点显示和扫描后多边形显示的时长。默认扫描时长为 1.5 秒；每个维度会在扫描线经过对应轴后，直接在最终位置淡入显示，高分 S/A 仍保留波纹强调效果。
 
-渲染并行度默认值为自适应。BAART 会根据本机 CPU 预测一个保守的 worker 数，控制面板也提供基准测试按钮，可渲染一小段 PNG 序列样本，为当前机器和输出目标选择最快设置。自动、百分比和固定 worker 数选项仍保留用于手动调整。
+渲染并行度默认值为自适应。BAART 会根据本机 CPU 预测一个保守的 worker 数，控制面板也提供基准测试按钮，可渲染一小段 PNG 序列样本，为当前机器和输出目标选择最快设置。基准测试进度以“步骤”显示：一个 IO 写入测试加上多个并行度候选。最佳结果会自动应用，自动、百分比和固定 worker 数选项仍保留用于手动调整。基准测试报告会分类瓶颈；“浏览器场景渲染或 PNG 编码”表示磁盘写入速度已明显高于实际渲染速度。
 
 MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令的程序化对应方式。MP4 使用 `renderMedia()` 渲染。
 
@@ -95,7 +95,7 @@ npm run video:render -- path\to\project.baart-video.json
 
 打包后的 Tauri 应用包含固定版本的 Node 运行时、Remotion 渲染模块、Windows 合成器二进制文件和预构建合成包，无需用户另行安装 Node.js，也无需运行本地主机服务即可渲染。目前独立渲染器仅支持 Windows x64，并会明显增加可执行文件和安装包体积。
 
-渲染失败时，界面会保留底层 Node 或 Remotion 错误，并附带进程退出码。可运行 `npm run renderer:smoke` 独立验证打包运行时而不使用开发环境的 `node_modules`；添加 `-- --fresh-browser` 可验证全新 Chrome 下载及缓存复用。
+渲染失败时，界面会保留底层 Node 或 Remotion 错误，并附带进程退出码。警告和浏览器重试信息会显示在独立可滚动的渲染日志区域中，不会占用进度摘要行。可运行 `npm run renderer:smoke` 独立验证打包运行时而不使用开发环境的 `node_modules`；添加 `-- --fresh-browser` 可验证全新 Chrome 下载及缓存复用。
 
 在 Windows 上，BAART 会在调用 Node.js 前将 Tauri 的 `\\?\` 原样资源路径转换为普通盘符或 UNC 路径，避免 Node 把盘符误判为脚本入口，同时保留应用内部对 Unicode 和长路径的支持。
 

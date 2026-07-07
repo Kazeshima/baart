@@ -34,3 +34,13 @@ export function radarScanTrail(progress, segments = 20, trailDegrees = 60, radiu
 export function radarScanPoint(progress, radius = RADAR_RADIUS, offsetDegrees = 0) {
   return radarPoint(radarScanAngle(progress) + offsetDegrees, radius);
 }
+
+export function radarRevealCircle(targetPoint, progress, maxRadius = 4) {
+  const normalized = Math.max(0, Math.min(1, Number(progress) || 0));
+  return {
+    cx: targetPoint[0],
+    cy: targetPoint[1],
+    r: maxRadius * normalized,
+    opacity: normalized,
+  };
+}

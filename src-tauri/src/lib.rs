@@ -128,6 +128,7 @@ struct BrowserDownloadProgress {
 #[serde(rename_all = "camelCase")]
 struct VideoRenderJob {
     id: String,
+    kind: String,
     status: String,
     progress: f64,
     output: String,
@@ -463,6 +464,7 @@ fn start_video_render(
 
     let job = VideoRenderJob {
         id,
+        kind: "render".to_string(),
         status: "queued".to_string(),
         progress: 0.0,
         output: output.to_string_lossy().to_string(),
@@ -580,6 +582,7 @@ async fn benchmark_video_render(
     let (mut receiver, _child) = command.spawn().map_err(|error| format!("failed to start renderer sidecar: {error}"))?;
     let job = VideoRenderJob {
         id: id.clone(),
+        kind: "benchmark".to_string(),
         status: "queued".to_string(),
         progress: 0.0,
         output: output_root.to_string_lossy().to_string(),
@@ -730,7 +733,7 @@ mod tests {
     #[test]
     fn renderer_exit_details_do_not_overwrite_the_root_error() {
         let mut job = VideoRenderJob {
-            id: "test".to_string(), status: "rendering".to_string(), progress: 0.0,
+            id: "test".to_string(), kind: "render".to_string(), status: "rendering".to_string(), progress: 0.0,
             output: String::new(), error: String::new(), logs: Vec::new(),
             rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
             browser_download: None,
@@ -745,7 +748,7 @@ mod tests {
     #[test]
     fn renderer_stderr_is_kept_as_logs_not_errors() {
         let mut job = VideoRenderJob {
-            id: "test".to_string(), status: "rendering".to_string(), progress: 0.0,
+            id: "test".to_string(), kind: "render".to_string(), status: "rendering".to_string(), progress: 0.0,
             output: String::new(), error: String::new(), logs: Vec::new(),
             rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
             browser_download: None,
@@ -783,7 +786,7 @@ mod tests {
     fn sidecar_events_clamp_progress_and_reach_completion() {
         let manager = VideoRenderManager::default();
         *manager.job.lock().unwrap() = Some(VideoRenderJob {
-            id: "test".to_string(), status: "queued".to_string(), progress: 0.0,
+            id: "test".to_string(), kind: "render".to_string(), status: "queued".to_string(), progress: 0.0,
             output: String::new(), error: String::new(), logs: Vec::new(),
             rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
             browser_download: None,

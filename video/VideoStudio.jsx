@@ -285,8 +285,9 @@ export default function VideoStudio() {
   const statusLabel = renderJob ? vt(language, renderJob.status) : "";
   const renderLogs = renderJob?.logs || [];
   const renderPercent = Math.round((renderJob?.progress || 0) * 100);
+  const renderFrameLabel = renderJob?.kind === "benchmark" ? vt(language, "benchmarkSteps") : vt(language, "framesRendered");
   const renderFrameText = Number.isFinite(renderJob?.renderedFrames) && Number.isFinite(renderJob?.totalFrames)
-    ? `${vt(language, "framesRendered")} ${Math.round(renderJob.renderedFrames)} / ${Math.round(renderJob.totalFrames)}`
+    ? `${renderFrameLabel} ${Math.round(renderJob.renderedFrames)} / ${Math.round(renderJob.totalFrames)}`
     : "";
   const renderSpeedText = Number.isFinite(renderJob?.fpsEstimate) && renderJob.fpsEstimate > 0
     ? `${vt(language, "renderSpeed")} ${renderJob.fpsEstimate.toFixed(1)} fps`

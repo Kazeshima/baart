@@ -22,7 +22,7 @@ const TEXT = {
     cancel: "取消", importFailed: "导入失败", renderUnavailable: "渲染服务不可用。浏览器开发模式请运行 npm run video:preview。",
     queued: "等待中", preparing: "准备浏览器", rendering: "渲染中", encoding: "编码中", complete: "完成", cancelled: "已取消", error: "失败",
     snapshot: "项目快照", localRatings: "本地评级", source: "数据来源", browserDownload: "下载渲染浏览器",
-    framesRendered: "帧", eta: "剩余", renderSpeed: "速度", renderLogs: "渲染日志", previewFps: "预览帧率",
+    framesRendered: "帧", benchmarkSteps: "步骤", eta: "剩余", renderSpeed: "速度", renderLogs: "渲染日志", previewFps: "预览帧率",
     Street: "街区", Outdoor: "野外", Indoor: "室内",
   },
   en: {
@@ -48,7 +48,7 @@ const TEXT = {
     cancel: "Cancel", importFailed: "Import failed", renderUnavailable: "Render service is unavailable. In browser development, start npm run video:preview.",
     queued: "Queued", preparing: "Preparing browser", rendering: "Rendering", encoding: "Encoding", complete: "Complete", cancelled: "Cancelled", error: "Error",
     snapshot: "Project snapshot", localRatings: "Local ratings", source: "Source", browserDownload: "Downloading render browser",
-    framesRendered: "Frames", eta: "ETA", renderSpeed: "Speed", renderLogs: "Render logs", previewFps: "Preview FPS",
+    framesRendered: "Frames", benchmarkSteps: "Steps", eta: "ETA", renderSpeed: "Speed", renderLogs: "Render logs", previewFps: "Preview FPS",
     Street: "Urban", Outdoor: "Outdoor", Indoor: "Indoor",
   },
 };

@@ -61,7 +61,7 @@ async function pollBenchmarkJob(job, onProgress) {
 
 export async function benchmarkRenderSettings(project, onProgress) {
   if (usesTauriRenderTransport()) {
-    const pending = { id: "benchmark", status: "queued", progress: 0, logs: [] };
+    const pending = { id: "benchmark", kind: "benchmark", status: "queued", progress: 0, logs: [] };
     onProgress?.(pending);
     const poll = pollBenchmarkJob(pending, onProgress).catch(() => null);
     const result = await invoke("benchmark_video_render", { project });

@@ -57,7 +57,7 @@ function applyRenderApiMiddleware(server) {
         const project = parseVideoProject(body.project);
         const id = crypto.randomUUID();
         const job = {
-          id, status: "queued", progress: 0, output: "", error: "", browserDownload: null,
+          id, kind: "render", status: "queued", progress: 0, output: "", error: "", browserDownload: null,
           logs: [], renderedFrames: null, totalFrames: null, fpsEstimate: null, etaSeconds: null,
           cancel: null, cancelRequested: false,
         };
@@ -95,7 +95,7 @@ function applyRenderApiMiddleware(server) {
         const project = parseVideoProject(body.project);
         const id = crypto.randomUUID();
         const job = {
-          id, status: "queued", progress: 0, output: "", error: "", browserDownload: null,
+          id, kind: "benchmark", status: "queued", progress: 0, output: "", error: "", browserDownload: null,
           logs: [], renderedFrames: null, totalFrames: null, fpsEstimate: null, etaSeconds: null,
           result: null, cancel: null, cancelRequested: false,
         };

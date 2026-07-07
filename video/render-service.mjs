@@ -85,6 +85,13 @@ export function classifyRenderBottleneck(renderFps, ioFilesPerSecond) {
   return ioFilesPerSecond <= renderFps * 2 ? "disk-io" : "browser-or-png-encoding";
 }
 
+function bottleneckLabel(value, language = "en") {
+  const zh = language === "zh";
+  if (value === "disk-io") return zh ? "磁盘写入" : "Disk IO";
+  if (value === "browser-or-png-encoding") return zh ? "浏览器场景渲染或 PNG 编码" : "Browser scene rendering or PNG encoding";
+  return zh ? "未知" : "Unknown";
+}
+
 function progressMeta(renderedFrames, totalFrames, startedAt = Date.now()) {
   const elapsedSeconds = Math.max(0.001, (Date.now() - startedAt) / 1000);
   const fpsEstimate = renderedFrames > 0 ? renderedFrames / elapsedSeconds : 0;
@@ -226,6 +233,7 @@ export async function renderVideoProject(rawProject, callbacks = {}, options = {
 export async function benchmarkRenderConcurrency(rawProject, options = {}) {
   const callbacks = options.callbacks || {};
   const baseProject = parseVideoProject(rawProject);
+  const language = baseProject.settings.uiLanguage === "zh" ? "zh" : "en";
   const frameCount = Math.max(12, Number(options.frames || 90));
   const logicalCores = os.availableParallelism?.() || os.cpus().length;
   const candidates = selectBenchmarkConcurrencyCandidates(options.candidates || BENCHMARK_CONCURRENCY_CANDIDATES, logicalCores);
@@ -286,8 +294,9 @@ export async function benchmarkRenderConcurrency(rawProject, options = {}) {
       mbPerSecond: Number(((totalBytes / 1048576) / (elapsedMs / 1000)).toFixed(2)),
       bottleneck: classifyRenderBottleneck(fps, io.filesPerSecond),
     };
+    result.bottleneckLabel = bottleneckLabel(result.bottleneck, language);
     cases.push(result);
-    callbacks.onLog?.(`Benchmark ${candidate}: ${result.fps} fps, ${result.mbPerSecond} MB/s, ${result.bottleneck}.`);
+    callbacks.onLog?.(`Benchmark ${candidate}: ${result.fps} fps, ${result.mbPerSecond} MB/s, ${result.bottleneckLabel}.`);
   }
   cases.sort((a, b) => b.fps - a.fps);
   const report = {
@@ -296,6 +305,11 @@ export async function benchmarkRenderConcurrency(rawProject, options = {}) {
     io,
     cases,
     best: cases[0] || null,
+    bottleneckLegend: {
+      "disk-io": bottleneckLabel("disk-io", language),
+      "browser-or-png-encoding": bottleneckLabel("browser-or-png-encoding", language),
+      unknown: bottleneckLabel("unknown", language),
+    },
     recommendation: cases[0]?.bottleneck === "browser-or-png-encoding"
       ? "Disk write throughput is much higher than render throughput. The likely limit is browser scene rendering, PNG encoding, or both. Lossless PNG sequence output still uses Remotion renderFrames()."
       : cases[0]?.bottleneck === "disk-io"

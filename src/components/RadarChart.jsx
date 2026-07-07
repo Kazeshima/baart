@@ -3,7 +3,7 @@ import { DIMENSIONS, TIER_SCORES, TIER_COLORS, OVERALL_COLORS } from "../utils/c
 import { DIMENSION_LABELS, localeFor } from "../utils/i18n.js";
 import {
   RADAR_ANGLES, RADAR_CENTER, RADAR_LEVELS, RADAR_RADIUS, RADAR_VIEWBOX,
-  radarPoint, radarPolygon, radarScanPoint, radarScanTrail,
+  radarPoint, radarPolygon, radarRevealCircle, radarScanPoint, radarScanTrail,
 } from "../utils/radar.js";
 
 const SIZE = RADAR_VIEWBOX;
@@ -59,13 +59,6 @@ export default function RadarChart({
     const frac  = score / 5;
     return radarPoint(RADAR_ANGLES[i], RADAR_RADIUS * frac);
   }), [ratings]);
-  const dataPoints = targetPoints.map(([targetX, targetY], i) => {
-    const progress = dataProgress[i] ?? 1;
-    return [
-      RADAR_CENTER + (targetX - RADAR_CENTER) * progress,
-      RADAR_CENTER + (targetY - RADAR_CENTER) * progress,
-    ];
-  });
   const polygonPoints = targetPoints.map(([targetX, targetY]) => [
     RADAR_CENTER + (targetX - RADAR_CENTER) * polygonProgress,
     RADAR_CENTER + (targetY - RADAR_CENTER) * polygonProgress,
@@ -133,12 +126,13 @@ export default function RadarChart({
       />
 
       {/* Data points */}
-      {dataPoints.map(([x, y], i) => {
+      {targetPoints.map((targetPoint, i) => {
         const score = ratings[DIMENSIONS[i].key] !== null ? TIER_SCORES[ratings[DIMENSIONS[i].key]] : 0;
         if (score === 0) return null;
         const ptColor = TIER_COLORS[ratings[DIMENSIONS[i].key]] || "#888";
         const progress = dataProgress[i] ?? 1;
-        return <circle key={i} cx={x} cy={y} r={4 * progress} opacity={progress} fill={ptColor} stroke="#000" strokeWidth={1} />;
+        const circle = radarRevealCircle(targetPoint, progress);
+        return <circle key={i} cx={circle.cx} cy={circle.cy} r={circle.r} opacity={circle.opacity} fill={ptColor} stroke="#000" strokeWidth={1} />;
       })}
 
       {/* Labels */}

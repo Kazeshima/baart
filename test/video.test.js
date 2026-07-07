@@ -21,12 +21,13 @@ import { readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
 import { OVERALL_LABELS, schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
-import { radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
+import { RADAR_ANGLES, RADAR_RADIUS, radarPoint, radarRevealCircle, radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import { runWorker } from "../video/sidecar/worker.mjs";
 import { collectRenderAssetUrls, renderAssetCacheKey, studentPortraitUrl } from "../video/core/renderAssets.js";
 import { createProfileCases, safeProfileName } from "../video/core/profile.js";
 import { benchmarkOutputIo, classifyRenderBottleneck, selectBenchmarkConcurrencyCandidates } from "../video/render-service.mjs";
+import { vt } from "../video/core/i18n.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -150,7 +151,7 @@ test("rating timestamps preserve legacy chronology", () => {
 
 test("render job state clamps progress and cancellation is idempotent", () => {
   let cancelled = 0;
-  const job = { status: "rendering", progress: 0.4, cancelRequested: false, cancel: () => { cancelled += 1; } };
+  const job = { kind: "render", status: "rendering", progress: 0.4, cancelRequested: false, cancel: () => { cancelled += 1; } };
   assert.equal(applyJobProgress(job, 4), 1);
   assert.equal(applyJobProgress(job, -1), 1);
   assert.equal(cancelJob(job), true);
@@ -163,6 +164,13 @@ test("render job state clamps progress and cancellation is idempotent", () => {
   assert.equal(browserDownloadPercent(120), 100);
 });
 
+test("benchmark jobs use step labels instead of frame labels", () => {
+  const job = { kind: "benchmark", renderedFrames: 11, totalFrames: 11 };
+  const label = job.kind === "benchmark" ? vt("zh", "benchmarkSteps") : vt("zh", "framesRendered");
+  assert.equal(label, "步骤");
+  assert.equal(`${label} ${job.renderedFrames} / ${job.totalFrames}`, "步骤 11 / 11");
+});
+
 test("radar scan geometry and synchronized dimension reveals are deterministic", () => {
   const timeline = getTimeline(DEFAULT_VIDEO_SETTINGS);
   for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
@@ -173,6 +181,20 @@ test("radar scan geometry and synchronized dimension reveals are deterministic",
   }
   assert.equal(dimensionScanFrame(timeline, 0), timeline.radarStart);
   assert.equal(dimensionScanFrame(timeline, 4), timeline.radarStart + Math.round(timeline.radarDuration * 0.8));
+});
+
+test("radar reveal points fade in at final coordinates", () => {
+  const target = radarPoint(RADAR_ANGLES[2], RADAR_RADIUS * 0.8);
+  const quarter = radarRevealCircle(target, 0.25);
+  const complete = radarRevealCircle(target, 1);
+  assert.equal(quarter.cx, target[0]);
+  assert.equal(quarter.cy, target[1]);
+  assert.equal(complete.cx, target[0]);
+  assert.equal(complete.cy, target[1]);
+  assert.equal(quarter.r, 1);
+  assert.equal(quarter.opacity, 0.25);
+  assert.equal(complete.r, 4);
+  assert.equal(complete.opacity, 1);
 });
 
 test("school names localize without changing canonical English keys", () => {
