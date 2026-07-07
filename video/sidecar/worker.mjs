@@ -33,13 +33,14 @@ export async function runWorker(argv = process.argv.slice(2), io = {}) {
           emitEvent("status", { status });
         }
       },
-      onProgress: progress => {
+      onProgress: (progress, meta = {}) => {
         if (progress >= 1 || progress - lastProgress >= 0.01) {
           lastProgress = progress;
-          emitEvent("progress", { progress });
+          emitEvent("progress", { progress, ...meta });
         }
       },
       onBrowserDownload: progress => emitEvent("browserDownload", { progress }),
+      onLog: message => emitEvent("log", { message }),
     }, {
       serveUrl,
       outputLocation,

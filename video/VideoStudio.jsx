@@ -6,8 +6,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { LANG_URLS } from "../src/utils/constants.js";
 import { schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
+import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import ArenaRatingVideo from "./remotion/ArenaRatingVideo.jsx";
-import { DEFAULT_VIDEO_SETTINGS, getTimeline, totalDurationInFrames, validateVideoSettings } from "./core/config.js";
+import { DEFAULT_VIDEO_SETTINGS, estimatePreviewFps, getTimeline, totalDurationInFrames, validateVideoSettings } from "./core/config.js";
 import {
   mergeRatedStudents,
   orderedProjectRecords,
@@ -37,7 +38,7 @@ function SortableStudent({ record, language }) {
   const id = String(record.student.id);
   const sortable = useSortable({ id });
   return <div ref={sortable.setNodeRef} className="studio-order-item" style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }} {...sortable.attributes} {...sortable.listeners}>
-    <span className="studio-order-handle">⋮⋮</span><span>{record.student.name}</span><small>#{record.student.id} · {schoolLabel(language, record.student.school)}</small>
+    <span className="studio-order-handle">⋮⋮</span><span>{studentDisplayName(record.student, language)}</span><small>#{record.student.id} · {schoolLabel(language, record.student.school)}</small>
   </div>;
 }
 
@@ -54,6 +55,14 @@ function readStoredJson(key) {
   try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; }
 }
 
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds)) return "—";
+  const total = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(total / 60);
+  const remaining = total % 60;
+  return minutes > 0 ? `${minutes}:${String(remaining).padStart(2, "0")}` : `${remaining}s`;
+}
+
 export default function VideoStudio() {
   const saved = useMemo(() => readStoredJson(PROJECT_KEY), []);
   const [settings, setSettings] = useState({ ...DEFAULT_VIDEO_SETTINGS, ...(saved.settings || {}) });
@@ -65,8 +74,11 @@ export default function VideoStudio() {
   const [renderJob, setRenderJob] = useState(null);
   const [outputLocation, setOutputLocation] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
+  const [previewFps, setPreviewFps] = useState(0);
   const playerRef = useRef(null);
   const importRef = useRef(null);
+  const previewEventsRef = useRef(0);
+  const lastFrameUiUpdateRef = useRef(0);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const language = settings.uiLanguage;
   const records = snapshotRecords ?? fetchedRecords;
@@ -93,10 +105,35 @@ export default function VideoStudio() {
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return undefined;
-    const listener = event => setCurrentFrame(event.detail.frame);
+    const listener = event => {
+      const frame = event.detail.frame;
+      previewEventsRef.current += 1;
+      const now = performance.now();
+      if (now - lastFrameUiUpdateRef.current >= 100) {
+        lastFrameUiUpdateRef.current = now;
+        setCurrentFrame(frame);
+      }
+    };
     player.addEventListener("frameupdate", listener);
     return () => player.removeEventListener("frameupdate", listener);
   }, [records.length]);
+
+  useEffect(() => {
+    let raf = 0;
+    let lastTime = performance.now();
+    let lastEvents = previewEventsRef.current;
+    const tick = now => {
+      if (now - lastTime >= 1000) {
+        const events = previewEventsRef.current - lastEvents;
+        setPreviewFps(estimatePreviewFps(events, now - lastTime));
+        lastEvents = previewEventsRef.current;
+        lastTime = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [records.length, settings.fps]);
 
   const projectResult = useMemo(() => safeCreateVideoProject({ records, settings, order }), [records, settings, order]);
   const project = projectResult.success ? projectResult.data : null;
@@ -210,6 +247,17 @@ export default function VideoStudio() {
   };
 
   const statusLabel = renderJob ? vt(language, renderJob.status) : "";
+  const renderLogs = renderJob?.logs || [];
+  const renderPercent = Math.round((renderJob?.progress || 0) * 100);
+  const renderFrameText = Number.isFinite(renderJob?.renderedFrames) && Number.isFinite(renderJob?.totalFrames)
+    ? `${vt(language, "framesRendered")} ${Math.round(renderJob.renderedFrames)} / ${Math.round(renderJob.totalFrames)}`
+    : "";
+  const renderSpeedText = Number.isFinite(renderJob?.fpsEstimate) && renderJob.fpsEstimate > 0
+    ? `${vt(language, "renderSpeed")} ${renderJob.fpsEstimate.toFixed(1)} fps`
+    : "";
+  const renderEtaText = Number.isFinite(renderJob?.etaSeconds)
+    ? `${vt(language, "eta")} ${formatDuration(renderJob.etaSeconds)}`
+    : "";
 
   return <div className="video-studio baart-theme" data-theme={settings.theme}>
     <header className="studio-header"><div><strong>BAART</strong><span>{vt(language, "studio")}</span></div><a href="./index.html">{vt(language, "back")}</a></header>
@@ -227,12 +275,19 @@ export default function VideoStudio() {
           }} />
         </label> : null}
         <div className="studio-status">
-          <span>{currentStudent ? `${currentStudent.name} · #${currentStudent.id}` : vt(language, "noStudent")}</span>
-          <span>{records.length} {vt(language, "students")} · {(durationInFrames / Number(settings.fps || 1)).toFixed(1)}s · {vt(language, "source")}: {vt(language, snapshotRecords ? "snapshot" : "localRatings")}</span>
+          <span>{currentStudent ? `${studentDisplayName(currentStudent, language)} · #${currentStudent.id}` : vt(language, "noStudent")}</span>
+          <span>{records.length} {vt(language, "students")} · {(durationInFrames / Number(settings.fps || 1)).toFixed(1)}s · {vt(language, "previewFps")} {previewFps.toFixed(1)} / {settings.fps} · {vt(language, "source")}: {vt(language, snapshotRecords ? "snapshot" : "localRatings")}</span>
         </div>
         {loadError ? <div className="studio-error">{loadError}</div> : null}
         {errors.length ? <div className="studio-error">{errors.join(" ")}</div> : null}
-        {renderJob ? <div className="studio-render-status"><span>{statusLabel}{renderJob.browserDownload && !renderJob.browserDownload.alreadyAvailable ? ` · ${vt(language, "browserDownload")} ${Math.round(renderJob.browserDownload.percent)}%` : ""}{renderJob.output ? ` · ${renderJob.output}` : ""}{renderJob.error ? ` · ${renderJob.error}` : ""}</span><progress value={renderJob.progress || 0} max="1" />{activeRender ? <button onClick={cancelRender}>{vt(language, "cancel")}</button> : null}</div> : null}
+        {renderJob ? <>
+          <div className="studio-render-status">
+            <span>{statusLabel} · {renderPercent}%{renderJob.browserDownload && !renderJob.browserDownload.alreadyAvailable ? ` · ${vt(language, "browserDownload")} ${Math.round(renderJob.browserDownload.percent)}%` : ""}{renderFrameText ? ` · ${renderFrameText}` : ""}{renderSpeedText ? ` · ${renderSpeedText}` : ""}{renderEtaText ? ` · ${renderEtaText}` : ""}{renderJob.output ? ` · ${renderJob.output}` : ""}{renderJob.error ? ` · ${renderJob.error}` : ""}</span>
+            <progress value={renderJob.progress || 0} max="1" />
+            {activeRender ? <button onClick={cancelRender}>{vt(language, "cancel")}</button> : null}
+          </div>
+          {renderLogs.length ? <details className="studio-render-logs"><summary>{vt(language, "renderLogs")} ({renderLogs.length})</summary><pre>{renderLogs.join("\n")}</pre></details> : null}
+        </> : null}
       </section>
 
       <aside className="studio-sidebar">
@@ -240,6 +295,7 @@ export default function VideoStudio() {
         <section className="studio-panel"><h2>{vt(language, "output")}</h2>
           <label className="studio-control"><span>{vt(language, "preset")}</span><select value={`${settings.width}x${settings.height}`} onChange={event => { const [width, height] = event.target.value.split("x").map(Number); setSettings(current => ({ ...current, width, height })); }}><option value="1920x1080">1080p</option><option value="3840x2160">4K</option><option value="1280x720">720p</option></select></label>
           <label className="studio-control"><span>FPS</span><select value={settings.fps} onChange={event => updateSetting("fps", Number(event.target.value))}>{[24, 25, 30, 50, 60].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="studio-control"><span>{vt(language, "renderConcurrency")}</span><select value={settings.renderConcurrency} onChange={event => updateSetting("renderConcurrency", event.target.value)}><option value="auto">{vt(language, "auto")}</option>{["25%", "50%", "75%", "100%", "1", "2", "4", "8"].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
           <label className="studio-control"><span>{vt(language, "format")}</span><select value={settings.format} onChange={event => { updateSetting("format", event.target.value); setOutputLocation(""); }}><option value="mp4">MP4</option><option value="png">{vt(language, "pngSequence")}</option></select></label>
           <label className="studio-control"><span>{vt(language, "filename")}</span><input value={settings.outputName} onChange={event => { updateSetting("outputName", event.target.value); setOutputLocation(""); }} /></label>
           <div className="studio-output-location"><span>{vt(language, "outputLocation")}</span><div><code title={outputLocation}>{outputLocation || (usesTauriRenderTransport() ? vt(language, "notSelected") : vt(language, "developmentOutput"))}</code>{usesTauriRenderTransport() ? <button type="button" onClick={chooseDestination}>{vt(language, "chooseOutput")}</button> : null}</div></div>

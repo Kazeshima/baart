@@ -4,6 +4,7 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   width: 1920,
   height: 1080,
   fps: 30,
+  renderConcurrency: "8",
   format: "mp4",
   outputName: "baart-arena-ratings",
   studentDuration: 12,
@@ -93,6 +94,7 @@ export function validateVideoSettings(settings) {
   if (!Number.isFinite(value.height) || value.height < 360) errors.push("Height must be at least 360px.");
   if (Number(value.width) * 9 !== Number(value.height) * 16) errors.push("Resolution must use a 16:9 aspect ratio.");
   if (![24, 25, 30, 50, 60].includes(Number(value.fps))) errors.push("FPS must be 24, 25, 30, 50, or 60.");
+  if (resolveRenderConcurrency(value.renderConcurrency) === null) errors.push("Render concurrency must be Auto, 25%, 50%, 75%, 100%, 1, 2, 4, or 8.");
   if (!['mp4', 'png'].includes(value.format)) errors.push("Output format must be MP4 or PNG frames.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
   if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");
@@ -119,6 +121,21 @@ export function validateVideoSettings(settings) {
 
 export function clampProgress(value) {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+export function resolveRenderConcurrency(value = DEFAULT_VIDEO_SETTINGS.renderConcurrency) {
+  if (value === undefined || value === null || value === "" || value === "auto") return undefined;
+  if (["25%", "50%", "75%", "100%"].includes(value)) return value;
+  const numeric = Number(value);
+  if ([1, 2, 4, 8].includes(numeric)) return numeric;
+  return null;
+}
+
+export function estimatePreviewFps(frameEvents, elapsedMs) {
+  const events = Number(frameEvents);
+  const elapsed = Number(elapsedMs);
+  if (!Number.isFinite(events) || !Number.isFinite(elapsed) || elapsed <= 0) return 0;
+  return Math.max(0, events / (elapsed / 1000));
 }
 
 export function totalDurationInFrames(studentCount, settings) {

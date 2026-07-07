@@ -12,6 +12,7 @@
     "video:preview": "vite --config video/vite.config.js --open /video.html",
     "video:studio": "remotion studio video/remotion/index.jsx",
     "video:render": "node video/render-cli.mjs",
+    "video:profile": "node video/profile-render.mjs",
     "video:smoke": "node video/smoke-render.mjs",
     "video:compositions": "remotion compositions video/remotion/index.jsx",
     "renderer:prepare": "node scripts/prepare-renderer-runtime.mjs",

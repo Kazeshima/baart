@@ -11,6 +11,25 @@ function sendJson(response, status, value) {
   response.end(JSON.stringify(value));
 }
 
+function stripAnsi(value) {
+  return String(value || "").replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "").trim();
+}
+
+function appendLog(job, message) {
+  const clean = stripAnsi(message);
+  if (!clean || job.logs.includes(clean)) return;
+  job.logs.push(clean);
+  if (job.logs.length > 200) job.logs.splice(0, job.logs.length - 200);
+}
+
+function applyProgress(job, progress, meta = {}) {
+  applyJobProgress(job, progress);
+  if (Number.isFinite(meta.renderedFrames)) job.renderedFrames = meta.renderedFrames;
+  if (Number.isFinite(meta.totalFrames)) job.totalFrames = meta.totalFrames;
+  if (Number.isFinite(meta.fpsEstimate)) job.fpsEstimate = meta.fpsEstimate;
+  if (Number.isFinite(meta.etaSeconds)) job.etaSeconds = meta.etaSeconds;
+}
+
 function publicJob(job) {
   const { cancel, cancelRequested, ...value } = job;
   return value;
@@ -36,14 +55,19 @@ function applyRenderApiMiddleware(server) {
         const body = await readJson(request);
         const project = parseVideoProject(body.project);
         const id = crypto.randomUUID();
-        const job = { id, status: "queued", progress: 0, output: "", error: "", browserDownload: null, cancel: null, cancelRequested: false };
+        const job = {
+          id, status: "queued", progress: 0, output: "", error: "", browserDownload: null,
+          logs: [], renderedFrames: null, totalFrames: null, fpsEstimate: null, etaSeconds: null,
+          cancel: null, cancelRequested: false,
+        };
         jobs.set(id, job);
         renderVideoProject(project, {
           onStatus: status => { if (!job.cancelRequested) job.status = status; },
-          onProgress: progress => applyJobProgress(job, progress),
+          onProgress: (progress, meta) => applyProgress(job, progress, meta),
           onBrowserDownload: progress => {
             if (!job.cancelRequested) job.browserDownload = { percent: browserDownloadPercent(progress.percent), alreadyAvailable: progress.alreadyAvailable };
           },
+          onLog: message => appendLog(job, message),
           onCancelReady: cancel => {
             job.cancel = cancel;
             if (job.cancelRequested) cancel();

@@ -131,6 +131,11 @@ struct VideoRenderJob {
     progress: f64,
     output: String,
     error: String,
+    logs: Vec<String>,
+    rendered_frames: Option<f64>,
+    total_frames: Option<f64>,
+    fps_estimate: Option<f64>,
+    eta_seconds: Option<f64>,
     browser_download: Option<BrowserDownloadProgress>,
 }
 
@@ -226,6 +231,37 @@ fn append_job_error(job: &mut VideoRenderJob, message: &str) {
     }
 }
 
+fn strip_ansi_sequences(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    let mut chars = value.chars().peekable();
+    while let Some(character) = chars.next() {
+        if character == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+            for next in chars.by_ref() {
+                if ('@'..='~').contains(&next) {
+                    break;
+                }
+            }
+        } else {
+            result.push(character);
+        }
+    }
+    result.trim().to_string()
+}
+
+fn append_job_log(job: &mut VideoRenderJob, message: &str) {
+    let message = strip_ansi_sequences(message);
+    if message.is_empty() || job.logs.iter().any(|existing| existing == &message) {
+        return;
+    }
+    job.logs.push(message);
+    const MAX_LOG_LINES: usize = 200;
+    if job.logs.len() > MAX_LOG_LINES {
+        let drain_count = job.logs.len() - MAX_LOG_LINES;
+        job.logs.drain(0..drain_count);
+    }
+}
+
 fn finish_render_cleanup(manager: &VideoRenderManager, remove_output: bool) {
     if let Ok(mut manifest) = manager.manifest.lock() {
         if let Some(path) = manifest.take() {
@@ -299,6 +335,18 @@ fn update_job_from_sidecar(manager: &VideoRenderManager, value: &serde_json::Val
             if let Some(progress) = value.get("progress").and_then(serde_json::Value::as_f64) {
                 job.progress = job.progress.max(progress.clamp(0.0, 1.0));
             }
+            if let Some(rendered_frames) = value.get("renderedFrames").and_then(serde_json::Value::as_f64) {
+                job.rendered_frames = Some(rendered_frames);
+            }
+            if let Some(total_frames) = value.get("totalFrames").and_then(serde_json::Value::as_f64) {
+                job.total_frames = Some(total_frames);
+            }
+            if let Some(fps_estimate) = value.get("fpsEstimate").and_then(serde_json::Value::as_f64) {
+                job.fps_estimate = Some(fps_estimate);
+            }
+            if let Some(eta_seconds) = value.get("etaSeconds").and_then(serde_json::Value::as_f64) {
+                job.eta_seconds = Some(eta_seconds);
+            }
         }
         "browserDownload" => {
             let progress = value.get("progress").unwrap_or(&serde_json::Value::Null);
@@ -318,6 +366,11 @@ fn update_job_from_sidecar(manager: &VideoRenderManager, value: &serde_json::Val
         "error" => {
             job.status = "error".to_string();
             job.error = value.get("error").and_then(serde_json::Value::as_str).unwrap_or("renderer sidecar failed").to_string();
+        }
+        "log" => {
+            if let Some(message) = value.get("message").and_then(serde_json::Value::as_str) {
+                append_job_log(job, message);
+            }
         }
         _ => {}
     }
@@ -398,6 +451,11 @@ fn start_video_render(
         progress: 0.0,
         output: output.to_string_lossy().to_string(),
         error: String::new(),
+        logs: Vec::new(),
+        rendered_frames: None,
+        total_frames: None,
+        fps_estimate: None,
+        eta_seconds: None,
         browser_download: None,
     };
     *manager.job.lock().map_err(|_| "render state is unavailable")? = Some(job.clone());
@@ -423,7 +481,7 @@ fn start_video_render(
                     if !message.is_empty() {
                         if let Ok(mut guard) = manager.job.lock() {
                             if let Some(job) = guard.as_mut() {
-                                append_job_error(job, &message);
+                                append_job_log(job, &message);
                             }
                         }
                     }
@@ -525,12 +583,27 @@ mod tests {
     fn renderer_exit_details_do_not_overwrite_the_root_error() {
         let mut job = VideoRenderJob {
             id: "test".to_string(), status: "rendering".to_string(), progress: 0.0,
-            output: String::new(), error: String::new(), browser_download: None,
+            output: String::new(), error: String::new(), logs: Vec::new(),
+            rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
+            browser_download: None,
         };
         append_job_error(&mut job, "Chrome cache is not writable");
         append_job_error(&mut job, "renderer exited before completion (code Some(1))");
         assert!(job.error.starts_with("Chrome cache is not writable"));
         assert!(job.error.ends_with("code Some(1))"));
+    }
+
+    #[test]
+    fn renderer_stderr_is_kept_as_logs_not_errors() {
+        let mut job = VideoRenderJob {
+            id: "test".to_string(), status: "rendering".to_string(), progress: 0.0,
+            output: String::new(), error: String::new(), logs: Vec::new(),
+            rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
+            browser_download: None,
+        };
+        append_job_log(&mut job, "\u{1b}[33mBrowser failed to load favicon.ico\u{1b}[39m");
+        assert_eq!(job.error, "");
+        assert_eq!(job.logs, vec!["Browser failed to load favicon.ico"]);
     }
 
     #[test]
@@ -561,17 +634,25 @@ mod tests {
         let manager = VideoRenderManager::default();
         *manager.job.lock().unwrap() = Some(VideoRenderJob {
             id: "test".to_string(), status: "queued".to_string(), progress: 0.0,
-            output: String::new(), error: String::new(), browser_download: None,
+            output: String::new(), error: String::new(), logs: Vec::new(),
+            rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
+            browser_download: None,
         });
         update_job_from_sidecar(&manager, &serde_json::json!({ "type": "status", "status": "rendering" }));
-        update_job_from_sidecar(&manager, &serde_json::json!({ "type": "progress", "progress": 5.0 }));
+        update_job_from_sidecar(&manager, &serde_json::json!({ "type": "progress", "progress": 5.0, "renderedFrames": 50, "totalFrames": 100, "fpsEstimate": 25.0, "etaSeconds": 2.0 }));
         update_job_from_sidecar(&manager, &serde_json::json!({ "type": "progress", "progress": 0.2 }));
+        update_job_from_sidecar(&manager, &serde_json::json!({ "type": "log", "message": "\u{1b}[31mtransient image retry\u{1b}[39m" }));
         update_job_from_sidecar(&manager, &serde_json::json!({ "type": "browserDownload", "progress": { "percent": 0.42, "alreadyAvailable": false } }));
         update_job_from_sidecar(&manager, &serde_json::json!({ "type": "complete", "output": r"C:\video\done.mp4" }));
         let job = manager.job.lock().unwrap().clone().unwrap();
         assert_eq!(job.status, "complete");
         assert_eq!(job.progress, 1.0);
         assert_eq!(job.output, r"C:\video\done.mp4");
+        assert_eq!(job.rendered_frames, Some(50.0));
+        assert_eq!(job.total_frames, Some(100.0));
+        assert_eq!(job.fps_estimate, Some(25.0));
+        assert_eq!(job.eta_seconds, Some(2.0));
+        assert_eq!(job.logs, vec!["transient image retry"]);
         assert_eq!(job.browser_download.unwrap().percent, 42.0);
     }
 }

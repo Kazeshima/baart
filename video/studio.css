@@ -15,6 +15,10 @@ button, input, select { font: inherit; }
 .studio-timeline { margin-top: 10px; display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 10px; color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }
 .studio-timeline input { width: 100%; accent-color: var(--accent-blue); }
 .studio-render-status progress { flex: 1; accent-color: var(--accent-blue); }
+.studio-render-status span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-render-logs { margin-top: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-secondary); font-size: 12px; }
+.studio-render-logs summary { padding: 8px 10px; cursor: pointer; color: var(--text-muted); font-weight: 700; }
+.studio-render-logs pre { max-height: 180px; margin: 0; padding: 0 10px 10px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); line-height: 1.45; }
 .studio-error { margin-top: 10px; padding: 9px 11px; border: 1px solid #ef4444; border-radius: 5px; color: #ef4444; }
 .studio-sidebar { padding: 18px; border-left: 1px solid var(--border); background: var(--bg-panel); display: flex; flex-direction: column; gap: 12px; }
 .studio-panel { padding-bottom: 13px; border-bottom: 1px solid var(--border); display: grid; gap: 8px; }
