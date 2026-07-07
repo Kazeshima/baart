@@ -403,12 +403,12 @@ html, body, #root {
   gap: 6px;
 }
 .overall-badge--latin {
-  font-family: 'Cooper Black', 'Arial Rounded MT Bold', 'Segoe UI Black', 'Trebuchet MS', sans-serif;
+  font-family: var(--font-overall-en);
   font-size: 62px;
   letter-spacing: 0;
 }
 .overall-score {
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 18px;
   line-height: 1;
   color: currentColor;

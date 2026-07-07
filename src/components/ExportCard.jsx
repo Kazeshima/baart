@@ -101,7 +101,7 @@ async function exportFontCss() {
   if (!exportFontCssPromise) {
     exportFontCssPromise = (async () => {
       try {
-        const response = await fetch("https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng");
+        const response = await fetch("https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Long+Cang");
         if (!response.ok) throw new Error(`font css HTTP ${response.status}`);
         let css = await response.text();
         const urls = Array.from(new Set([...css.matchAll(/url\((https:\/\/[^)]+)\)/g)].map(match => match[1])));
@@ -113,8 +113,7 @@ async function exportFontCss() {
         }
         return css;
       } catch {
-        // XML-safe fallback: no ampersands in this URL.
-        return '@import url("https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng");';
+        return '@import url("https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Long+Cang");';
       }
     })();
   }
@@ -425,8 +424,8 @@ function commonStyles(p, fontCss = "") {
     ${fontCss}
     .ui { font-family: Rajdhani, "Noto Sans SC", "Microsoft YaHei", sans-serif; }
     .mono { font-family: "Share Tech Mono", Consolas, monospace; }
-    .rating { font-family: "Ma Shan Zheng", "Cooper Black", "Segoe UI Black", "Arial Rounded MT Bold", "Noto Sans SC", sans-serif; font-weight: 900; letter-spacing: 0; }
-    .rating-latin { font-family: "Cooper Black", "Arial Rounded MT Bold", "Segoe UI Black", "Trebuchet MS", sans-serif; font-weight: 900; letter-spacing: 0; }
+    .rating { font-family: "Long Cang", "Noto Sans SC", "Microsoft YaHei", cursive; font-weight: 400; letter-spacing: 0; }
+    .rating-latin { font-family: "Black Ops One", "Segoe UI Black", "Arial Rounded MT Bold", sans-serif; font-weight: 400; letter-spacing: 0; }
     .title { font-size: 34px; font-weight: 800; fill: ${p.text}; letter-spacing: 0; }
     .sub { font-size: 18px; fill: ${p.sub}; }
     .label { font-size: 17px; fill: ${p.muted}; font-weight: 800; letter-spacing: 0; }
@@ -461,7 +460,7 @@ ${commonStyles(p, options.fontCss)}
   <text x="224" y="80" class="title" xml:space="preserve">${esc(options.arenaSeason || "")} · ${esc(displayName)}</text>
   <text x="226" y="110" class="sub mono">${esc(student.devName)} · #${student.id}</text>
   <text x="224" y="174" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 46 : 56}">${esc(overallText)}</text>
-  <text x="224" y="204" fill="${overallColor}" font-size="19" font-weight="900">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
+  <text x="224" y="204" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 18 : 25}">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
   ${typeChips(student, labels, 224, 214, p)}
   ${coverMark(student, 48, 214, options.uiLanguage, p)}
   ${terrainStrip(student, options.season, 48, 262, p)}
@@ -505,7 +504,7 @@ ${commonStyles(p, options.fontCss)}
   <rect x="842" y="42" width="398" height="168" rx="8" fill="${p.radarBg}" stroke="${overallColor}" stroke-width="2"/>
   <text x="866" y="76" class="label">${esc(t(options.uiLanguage, "overall"))}</text>
   <text x="866" y="158" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 58 : 76}">${esc(overallText)}</text>
-  <text x="872" y="190" fill="${overallColor}" font-size="22" font-weight="900">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
+  <text x="872" y="190" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 22 : 30}">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
   ${typeChips(student, labels, 376, 146, p)}
   ${coverMark(student, 376, 196, options.uiLanguage, p)}
   ${terrainStrip(student, options.season, 376, 240, p)}

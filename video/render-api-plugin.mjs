@@ -93,11 +93,38 @@ function applyRenderApiMiddleware(server) {
         if (active) return sendJson(response, 409, { error: "Another render is already active." });
         const body = await readJson(request);
         const project = parseVideoProject(body.project);
-        const result = await benchmarkRenderConcurrency(project, {
+        const id = crypto.randomUUID();
+        const job = {
+          id, status: "queued", progress: 0, output: "", error: "", browserDownload: null,
+          logs: [], renderedFrames: null, totalFrames: null, fpsEstimate: null, etaSeconds: null,
+          result: null, cancel: null, cancelRequested: false,
+        };
+        jobs.set(id, job);
+        benchmarkRenderConcurrency(project, {
           frames: Number(body.frames || 60),
           outputRoot: path.join(process.cwd(), ".cache", "video-benchmark-api"),
+          callbacks: {
+            onStatus: status => { if (!job.cancelRequested) job.status = status; },
+            onProgress: (progress, meta) => applyProgress(job, progress, meta),
+            onBrowserDownload: progress => {
+              if (!job.cancelRequested) job.browserDownload = { percent: browserDownloadPercent(progress.percent), alreadyAvailable: progress.alreadyAvailable };
+            },
+            onLog: message => appendLog(job, message),
+          },
+        }).then(result => {
+          if (job.cancelRequested) return;
+          job.status = "complete";
+          job.progress = 1;
+          job.result = result;
+        }).catch(error => {
+          if (job.cancelRequested || String(error).toLowerCase().includes("cancel")) {
+            job.status = "cancelled";
+            return;
+          }
+          job.status = "error";
+          job.error = error instanceof Error ? error.message : String(error);
         });
-        return sendJson(response, 200, result);
+        return sendJson(response, 202, publicJob(job));
       }
 
       const match = url.pathname.match(/^\/api\/render\/([^/]+)(\/cancel)?$/);

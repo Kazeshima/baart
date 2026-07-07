@@ -224,18 +224,25 @@ export async function renderVideoProject(rawProject, callbacks = {}, options = {
 }
 
 export async function benchmarkRenderConcurrency(rawProject, options = {}) {
+  const callbacks = options.callbacks || {};
   const baseProject = parseVideoProject(rawProject);
   const frameCount = Math.max(12, Number(options.frames || 90));
   const logicalCores = os.availableParallelism?.() || os.cpus().length;
   const candidates = selectBenchmarkConcurrencyCandidates(options.candidates || BENCHMARK_CONCURRENCY_CANDIDATES, logicalCores);
+  const totalSteps = Math.max(1, candidates.length + 1);
   const outputRoot = options.outputRoot || path.join(process.cwd(), ".cache", "render-benchmark");
   const assetCacheDir = options.assetCacheDir || path.join(process.cwd(), ".cache", "render-assets");
   await fs.mkdir(outputRoot, { recursive: true });
+  callbacks.onStatus?.("rendering");
+  callbacks.onLog?.(`Benchmark IO write test: ${frameCount} sample files.`);
   const io = await benchmarkOutputIo(path.join(outputRoot, "io"), { frames: frameCount, bytesPerFrame: options.bytesPerFrame });
+  callbacks.onLog?.(`Benchmark IO result: ${io.filesPerSecond} frames/s, ${io.mbPerSecond} MB/s.`);
+  callbacks.onProgress?.(1 / totalSteps, { renderedFrames: 1, totalFrames: totalSteps });
   const cases = [];
-  for (const candidate of candidates) {
+  for (const [index, candidate] of candidates.entries()) {
     const outputLocation = path.join(outputRoot, `frames-${safeName(candidate)}`);
     await fs.rm(outputLocation, { recursive: true, force: true });
+    callbacks.onLog?.(`Benchmark ${index + 1}/${candidates.length}: concurrency ${candidate}.`);
     const project = {
       ...baseProject,
       settings: {
@@ -246,7 +253,17 @@ export async function benchmarkRenderConcurrency(rawProject, options = {}) {
       },
     };
     const started = Date.now();
-    await renderVideoProject(project, {}, {
+    await renderVideoProject(project, {
+      onProgress: (progress, meta = {}) => {
+        callbacks.onProgress?.((index + 1 + progress) / totalSteps, {
+          ...meta,
+          renderedFrames: index + 1 + progress,
+          totalFrames: totalSteps,
+        });
+      },
+      onLog: message => callbacks.onLog?.(message),
+      onBrowserDownload: progress => callbacks.onBrowserDownload?.(progress),
+    }, {
       ...options,
       outputLocation,
       frameRange: [0, frameCount - 1],
@@ -259,7 +276,7 @@ export async function benchmarkRenderConcurrency(rawProject, options = {}) {
     const totalBytes = (await Promise.all(entries.map(async name => (await fs.stat(path.join(outputLocation, name))).size))).reduce((sum, size) => sum + size, 0);
     await fs.rm(outputLocation, { recursive: true, force: true });
     const fps = renderedFrames / (elapsedMs / 1000);
-    cases.push({
+    const result = {
       renderConcurrency: candidate,
       resolvedConcurrency: resolveRenderConcurrency(candidate, { logicalCores }) ?? "auto",
       elapsedMs,
@@ -268,16 +285,26 @@ export async function benchmarkRenderConcurrency(rawProject, options = {}) {
       fps: Number(fps.toFixed(2)),
       mbPerSecond: Number(((totalBytes / 1048576) / (elapsedMs / 1000)).toFixed(2)),
       bottleneck: classifyRenderBottleneck(fps, io.filesPerSecond),
-    });
+    };
+    cases.push(result);
+    callbacks.onLog?.(`Benchmark ${candidate}: ${result.fps} fps, ${result.mbPerSecond} MB/s, ${result.bottleneck}.`);
   }
   cases.sort((a, b) => b.fps - a.fps);
-  return {
+  const report = {
     logicalCores,
     frameCount,
     io,
     cases,
     best: cases[0] || null,
+    recommendation: cases[0]?.bottleneck === "browser-or-png-encoding"
+      ? "Disk write throughput is much higher than render throughput. The likely limit is browser scene rendering, PNG encoding, or both. Lossless PNG sequence output still uses Remotion renderFrames()."
+      : cases[0]?.bottleneck === "disk-io"
+        ? "Disk write throughput is close to render throughput. A faster local SSD or a different output directory may improve PNG sequence renders."
+        : "Benchmark did not classify a dominant bottleneck.",
   };
+  await fs.writeFile(path.join(outputRoot, "benchmark-report.json"), JSON.stringify(report, null, 2)).catch(() => {});
+  callbacks.onProgress?.(1, { renderedFrames: totalSteps, totalFrames: totalSteps });
+  return report;
 }
 
 export { outputRoot };

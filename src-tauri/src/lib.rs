@@ -138,6 +138,7 @@ struct VideoRenderJob {
     fps_estimate: Option<f64>,
     eta_seconds: Option<f64>,
     browser_download: Option<BrowserDownloadProgress>,
+    result: Option<serde_json::Value>,
 }
 
 impl VideoRenderJob {
@@ -374,6 +375,9 @@ fn update_job_from_sidecar(manager: &VideoRenderManager, value: &serde_json::Val
             if let Some(output) = value.get("output").and_then(serde_json::Value::as_str) {
                 job.output = output.to_string();
             }
+            if let Some(result) = value.get("result") {
+                job.result = Some(result.clone());
+            }
         }
         "error" => {
             job.status = "error".to_string();
@@ -469,6 +473,7 @@ fn start_video_render(
         fps_estimate: None,
         eta_seconds: None,
         browser_download: None,
+        result: None,
     };
     *manager.job.lock().map_err(|_| "render state is unavailable")? = Some(job.clone());
     *manager.child.lock().map_err(|_| "render state is unavailable")? = Some(child);
@@ -573,6 +578,21 @@ async fn benchmark_video_render(
         .current_dir(&node_work_dir)
         .args(arguments);
     let (mut receiver, _child) = command.spawn().map_err(|error| format!("failed to start renderer sidecar: {error}"))?;
+    let job = VideoRenderJob {
+        id: id.clone(),
+        status: "queued".to_string(),
+        progress: 0.0,
+        output: output_root.to_string_lossy().to_string(),
+        error: String::new(),
+        logs: Vec::new(),
+        rendered_frames: None,
+        total_frames: None,
+        fps_estimate: None,
+        eta_seconds: None,
+        browser_download: None,
+        result: None,
+    };
+    *manager.job.lock().map_err(|_| "render state is unavailable")? = Some(job);
     let mut result: Option<serde_json::Value> = None;
     let mut stderr = String::new();
     let mut worker_error = String::new();
@@ -583,9 +603,15 @@ async fn benchmark_video_render(
                 if let Some(json) = line.trim().strip_prefix(SIDECAR_EVENT_PREFIX) {
                     if let Ok(value) = serde_json::from_str::<serde_json::Value>(json) {
                         match value.get("type").and_then(serde_json::Value::as_str) {
-                            Some("complete") => result = value.get("result").cloned(),
-                            Some("error") => worker_error = value.get("error").and_then(serde_json::Value::as_str).unwrap_or("benchmark failed").to_string(),
-                            _ => {}
+                            Some("complete") => {
+                                update_job_from_sidecar(&manager, &value);
+                                result = value.get("result").cloned();
+                            }
+                            Some("error") => {
+                                worker_error = value.get("error").and_then(serde_json::Value::as_str).unwrap_or("benchmark failed").to_string();
+                                update_job_from_sidecar(&manager, &value);
+                            }
+                            _ => update_job_from_sidecar(&manager, &value),
                         }
                     }
                 }
@@ -595,6 +621,11 @@ async fn benchmark_video_render(
                 if !message.trim().is_empty() {
                     stderr.push_str(message.trim());
                     stderr.push('\n');
+                    if let Ok(mut guard) = manager.job.lock() {
+                        if let Some(job) = guard.as_mut() {
+                            append_job_log(job, message.trim());
+                        }
+                    }
                 }
             }
             CommandEvent::Terminated(payload) => {
@@ -603,6 +634,12 @@ async fn benchmark_video_render(
                     return Ok(value);
                 }
                 let detail = if !worker_error.is_empty() { worker_error } else if !stderr.trim().is_empty() { stderr.trim().to_string() } else { "benchmark renderer exited before completion".to_string() };
+                if let Ok(mut guard) = manager.job.lock() {
+                    if let Some(job) = guard.as_mut() {
+                        job.status = "error".to_string();
+                        append_job_error(job, &format!("{detail} (code {:?})", payload.code));
+                    }
+                }
                 return Err(format!("{detail} (code {:?})", payload.code));
             }
             CommandEvent::Error(error) => worker_error = error,
@@ -697,6 +734,7 @@ mod tests {
             output: String::new(), error: String::new(), logs: Vec::new(),
             rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
             browser_download: None,
+            result: None,
         };
         append_job_error(&mut job, "Chrome cache is not writable");
         append_job_error(&mut job, "renderer exited before completion (code Some(1))");
@@ -711,6 +749,7 @@ mod tests {
             output: String::new(), error: String::new(), logs: Vec::new(),
             rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
             browser_download: None,
+            result: None,
         };
         append_job_log(&mut job, "\u{1b}[33mBrowser failed to load favicon.ico\u{1b}[39m");
         assert_eq!(job.error, "");
@@ -748,6 +787,7 @@ mod tests {
             output: String::new(), error: String::new(), logs: Vec::new(),
             rendered_frames: None, total_frames: None, fps_estimate: None, eta_seconds: None,
             browser_download: None,
+            result: None,
         });
         update_job_from_sidecar(&manager, &serde_json::json!({ "type": "status", "status": "rendering" }));
         update_job_from_sidecar(&manager, &serde_json::json!({ "type": "progress", "progress": 5.0, "renderedFrames": 50, "totalFrames": 100, "fpsEstimate": 25.0, "etaSeconds": 2.0 }));

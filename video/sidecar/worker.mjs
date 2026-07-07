@@ -22,7 +22,17 @@ export async function runWorker(argv = process.argv.slice(2), io = {}) {
       const benchmarkRenderConcurrency = io.benchmarkRenderConcurrency || (await import("../render-service.mjs")).benchmarkRenderConcurrency;
       const project = JSON.parse(await fs.readFile(projectPath, "utf8"));
       emitEvent("status", { status: "rendering" });
-      const result = await benchmarkRenderConcurrency(project, { serveUrl, outputRoot, binariesDirectory });
+      const result = await benchmarkRenderConcurrency(project, {
+        serveUrl,
+        outputRoot,
+        binariesDirectory,
+        callbacks: {
+          onStatus: status => emitEvent("status", { status }),
+          onProgress: (progress, meta = {}) => emitEvent("progress", { progress, ...meta }),
+          onBrowserDownload: progress => emitEvent("browserDownload", { progress }),
+          onLog: message => emitEvent("log", { message }),
+        },
+      });
       emitEvent("complete", { output: outputRoot, result });
       return { ok: true, output: outputRoot, result };
     } catch (error) {

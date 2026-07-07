@@ -38,16 +38,43 @@ export async function startRenderJob(project, outputLocation = "") {
   return readJsonResponse(response);
 }
 
-export async function benchmarkRenderSettings(project) {
+async function pollBenchmarkJob(job, onProgress) {
+  let current = job;
+  let emptyPolls = 0;
+  onProgress?.(current);
+  while (!current || ["queued", "preparing", "rendering", "encoding"].includes(current.status)) {
+    await new Promise(resolve => setTimeout(resolve, 750));
+    const next = await getRenderJob(current?.id || "benchmark");
+    if (!next) {
+      emptyPolls += 1;
+      if (emptyPolls > 5) break;
+      continue;
+    }
+    current = next;
+    emptyPolls = 0;
+    onProgress?.(current);
+  }
+  if (current?.status === "error") throw new Error(current.error || "Benchmark failed.");
+  if (current?.status === "cancelled") throw new Error("Benchmark cancelled.");
+  return current?.result || current;
+}
+
+export async function benchmarkRenderSettings(project, onProgress) {
   if (usesTauriRenderTransport()) {
-    return invoke("benchmark_video_render", { project });
+    const pending = { id: "benchmark", status: "queued", progress: 0, logs: [] };
+    onProgress?.(pending);
+    const poll = pollBenchmarkJob(pending, onProgress).catch(() => null);
+    const result = await invoke("benchmark_video_render", { project });
+    const latest = await poll;
+    return latest?.result || result;
   }
   const response = await fetch("/api/render/benchmark", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ project, frames: 60 }),
   });
-  return readJsonResponse(response);
+  const job = await readJsonResponse(response);
+  return pollBenchmarkJob(job, onProgress);
 }
 
 export async function getRenderJob(id) {

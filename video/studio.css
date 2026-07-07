@@ -32,7 +32,7 @@ button, input, select { font: inherit; }
 .studio-output-location > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
 .studio-output-location code { min-width: 0; padding: 7px 8px; overflow: hidden; border: 1px solid var(--border); border-radius: 5px; color: var(--text-muted); background: var(--bg-card); font-family: var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
 .studio-output-location button { padding: 0 10px; border: 1px solid var(--border-bright); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: pointer; }
-.studio-benchmark { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
+.studio-benchmark { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
 .studio-benchmark button { height: 28px; padding: 0 10px; border: 1px solid var(--border-bright); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: pointer; }
 .studio-benchmark button:disabled { opacity: .45; cursor: not-allowed; }
 .studio-benchmark span { min-width: 0; line-height: 1.35; }
