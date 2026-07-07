@@ -1,5 +1,5 @@
 html, body, #video-root { min-height: 100%; margin: 0; background: var(--bg-deep); }
-body { overflow: auto; color: var(--text-primary); font-family: var(--font-ui); }
+body { overflow: hidden; color: var(--text-primary); font-family: var(--font-ui); }
 button, input, select { font: inherit; }
 .video-studio { min-height: 100vh; background: var(--bg-deep); color: var(--text-primary); }
 .studio-header { height: 58px; padding: 0 22px; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: var(--bg-panel); }
@@ -7,8 +7,8 @@ button, input, select { font: inherit; }
 .studio-header strong { color: var(--accent-blue); font-size: 22px; letter-spacing: .12em; }
 .studio-header span { color: var(--text-secondary); font-size: 14px; }
 .studio-header a { color: var(--accent-blue); text-decoration: none; font-weight: 700; }
-.studio-layout { display: grid; grid-template-columns: minmax(520px, 1fr) 370px; min-height: calc(100vh - 58px); align-items: start; }
-.studio-preview { min-width: 0; padding: 22px; align-self: start; }
+.studio-layout { display: grid; grid-template-columns: minmax(520px, 1fr) 370px; height: calc(100vh - 58px); min-height: 0; align-items: stretch; overflow: hidden; }
+.studio-preview { min-width: 0; min-height: 0; padding: 22px; align-self: stretch; overflow-y: auto; }
 .studio-player-shell { overflow: hidden; border: 1px solid var(--border-bright); border-radius: 8px; background: #000; box-shadow: 0 18px 55px #0007; }
 .studio-empty { aspect-ratio: 16 / 9; display: grid; place-items: center; color: var(--text-muted); }
 .studio-status, .studio-render-status { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-secondary); font-size: 13px; }
@@ -20,7 +20,7 @@ button, input, select { font: inherit; }
 .studio-render-logs summary { padding: 8px 10px; cursor: pointer; color: var(--text-muted); font-weight: 700; }
 .studio-render-logs pre { max-height: 180px; margin: 0; padding: 0 10px 10px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); line-height: 1.45; }
 .studio-error { margin-top: 10px; padding: 9px 11px; border: 1px solid #ef4444; border-radius: 5px; color: #ef4444; }
-.studio-sidebar { padding: 18px; border-left: 1px solid var(--border); background: var(--bg-panel); display: flex; flex-direction: column; gap: 12px; }
+.studio-sidebar { min-height: 0; padding: 18px; overflow-y: auto; border-left: 1px solid var(--border); background: var(--bg-panel); display: flex; flex-direction: column; gap: 12px; }
 .studio-panel { padding-bottom: 13px; border-bottom: 1px solid var(--border); display: grid; gap: 8px; }
 .studio-panel h2 { margin: 0 0 2px; color: var(--text-muted); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
 .studio-control { min-height: 30px; display: grid; grid-template-columns: 1fr 145px; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; }
@@ -43,4 +43,9 @@ button, input, select { font: inherit; }
 .studio-order-item > span:not(.studio-order-handle), .studio-status span:first-child { white-space: pre-wrap; }
 .studio-render-button { position: sticky; bottom: 12px; height: 42px; border: 1px solid var(--accent-gold); border-radius: 6px; background: #1a1404; color: var(--accent-gold); font-weight: 800; cursor: pointer; }
 .studio-render-button:disabled { opacity: .4; cursor: not-allowed; }
-@media (max-width: 1050px) { .studio-layout { grid-template-columns: 1fr; } .studio-sidebar { border-left: 0; border-top: 1px solid var(--border); } }
+@media (max-width: 1050px) {
+  body { overflow: auto; }
+  .studio-layout { grid-template-columns: 1fr; height: auto; min-height: calc(100vh - 58px); overflow: visible; }
+  .studio-preview { overflow: visible; }
+  .studio-sidebar { overflow: visible; border-left: 0; border-top: 1px solid var(--border); }
+}
