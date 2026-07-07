@@ -3,6 +3,7 @@ import { Img, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { DIMENSIONS, OVERALL_COLORS } from "../../src/utils/constants.js";
 import { DIMENSION_LABELS, localeFor, t } from "../../src/utils/i18n.js";
 import { weightMultiplier } from "../../src/utils/scoring.js";
+import { studentDisplayName } from "../../src/utils/studentDisplay.js";
 import OverallBadge from "../../src/components/presentation/OverallBadge.jsx";
 import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators, studentPresentation } from "../../src/components/presentation/StudentPresentation.jsx";
 import { getTimeline, phaseProgress, estimateCommentScroll } from "../core/config.js";
@@ -18,6 +19,15 @@ function enterStyle(frame, start, duration = 16, distance = 28) {
   return { opacity: progress, transform: `translateY(${(1 - progress) * distance}px)` };
 }
 
+function videoTitleFontSize(student, language) {
+  const displayName = studentDisplayName(student, language);
+  const weightedLength = Array.from(displayName).reduce((sum, character) => sum + (/[\u3000-\u30ff\u3400-\u9fff\uff00-\uffef]/.test(character) ? 1.9 : 1), 0);
+  if (weightedLength > 18) return 70;
+  if (weightedLength > 15) return 78;
+  if (weightedLength > 13) return 86;
+  return 100;
+}
+
 export default function StudentScene({ record, settings }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -28,6 +38,7 @@ export default function StudentScene({ record, settings }) {
   const AssetImg = props => <Img {...props} src={assetSrc(props.src)} />;
   const palette = palettes[settings.theme] || palettes.dark;
   const presentation = useMemo(() => studentPresentation(student, settings.uiLanguage), [student, settings.uiLanguage]);
+  const titleFontSize = useMemo(() => videoTitleFontSize(student, settings.uiLanguage), [student, settings.uiLanguage]);
   const dimensionLabels = useMemo(() => DIMENSION_LABELS[localeFor(settings.uiLanguage)] || DIMENSION_LABELS.zh, [settings.uiLanguage]);
   const overallColor = ratings.overall !== null ? OVERALL_COLORS[ratings.overall] : palette.muted;
   const overallSpring = spring({ frame: frame - timeline.overallStart, fps, config: { damping: 14, stiffness: 115, mass: 0.8 } });
@@ -36,9 +47,9 @@ export default function StudentScene({ record, settings }) {
     1 - phaseProgress(frame, timeline.fadeOutStart, timeline.fadeOut || 1),
   );
   const scroll = useMemo(() => estimateCommentScroll(ratings.notes, settings.uiLanguage, {
-    charsPerLine: settings.uiLanguage === "en" ? 30 : 18,
+    charsPerLine: settings.uiLanguage === "en" ? 28 : 17,
     lineHeight: 58,
-    viewportHeight: 340,
+    viewportHeight: 300,
   }), [ratings.notes, settings.uiLanguage]);
   const scrollStart = timeline.overallEnd + Math.round(settings.commentScrollDelay * fps);
   const scrollY = Math.min(scroll.distance, Math.max(0, frame - scrollStart) / fps * settings.commentScrollSpeed);
@@ -53,7 +64,7 @@ export default function StudentScene({ record, settings }) {
 
       <header className="video-title" style={enterStyle(frame, timeline.infoStart)}>
         <div className="video-title__season">{settings.arenaSeason} · ARENA GUIDE</div>
-        <StudentIdentity student={student} language={settings.uiLanguage} nameClassName="video-title__name" metaClassName="video-title__meta" />
+        <StudentIdentity student={student} language={settings.uiLanguage} nameClassName="video-title__name" metaClassName="video-title__meta" nameStyle={{ fontSize: titleFontSize }} />
       </header>
 
       <section className="video-info" style={enterStyle(frame, timeline.infoStart + timeline.infoStep)}>

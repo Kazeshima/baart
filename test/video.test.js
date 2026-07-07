@@ -201,6 +201,8 @@ test("student parser keeps SchaleDB surname fields for localized display names",
   assert.equal(student.personalName, "艾米");
   assert.equal(studentDisplayName(student, "zh"), "和泉元  艾米");
   assert.equal(studentDisplayName({ ...student, familyName: "Izumimoto", personalName: "Eimi", name: "Eimi" }, "en"), "Izumimoto Eimi");
+  assert.equal(studentDisplayName({ ...student, familyName: "Kadenokouji", personalName: "Yukari", name: "Yukari (Swimsuit)" }, "en"), "Kadenokouji Yukari (Swimsuit)");
+  assert.equal(studentDisplayName({ ...student, familyName: "勘解由小路", personalName: "紫草", name: "紫草（泳装）" }, "zh"), "勘解由小路  紫草（泳装）");
   assert.equal(studentDisplayName({ ...student, familyName: "和泉元", name: "和泉元艾米", personalName: "" }, "zh"), "和泉元艾米");
 });
 

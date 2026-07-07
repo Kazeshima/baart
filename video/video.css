@@ -20,18 +20,18 @@
 .video-terrain img { width: 38px; height: 38px; object-fit: contain; }
 .video-terrain img.video-terrain__rank { width: 54px; height: 29px; }
 .video-terrain span { color: var(--accent-gold); font-size: 22px; }
-.video-comments { position: absolute; left: 74px; top: 594px; z-index: 2; width: 790px; height: 436px; padding: 22px 30px; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 78%, transparent); }
-.video-comments__viewport { height: 340px; margin-top: 12px; overflow: hidden; mask-image: linear-gradient(#000 0%, #000 88%, transparent 100%); }
+.video-comments { position: absolute; left: 74px; top: 618px; z-index: 2; width: 750px; height: 392px; padding: 20px 28px; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 76%, transparent); }
+.video-comments__viewport { height: 300px; margin-top: 12px; overflow: hidden; mask-image: linear-gradient(#000 0%, #000 88%, transparent 100%); }
 .video-comments__text { color: var(--text-primary); font-size: 45px; line-height: 58px; font-weight: 600; white-space: pre-wrap; }
-.video-radar-panel { position: absolute; z-index: 2; left: 1010px; top: 278px; width: 760px; height: 752px; padding: 16px 20px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 80%, transparent); }
+.video-radar-panel { position: absolute; z-index: 2; left: 940px; top: 278px; width: 830px; height: 752px; padding: 16px 24px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 78%, transparent); }
 .video-radar { position: relative; overflow: visible; }
 .video-radar > svg:not(.video-radar__ripples) { position: relative; z-index: 2; }
 .video-radar__ripples { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .video-weights { min-height: 58px; width: 100%; padding: 10px 12px 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px 14px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 20px; font-weight: 700; }
 .video-weights__label { color: var(--text-muted); text-transform: uppercase; }
 .video-weights strong { color: var(--accent-gold); }
-.video-overall { position: absolute; left: 1010px; top: 48px; width: 760px; height: 214px; z-index: 4; border: 2px solid; border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 70%, transparent); padding: 24px 32px; display: flex; align-items: center; gap: 32px; transform-origin: right center; }
-.video-overall .video-section-label { position: absolute; top: 14px; left: 30px; color: var(--text-muted); font-size: 22px; }
-.video-overall .overall-badge { min-width: 300px; display: flex; flex-direction: column; align-items: flex-start; font-family: var(--font-zh); font-size: 90px; line-height: .88; font-weight: 900; text-shadow: 0 0 26px currentColor; }
-.video-overall .overall-badge--latin { min-width: 250px; font-family: 'Cooper Black', 'Segoe UI Black', sans-serif; font-size: 76px; }
-.video-overall .overall-score { margin-top: 14px; font-family: var(--font-mono); font-size: 42px; font-weight: 900; text-shadow: none; }
+.video-overall { position: absolute; left: 940px; top: 48px; width: 830px; height: 214px; z-index: 4; border: 2px solid; border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 66%, transparent); padding: 48px 34px 24px; display: flex; align-items: center; gap: 32px; transform-origin: right center; }
+.video-overall .video-section-label { position: absolute; top: 18px; left: 34px; color: var(--text-muted); font-size: 22px; }
+.video-overall .overall-badge { width: 100%; display: flex; flex-direction: row; align-items: baseline; gap: 28px; font-family: var(--font-zh); font-size: 82px; line-height: .9; font-weight: 900; text-shadow: 0 0 26px currentColor; }
+.video-overall .overall-badge--latin { font-family: 'Cooper Black', 'Segoe UI Black', sans-serif; font-size: 74px; }
+.video-overall .overall-score { margin-top: 0; font-family: var(--font-mono); font-size: 58px; font-weight: 900; line-height: 1; text-shadow: none; }

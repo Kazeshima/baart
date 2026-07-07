@@ -213,6 +213,17 @@ fn node_cli_path(path: &Path) -> String {
     value.into_owned()
 }
 
+fn benchmark_sidecar_arguments(worker: &Path, manifest: &Path, serve_url: &Path, output_root: &Path, binaries: &Path) -> Vec<String> {
+    vec![
+        node_cli_path(worker),
+        "--benchmark".to_string(),
+        node_cli_path(manifest),
+        node_cli_path(serve_url),
+        node_cli_path(output_root),
+        node_cli_path(binaries),
+    ]
+}
+
 fn append_job_error(job: &mut VideoRenderJob, message: &str) {
     let message = message.trim();
     if message.is_empty() || job.error.contains(message) {
@@ -554,13 +565,7 @@ async fn benchmark_video_render(
     std::fs::write(&manifest, serde_json::to_vec(&project).map_err(|error| error.to_string())?)
         .map_err(|error| format!("failed to write benchmark manifest: {error}"))?;
 
-    let arguments = vec![
-        "--benchmark".to_string(),
-        node_cli_path(&manifest),
-        node_cli_path(&serve_url),
-        node_cli_path(&output_root),
-        node_cli_path(&binaries),
-    ];
+    let arguments = benchmark_sidecar_arguments(&worker, &manifest, &serve_url, &output_root, &binaries);
     let node_work_dir = PathBuf::from(node_cli_path(&renderer_work_dir));
     let command = app.shell()
         .sidecar("baart-node")
@@ -668,6 +673,20 @@ mod tests {
             Path::new(r"\\?\C:\BAART\compositor"),
         ];
         let arguments: Vec<String> = inputs.iter().map(|path| node_cli_path(path)).collect();
+        assert!(arguments.iter().all(|argument| !argument.starts_with(r"\\?\")));
+    }
+
+    #[test]
+    fn benchmark_sidecar_arguments_pass_worker_before_mode_flag() {
+        let arguments = benchmark_sidecar_arguments(
+            Path::new(r"\\?\C:\BAART\worker.mjs"),
+            Path::new(r"\\?\C:\Cache\project.json"),
+            Path::new(r"\\?\C:\BAART\composition"),
+            Path::new(r"\\?\C:\Cache\benchmark"),
+            Path::new(r"\\?\C:\BAART\compositor"),
+        );
+        assert_eq!(arguments[0], r"C:\BAART\worker.mjs");
+        assert_eq!(arguments[1], "--benchmark");
         assert!(arguments.iter().all(|argument| !argument.starts_with(r"\\?\")));
     }
 

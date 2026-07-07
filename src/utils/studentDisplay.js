@@ -7,7 +7,6 @@ export function studentDisplayName(student, language = "zh") {
   if (!familyName) return name;
 
   const separator = localeFor(language) === "en" ? " " : "  ";
-  if (personalName && personalName !== name) return `${familyName}${separator}${personalName}`;
   if (name.startsWith(familyName)) return name;
-  return `${familyName}${separator}${name}`;
+  return `${familyName}${separator}${name || personalName}`;
 }

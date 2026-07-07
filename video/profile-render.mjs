@@ -23,7 +23,7 @@ function boolArg(name) {
 }
 
 async function readJson(file) {
-  return JSON.parse(await fs.readFile(file, "utf8"));
+  return JSON.parse((await fs.readFile(file, "utf8")).replace(/^\uFEFF/, ""));
 }
 
 async function loadStudents(language) {
