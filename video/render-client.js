@@ -38,6 +38,18 @@ export async function startRenderJob(project, outputLocation = "") {
   return readJsonResponse(response);
 }
 
+export async function benchmarkRenderSettings(project) {
+  if (usesTauriRenderTransport()) {
+    return invoke("benchmark_video_render", { project });
+  }
+  const response = await fetch("/api/render/benchmark", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ project, frames: 60 }),
+  });
+  return readJsonResponse(response);
+}
+
 export async function getRenderJob(id) {
   if (usesTauriRenderTransport()) return invoke("get_video_render_job");
   return readJsonResponse(await fetch(`/api/render/${encodeURIComponent(id)}`));

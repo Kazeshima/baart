@@ -81,7 +81,7 @@ export default function RadarChart({
     <svg
       width={size} height={size}
       viewBox={`0 0 ${RADAR_VIEWBOX} ${RADAR_VIEWBOX}`}
-      style={{ display: "block" }}
+      style={{ display: "block", overflow: "visible" }}
     >
       {scanTrail.map((segment, index) => <polygon
         key={`scan-trail-${index}`}

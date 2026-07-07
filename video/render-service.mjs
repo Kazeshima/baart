@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import os from "node:os";
 import { makeCancelSignal, renderFrames, renderMedia, selectComposition } from "@remotion/renderer";
 import { parseVideoProject } from "./core/manifest.js";
 import { clampProgress, resolveRenderConcurrency, validateVideoSettings } from "./core/config.js";
@@ -48,12 +49,40 @@ function browserDownloadCallback(callbacks) {
 }
 
 function renderOptions(project) {
-  const concurrency = resolveRenderConcurrency(project.settings.renderConcurrency);
+  const concurrency = resolveRenderConcurrency(project.settings.renderConcurrency, { logicalCores: os.availableParallelism?.() || os.cpus().length });
   return {
     scale: project.settings.width / 1920,
     logLevel: "error",
     ...(concurrency === undefined ? {} : { concurrency }),
   };
+}
+
+export async function benchmarkOutputIo(outputDir, options = {}) {
+  const frames = Math.max(1, Number(options.frames || 80));
+  const bytesPerFrame = Math.max(1024, Number(options.bytesPerFrame || 512_000));
+  const buffer = Buffer.alloc(bytesPerFrame, 0x76);
+  await fs.rm(outputDir, { recursive: true, force: true });
+  await fs.mkdir(outputDir, { recursive: true });
+  const started = Date.now();
+  for (let index = 0; index < frames; index += 1) {
+    await fs.writeFile(path.join(outputDir, `io-${String(index).padStart(4, "0")}.bin`), buffer);
+  }
+  const elapsedMs = Math.max(1, Date.now() - started);
+  const totalBytes = frames * bytesPerFrame;
+  await fs.rm(outputDir, { recursive: true, force: true });
+  return {
+    frames,
+    totalBytes,
+    elapsedMs,
+    filesPerSecond: Number((frames / (elapsedMs / 1000)).toFixed(2)),
+    mbPerSecond: Number(((totalBytes / 1048576) / (elapsedMs / 1000)).toFixed(2)),
+  };
+}
+
+export function classifyRenderBottleneck(renderFps, ioFilesPerSecond) {
+  if (!Number.isFinite(renderFps) || renderFps <= 0) return "unknown";
+  if (!Number.isFinite(ioFilesPerSecond) || ioFilesPerSecond <= 0) return "unknown";
+  return ioFilesPerSecond <= renderFps * 2 ? "disk-io" : "browser-or-png-encoding";
 }
 
 function progressMeta(renderedFrames, totalFrames, startedAt = Date.now()) {
@@ -74,6 +103,14 @@ function frameRangeCount(frameRange, fallback) {
   return Math.floor(end - start + 1);
 }
 
+export const BENCHMARK_CONCURRENCY_CANDIDATES = Object.freeze(["adaptive", "auto", "50%", "75%", "100%", "4", "6", "8", "12", "16"]);
+
+export function selectBenchmarkConcurrencyCandidates(candidates = BENCHMARK_CONCURRENCY_CANDIDATES, logicalCores = os.availableParallelism?.() || os.cpus().length) {
+  return candidates
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .filter(value => resolveRenderConcurrency(value, { logicalCores }) !== null);
+}
+
 async function renderProject({ project, serveUrl, composition, inputProps, output, callbacks, cancellation, binariesDirectory }) {
   const frameRange = project.settings.renderFrameRange;
   const frameCount = frameRangeCount(frameRange, composition.durationInFrames);
@@ -84,9 +121,10 @@ async function renderProject({ project, serveUrl, composition, inputProps, outpu
     if (log?.text) callbacks.onLog?.(log.text);
   };
   if (project.settings.format === "png") {
+    const imageFormat = project.settings.renderImageFormat === "jpeg" ? "jpeg" : "png";
     await renderFrames({
       serveUrl, composition, inputProps, outputDir: output,
-      imageFormat: "png", imageSequencePattern: "frame-[frame].[ext]",
+      imageFormat, imageSequencePattern: "frame-[frame].[ext]",
       ...options, chromeMode: "chrome-for-testing",
       binariesDirectory,
       ...(frameRange ? { frameRange } : {}),
@@ -148,6 +186,7 @@ export async function renderVideoProject(rawProject, callbacks = {}, options = {
         assetMap: assetResult.assetMap,
         ...(options.profile ? { renderProfile: options.profile } : {}),
         ...(options.frameRange ? { renderFrameRange: options.frameRange } : {}),
+        ...(options.imageFormat ? { renderImageFormat: options.imageFormat } : {}),
       },
     };
     const inputProps = { project: renderProjectData };
@@ -182,6 +221,63 @@ export async function renderVideoProject(rawProject, callbacks = {}, options = {
   } finally {
     await assetServer.close();
   }
+}
+
+export async function benchmarkRenderConcurrency(rawProject, options = {}) {
+  const baseProject = parseVideoProject(rawProject);
+  const frameCount = Math.max(12, Number(options.frames || 90));
+  const logicalCores = os.availableParallelism?.() || os.cpus().length;
+  const candidates = selectBenchmarkConcurrencyCandidates(options.candidates || BENCHMARK_CONCURRENCY_CANDIDATES, logicalCores);
+  const outputRoot = options.outputRoot || path.join(process.cwd(), ".cache", "render-benchmark");
+  const assetCacheDir = options.assetCacheDir || path.join(process.cwd(), ".cache", "render-assets");
+  await fs.mkdir(outputRoot, { recursive: true });
+  const io = await benchmarkOutputIo(path.join(outputRoot, "io"), { frames: frameCount, bytesPerFrame: options.bytesPerFrame });
+  const cases = [];
+  for (const candidate of candidates) {
+    const outputLocation = path.join(outputRoot, `frames-${safeName(candidate)}`);
+    await fs.rm(outputLocation, { recursive: true, force: true });
+    const project = {
+      ...baseProject,
+      settings: {
+        ...baseProject.settings,
+        format: "png",
+        renderConcurrency: candidate,
+        outputName: `benchmark-${safeName(candidate)}`,
+      },
+    };
+    const started = Date.now();
+    await renderVideoProject(project, {}, {
+      ...options,
+      outputLocation,
+      frameRange: [0, frameCount - 1],
+      assetCacheDir,
+      profile: options.profile,
+    });
+    const elapsedMs = Math.max(1, Date.now() - started);
+    const entries = await fs.readdir(outputLocation);
+    const renderedFrames = entries.filter(name => name.endsWith(".png")).length;
+    const totalBytes = (await Promise.all(entries.map(async name => (await fs.stat(path.join(outputLocation, name))).size))).reduce((sum, size) => sum + size, 0);
+    await fs.rm(outputLocation, { recursive: true, force: true });
+    const fps = renderedFrames / (elapsedMs / 1000);
+    cases.push({
+      renderConcurrency: candidate,
+      resolvedConcurrency: resolveRenderConcurrency(candidate, { logicalCores }) ?? "auto",
+      elapsedMs,
+      renderedFrames,
+      totalBytes,
+      fps: Number(fps.toFixed(2)),
+      mbPerSecond: Number(((totalBytes / 1048576) / (elapsedMs / 1000)).toFixed(2)),
+      bottleneck: classifyRenderBottleneck(fps, io.filesPerSecond),
+    });
+  }
+  cases.sort((a, b) => b.fps - a.fps);
+  return {
+    logicalCores,
+    frameCount,
+    io,
+    cases,
+    best: cases[0] || null,
+  };
 }
 
 export { outputRoot };

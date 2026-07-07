@@ -8,7 +8,7 @@ import { schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import ArenaRatingVideo from "./remotion/ArenaRatingVideo.jsx";
-import { DEFAULT_VIDEO_SETTINGS, estimatePreviewFps, getTimeline, totalDurationInFrames, validateVideoSettings } from "./core/config.js";
+import { DEFAULT_VIDEO_SETTINGS, benchmarkStorageKey, estimatePreviewFps, getTimeline, totalDurationInFrames, validateVideoSettings } from "./core/config.js";
 import {
   mergeRatedStudents,
   orderedProjectRecords,
@@ -21,6 +21,7 @@ import { vt } from "./core/i18n.js";
 import { isActiveRenderStatus } from "./core/renderJob.js";
 import {
   cancelRenderJob,
+  benchmarkRenderSettings,
   chooseRenderOutput,
   getRenderJob,
   startRenderJob,
@@ -29,6 +30,7 @@ import {
 
 const RATINGS_KEY = "ba_pvp_ratings";
 const PROJECT_KEY = "baart_video_project_settings";
+const BENCHMARK_KEY = "baart_video_render_benchmarks";
 
 function NumberControl({ label, value, onChange, min = 0, max, step = 0.1 }) {
   return <label className="studio-control"><span>{label}</span><input type="number" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))} /></label>;
@@ -72,6 +74,8 @@ export default function VideoStudio() {
   const [snapshotRecords, setSnapshotRecords] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [renderJob, setRenderJob] = useState(null);
+  const [benchmarkResult, setBenchmarkResult] = useState(() => readStoredJson(BENCHMARK_KEY)[benchmarkStorageKey({ ...DEFAULT_VIDEO_SETTINGS, ...(saved.settings || {}) })] || null);
+  const [benchmarking, setBenchmarking] = useState(false);
   const [outputLocation, setOutputLocation] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [previewFps, setPreviewFps] = useState(0);
@@ -101,6 +105,10 @@ export default function VideoStudio() {
   useEffect(() => {
     localStorage.setItem(PROJECT_KEY, JSON.stringify({ settings, order }));
   }, [settings, order]);
+
+  useEffect(() => {
+    setBenchmarkResult(readStoredJson(BENCHMARK_KEY)[benchmarkStorageKey(settings)] || null);
+  }, [settings.width, settings.height, settings.fps, settings.theme, settings.uiLanguage, settings.dataLanguage]);
 
   useEffect(() => {
     const player = playerRef.current;
@@ -246,6 +254,27 @@ export default function VideoStudio() {
     }
   };
 
+  const runBenchmark = async () => {
+    if (!project || benchmarking || activeRender) return;
+    setBenchmarking(true);
+    try {
+      const result = await benchmarkRenderSettings(project);
+      const best = result.best;
+      if (best?.renderConcurrency) {
+        updateSetting("renderConcurrency", best.renderConcurrency);
+      }
+      const key = benchmarkStorageKey(settings);
+      const stored = readStoredJson(BENCHMARK_KEY);
+      const savedResult = { ...result, createdAt: new Date().toISOString() };
+      localStorage.setItem(BENCHMARK_KEY, JSON.stringify({ ...stored, [key]: savedResult }));
+      setBenchmarkResult(savedResult);
+    } catch (error) {
+      setRenderJob({ status: "error", error: error instanceof Error ? error.message : String(error), progress: 0 });
+    } finally {
+      setBenchmarking(false);
+    }
+  };
+
   const statusLabel = renderJob ? vt(language, renderJob.status) : "";
   const renderLogs = renderJob?.logs || [];
   const renderPercent = Math.round((renderJob?.progress || 0) * 100);
@@ -295,7 +324,8 @@ export default function VideoStudio() {
         <section className="studio-panel"><h2>{vt(language, "output")}</h2>
           <label className="studio-control"><span>{vt(language, "preset")}</span><select value={`${settings.width}x${settings.height}`} onChange={event => { const [width, height] = event.target.value.split("x").map(Number); setSettings(current => ({ ...current, width, height })); }}><option value="1920x1080">1080p</option><option value="3840x2160">4K</option><option value="1280x720">720p</option></select></label>
           <label className="studio-control"><span>FPS</span><select value={settings.fps} onChange={event => updateSetting("fps", Number(event.target.value))}>{[24, 25, 30, 50, 60].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label className="studio-control"><span>{vt(language, "renderConcurrency")}</span><select value={settings.renderConcurrency} onChange={event => updateSetting("renderConcurrency", event.target.value)}><option value="auto">{vt(language, "auto")}</option>{["25%", "50%", "75%", "100%", "1", "2", "4", "8"].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="studio-control"><span>{vt(language, "renderConcurrency")}</span><select value={settings.renderConcurrency} onChange={event => updateSetting("renderConcurrency", event.target.value)}><option value="adaptive">{vt(language, "adaptive")}</option><option value="auto">{vt(language, "auto")}</option>{["25%", "50%", "75%", "100%", "1", "2", "4", "6", "8", "12", "16"].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+          <div className="studio-benchmark"><button type="button" disabled={!project || activeRender || benchmarking} onClick={runBenchmark}>{benchmarking ? vt(language, "benchmarking") : vt(language, "benchmarkConcurrency")}</button>{benchmarkResult?.best ? <span>{vt(language, "benchmarkBest")}: {benchmarkResult.best.renderConcurrency} · {benchmarkResult.best.fps} fps · {vt(language, "benchmarkIo")}: {benchmarkResult.io?.filesPerSecond} fps · {vt(language, "benchmarkBottleneck")}: {benchmarkResult.best.bottleneck}</span> : null}</div>
           <label className="studio-control"><span>{vt(language, "format")}</span><select value={settings.format} onChange={event => { updateSetting("format", event.target.value); setOutputLocation(""); }}><option value="mp4">MP4</option><option value="png">{vt(language, "pngSequence")}</option></select></label>
           <label className="studio-control"><span>{vt(language, "filename")}</span><input value={settings.outputName} onChange={event => { updateSetting("outputName", event.target.value); setOutputLocation(""); }} /></label>
           <div className="studio-output-location"><span>{vt(language, "outputLocation")}</span><div><code title={outputLocation}>{outputLocation || (usesTauriRenderTransport() ? vt(language, "notSelected") : vt(language, "developmentOutput"))}</code>{usesTauriRenderTransport() ? <button type="button" onClick={chooseDestination}>{vt(language, "chooseOutput")}</button> : null}</div></div>

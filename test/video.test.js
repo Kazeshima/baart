@@ -3,11 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   DEFAULT_VIDEO_SETTINGS,
+  benchmarkStorageKey,
   clampProgress,
   dimensionScanFrame,
   estimatePreviewFps,
   estimateCommentScroll,
   getTimeline,
+  predictRenderConcurrency,
   resolveRenderConcurrency,
   totalDurationInFrames,
   validateVideoSettings,
@@ -17,13 +19,14 @@ import { sortRatingRecords } from "../video/core/sorting.js";
 import { applyJobProgress, browserDownloadPercent, cancelJob, isActiveRenderStatus } from "../video/core/renderJob.js";
 import { readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
-import { schoolLabel } from "../src/utils/i18n.js";
+import { OVERALL_LABELS, schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
 import { radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import { runWorker } from "../video/sidecar/worker.mjs";
 import { collectRenderAssetUrls, renderAssetCacheKey, studentPortraitUrl } from "../video/core/renderAssets.js";
 import { createProfileCases, safeProfileName } from "../video/core/profile.js";
+import { benchmarkOutputIo, classifyRenderBottleneck, selectBenchmarkConcurrencyCandidates } from "../video/render-service.mjs";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -46,12 +49,18 @@ test("timing validation rejects phases longer than a student slot", () => {
   assert.ok(errors.some(error => error.includes("exceed")));
 });
 
-test("render concurrency defaults to the measured worker count and validates supported choices", () => {
-  assert.equal(DEFAULT_VIDEO_SETTINGS.renderConcurrency, "8");
-  assert.equal(resolveRenderConcurrency(), 8);
+test("render concurrency defaults to adaptive prediction and validates supported choices", () => {
+  assert.equal(DEFAULT_VIDEO_SETTINGS.renderConcurrency, "adaptive");
+  assert.equal(resolveRenderConcurrency("adaptive", { logicalCores: 22 }), 8);
+  assert.equal(predictRenderConcurrency(4), 2);
+  assert.equal(predictRenderConcurrency(8), 4);
+  assert.equal(predictRenderConcurrency(14), 6);
+  assert.equal(predictRenderConcurrency(24), 8);
+  assert.equal(predictRenderConcurrency(32), 12);
   assert.equal(resolveRenderConcurrency("auto"), undefined);
   assert.equal(resolveRenderConcurrency("50%"), "50%");
   assert.equal(resolveRenderConcurrency("4"), 4);
+  assert.equal(resolveRenderConcurrency("12"), 12);
   assert.equal(resolveRenderConcurrency(8), 8);
   assert.equal(resolveRenderConcurrency("3"), null);
   assert.ok(validateVideoSettings({ ...DEFAULT_VIDEO_SETTINGS, renderConcurrency: "3" }).some(error => error.includes("concurrency")));
@@ -59,10 +68,29 @@ test("render concurrency defaults to the measured worker count and validates sup
 
 test("video profiling cases cover scene blocks and concurrency choices", () => {
   const cases = createProfileCases();
-  assert.ok(cases.some(item => item.name === "no-portrait-auto" && item.profile.disablePortrait));
-  assert.ok(cases.some(item => item.name === "simple-radar-auto" && item.profile.simplifyRadar));
+  assert.ok(cases.some(item => item.name === "no-portrait-adaptive" && item.profile.disablePortrait));
+  assert.ok(cases.some(item => item.name === "simple-radar-adaptive" && item.profile.simplifyRadar));
   assert.ok(cases.some(item => item.name === "full-75" && item.renderConcurrency === "75%"));
+  assert.ok(cases.some(item => item.name === "full-12" && item.renderConcurrency === "12"));
+  assert.ok(cases.some(item => item.name === "full-adaptive-jpeg" && item.imageFormat === "jpeg"));
   assert.equal(safeProfileName("75%"), "75");
+});
+
+test("benchmark helpers select valid candidates and key local results by hardware and target", async () => {
+  assert.deepEqual(selectBenchmarkConcurrencyCandidates(["adaptive", "adaptive", "3", "12"], 22), ["adaptive", "12"]);
+  assert.notEqual(
+    benchmarkStorageKey({ ...DEFAULT_VIDEO_SETTINGS, format: "png" }, 22),
+    benchmarkStorageKey({ ...DEFAULT_VIDEO_SETTINGS, format: "mp4" }, 22),
+  );
+  assert.notEqual(
+    benchmarkStorageKey({ ...DEFAULT_VIDEO_SETTINGS, format: "png" }, 22),
+    benchmarkStorageKey({ ...DEFAULT_VIDEO_SETTINGS, format: "png" }, 8),
+  );
+  const io = await benchmarkOutputIo(".cache/test-video-io", { frames: 2, bytesPerFrame: 1024 });
+  assert.equal(io.frames, 2);
+  assert.equal(io.totalBytes, 2048);
+  assert.ok(io.filesPerSecond > 0);
+  assert.ok(io.mbPerSecond > 0);
 });
 
 test("chronological mode preserves legacy insertion order before timestamps", () => {
@@ -107,7 +135,7 @@ test("legacy manifests receive defaults and imported snapshots retain ratings", 
     settings: { width: 1280, height: 720, fps: 30, format: "png", outputName: "legacy" },
   });
   assert.equal(partial.settings.theme, DEFAULT_VIDEO_SETTINGS.theme);
-  assert.equal(partial.settings.renderConcurrency, "8");
+  assert.equal(partial.settings.renderConcurrency, "adaptive");
   const ratings = ratingsFromProjectRecords(partial.records);
   assert.equal(ratings["10001"].notes, partial.records[0].ratings.notes);
   assert.deepEqual(partial.records.map(record => record.student), fixture.records.map(record => record.student));
@@ -153,6 +181,11 @@ test("school names localize without changing canonical English keys", () => {
   assert.equal(schoolLabel("en", "Trinity"), "Trinity");
 });
 
+test("English overall top label uses compact GOAT wording", () => {
+  assert.equal(OVERALL_LABELS.en[4], "GOAT");
+  assert.ok(!OVERALL_LABELS.en.includes("Gigachad"));
+});
+
 test("student parser keeps SchaleDB surname fields for localized display names", () => {
   const [student] = parseStudents({
     10001: {
@@ -169,6 +202,12 @@ test("student parser keeps SchaleDB surname fields for localized display names",
   assert.equal(studentDisplayName(student, "zh"), "和泉元  艾米");
   assert.equal(studentDisplayName({ ...student, familyName: "Izumimoto", personalName: "Eimi", name: "Eimi" }, "en"), "Izumimoto Eimi");
   assert.equal(studentDisplayName({ ...student, familyName: "和泉元", name: "和泉元艾米", personalName: "" }, "zh"), "和泉元艾米");
+});
+
+test("render bottleneck classification separates IO from render or PNG encoding", () => {
+  assert.equal(classifyRenderBottleneck(5, 8), "disk-io");
+  assert.equal(classifyRenderBottleneck(5, 80), "browser-or-png-encoding");
+  assert.equal(classifyRenderBottleneck(0, 80), "unknown");
 });
 
 test("PNG header reader reports exact supported render dimensions", () => {

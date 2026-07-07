@@ -79,7 +79,7 @@ Video Studio loads ratings from local storage or imported rating JSON. A `.baart
 
 Radar timing controls independently configure the mechanical scan, eased point deployment, and post-scan polygon reveal. The default scan completes in 1.5 seconds, while each dimension starts revealing when the sweep reaches its axis.
 
-The render concurrency default is `8`, based on local profiling of the 1080p/60 PNG-sequence workflow. The dashboard still exposes Auto, percentage, and fixed-worker options because the fastest value can vary by CPU and GPU.
+The render concurrency default is Adaptive. BAART predicts a conservative worker count from the local CPU, and the dashboard includes a benchmark button that renders a short PNG-sequence sample to choose the fastest value for the current machine and output target. Auto, percentage, and fixed-worker options remain available for manual tuning.
 
 MP4 and lossless PNG sequences support 720p, 1080p, and 4K output. PNG frames are rendered directly from the React composition with Remotion's [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API and are never extracted from an encoded video. This is the programmatic equivalent of Remotion's documented [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) CLI mode. MP4 output uses `renderMedia()`.
 
@@ -105,7 +105,7 @@ To profile rendering with the real test rating data, run:
 npm run video:profile -- --quick --frames=180
 ```
 
-The profiler renders bounded 1080p/60 PNG ranges using the native Remotion frame pipeline and writes reports under the ignored `.cache/video-profile/` directory. Use `--case=full-8,full-50` to compare selected cases or omit `--quick` for the full block/concurrency sweep.
+The profiler renders bounded 1080p/60 ranges using the native Remotion frame pipeline and writes reports under the ignored `.cache/video-profile/` directory. Reports include render FPS, output bytes, MB/s, an IO-only write benchmark, and a bottleneck classification. Use `--case=full-8,full-50` to compare selected cases, `--case=full-adaptive-jpeg` to diagnose PNG encoding overhead against a lighter image format, `--ui-language=en --theme=light` to inspect other layouts, or omit `--quick` for the full block/concurrency sweep.
 
 ## Rating Data
 

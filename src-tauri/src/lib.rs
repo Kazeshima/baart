@@ -13,6 +13,7 @@ pub fn run() {
             open_text_file,
             select_video_output,
             start_video_render,
+            benchmark_video_render,
             get_video_render_job,
             cancel_video_render,
         ])
@@ -514,6 +515,97 @@ fn start_video_render(
         }
     });
     Ok(job)
+}
+
+#[tauri::command]
+async fn benchmark_video_render(
+    app: tauri::AppHandle,
+    manager: State<'_, VideoRenderManager>,
+    project: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    {
+        let guard = manager.job.lock().map_err(|_| "render state is unavailable")?;
+        if guard.as_ref().is_some_and(VideoRenderJob::is_active) {
+            return Err("another render is already active".to_string());
+        }
+    }
+    let resource_dir = app.path().resource_dir().map_err(|error| format!("failed to resolve renderer resources: {error}"))?;
+    let worker = resource_dir.join("renderer/app/video/sidecar/worker.mjs");
+    let serve_url = resource_dir.join("renderer/composition");
+    let binaries = resource_dir.join("renderer/app/node_modules/@remotion/compositor-win32-x64-msvc");
+    for required in [&worker, &serve_url, &binaries] {
+        if !required.exists() {
+            return Err(format!("packaged renderer resource is missing: {}", required.display()));
+        }
+    }
+
+    let app_cache_dir = app.path().app_cache_dir().map_err(|error| format!("failed to resolve render cache: {error}"))?;
+    let renderer_work_dir = renderer_work_dir(&app_cache_dir);
+    std::fs::create_dir_all(&renderer_work_dir).map_err(|error| format!("failed to create renderer cache: {error}"))?;
+    std::fs::write(renderer_work_dir.join("package.json"), "{\"private\":true}")
+        .map_err(|error| format!("failed to initialize renderer cache: {error}"))?;
+    let jobs_dir = app_cache_dir.join("video-render-jobs");
+    let output_root = app_cache_dir.join("video-render-benchmark");
+    std::fs::create_dir_all(&jobs_dir).map_err(|error| format!("failed to create render cache: {error}"))?;
+    std::fs::create_dir_all(&output_root).map_err(|error| format!("failed to create benchmark cache: {error}"))?;
+    let sequence = manager.sequence.fetch_add(1, Ordering::Relaxed);
+    let id = format!("benchmark-{}-{sequence}", epoch_millis());
+    let manifest = jobs_dir.join(format!("{id}.json"));
+    std::fs::write(&manifest, serde_json::to_vec(&project).map_err(|error| error.to_string())?)
+        .map_err(|error| format!("failed to write benchmark manifest: {error}"))?;
+
+    let arguments = vec![
+        "--benchmark".to_string(),
+        node_cli_path(&manifest),
+        node_cli_path(&serve_url),
+        node_cli_path(&output_root),
+        node_cli_path(&binaries),
+    ];
+    let node_work_dir = PathBuf::from(node_cli_path(&renderer_work_dir));
+    let command = app.shell()
+        .sidecar("baart-node")
+        .map_err(|error| format!("failed to prepare renderer sidecar: {error}"))?
+        .current_dir(&node_work_dir)
+        .args(arguments);
+    let (mut receiver, _child) = command.spawn().map_err(|error| format!("failed to start renderer sidecar: {error}"))?;
+    let mut result: Option<serde_json::Value> = None;
+    let mut stderr = String::new();
+    let mut worker_error = String::new();
+    while let Some(event) = receiver.recv().await {
+        match event {
+            CommandEvent::Stdout(bytes) => {
+                let line = String::from_utf8_lossy(&bytes);
+                if let Some(json) = line.trim().strip_prefix(SIDECAR_EVENT_PREFIX) {
+                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(json) {
+                        match value.get("type").and_then(serde_json::Value::as_str) {
+                            Some("complete") => result = value.get("result").cloned(),
+                            Some("error") => worker_error = value.get("error").and_then(serde_json::Value::as_str).unwrap_or("benchmark failed").to_string(),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            CommandEvent::Stderr(bytes) => {
+                let message = String::from_utf8_lossy(&bytes);
+                if !message.trim().is_empty() {
+                    stderr.push_str(message.trim());
+                    stderr.push('\n');
+                }
+            }
+            CommandEvent::Terminated(payload) => {
+                let _ = std::fs::remove_file(&manifest);
+                if let Some(value) = result {
+                    return Ok(value);
+                }
+                let detail = if !worker_error.is_empty() { worker_error } else if !stderr.trim().is_empty() { stderr.trim().to_string() } else { "benchmark renderer exited before completion".to_string() };
+                return Err(format!("{detail} (code {:?})", payload.code));
+            }
+            CommandEvent::Error(error) => worker_error = error,
+            _ => {}
+        }
+    }
+    let _ = std::fs::remove_file(&manifest);
+    result.ok_or_else(|| "benchmark renderer exited before completion".to_string())
 }
 
 #[tauri::command]

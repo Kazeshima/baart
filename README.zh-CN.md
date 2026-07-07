@@ -79,7 +79,7 @@ npm run video:studio
 
 雷达动画可分别调整机械扫描、数据点缓动展开和扫描后多边形显示的时长。默认扫描时长为 1.5 秒，每个维度会在扫描线经过对应轴时开始显示。
 
-渲染并行度默认值为 `8`，这是根据本地 1080p/60 PNG 序列渲染 profiling 得出的结果。控制面板仍保留自动、百分比和固定 worker 数选项，因为不同 CPU/GPU 上最快设置可能不同。
+渲染并行度默认值为自适应。BAART 会根据本机 CPU 预测一个保守的 worker 数，控制面板也提供基准测试按钮，可渲染一小段 PNG 序列样本，为当前机器和输出目标选择最快设置。自动、百分比和固定 worker 数选项仍保留用于手动调整。
 
 MP4 和无损 PNG 序列支持 720p、1080p 与 4K。PNG 帧通过 Remotion 的 [`renderFrames()`](https://www.remotion.dev/docs/renderer/render-frames) API 直接从 React 合成渲染，绝不会从已编码视频中截取。这是 Remotion 官方 [`--sequence`](https://www.remotion.dev/docs/cli/render#--sequence) 命令的程序化对应方式。MP4 使用 `renderMedia()` 渲染。
 
@@ -105,7 +105,7 @@ npm run video:render -- path\to\project.baart-video.json
 npm run video:profile -- --quick --frames=180
 ```
 
-该工具使用 Remotion 原生 PNG 帧管线渲染有限长度的 1080p/60 样本，并把报告写入已忽略的 `.cache/video-profile/` 目录。可用 `--case=full-8,full-50` 比较指定案例，或去掉 `--quick` 运行完整的模块/并行度 sweep。
+该工具使用 Remotion 原生帧管线渲染有限长度的 1080p/60 样本，并把报告写入已忽略的 `.cache/video-profile/` 目录。报告包含渲染 FPS、输出字节数、MB/s、纯 IO 写入测试以及瓶颈分类。可用 `--case=full-8,full-50` 比较指定案例，用 `--case=full-adaptive-jpeg` 对比较轻图像格式以诊断 PNG 编码开销，用 `--ui-language=en --theme=light` 检查其他布局，或去掉 `--quick` 运行完整的模块/并行度 sweep。
 
 ## 评级数据
 

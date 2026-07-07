@@ -39,3 +39,5 @@ for (const format of formats) {
   }
   console.log(`\n${format.toUpperCase()} rendered to ${output}`);
 }
+
+process.exit(0);

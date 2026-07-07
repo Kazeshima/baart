@@ -6,7 +6,7 @@ import { LANG_URLS } from "../src/utils/constants.js";
 import { parseStudents } from "../src/utils/students.js";
 import { createVideoProject, mergeRatedStudents } from "./core/manifest.js";
 import { createProfileCases, safeProfileName } from "./core/profile.js";
-import { renderVideoProject } from "./render-service.mjs";
+import { benchmarkOutputIo, classifyRenderBottleneck, renderVideoProject } from "./render-service.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRatingsPath = path.join(root, "test_data", "ba_pvp_ratings_test.json");
@@ -32,16 +32,23 @@ async function loadStudents(language) {
   return parseStudents(await response.json());
 }
 
-async function countPngFrames(output) {
+function isRenderedImage(name) {
+  return /\.(png|jpe?g)$/i.test(name);
+}
+
+async function countImageFrames(output) {
   const entries = await fs.readdir(output);
-  return entries.filter(name => name.endsWith(".png")).length;
+  return entries.filter(isRenderedImage).length;
 }
 
 const ratingsPath = path.resolve(argValue("ratings", defaultRatingsPath));
 const dataLanguage = argValue("data-language", "zh");
+const uiLanguage = argValue("ui-language", dataLanguage === "en" ? "en" : "zh");
+const theme = argValue("theme", "dark");
 const frameCount = Math.max(1, Number(argValue("frames", "240")));
 const caseFilter = argValue("case", "");
 const quick = boolArg("quick");
+const includeIoBenchmark = !boolArg("no-io-benchmark");
 const runId = new Date().toISOString().replace(/[:.]/g, "-");
 const runDir = path.join(profileRoot, runId);
 await fs.mkdir(runDir, { recursive: true });
@@ -52,7 +59,7 @@ const records = mergeRatedStudents(students, ratings);
 if (!records.length) throw new Error(`No rated students from ${ratingsPath} matched SchaleDB ${dataLanguage} metadata.`);
 
 const selectedCases = new Set(caseFilter.split(",").map(value => value.trim()).filter(Boolean));
-const cases = (quick ? createProfileCases().filter(item => ["full-auto", "no-portrait-auto", "simple-radar-auto"].includes(item.name)) : createProfileCases())
+const cases = (quick ? createProfileCases().filter(item => ["full-adaptive", "full-adaptive-jpeg", "no-portrait-adaptive", "simple-radar-adaptive"].includes(item.name)) : createProfileCases())
   .filter(item => selectedCases.size === 0 || selectedCases.has(item.name));
 if (!cases.length) throw new Error(`No profile cases matched "${caseFilter}".`);
 const baseSettings = {
@@ -62,17 +69,26 @@ const baseSettings = {
   format: "png",
   outputName: "baart-profile",
   dataLanguage,
-  uiLanguage: dataLanguage === "en" ? "en" : "zh",
+  uiLanguage,
+  theme,
   studentDuration: 12,
 };
 const report = {
   createdAt: new Date().toISOString(),
   ratingsPath,
   dataLanguage,
+  uiLanguage,
+  theme,
   matchedRecords: records.length,
   frameRange: [0, frameCount - 1],
+  io: null,
   cases: [],
 };
+
+if (includeIoBenchmark) {
+  report.io = await benchmarkOutputIo(path.join(runDir, "io-benchmark"), { frames: frameCount });
+  console.log(`IO: ${report.io.filesPerSecond} files/sec, ${report.io.mbPerSecond} MB/sec`);
+}
 
 for (const profileCase of cases) {
   const caseDir = path.join(runDir, safeProfileName(profileCase.name));
@@ -95,19 +111,26 @@ for (const profileCase of cases) {
     outputLocation: caseDir,
     frameRange: [0, frameCount - 1],
     profile: profileCase.profile,
+    imageFormat: profileCase.imageFormat,
     assetCacheDir: path.join(profileRoot, "render-assets"),
   });
   const elapsedMs = performance.now() - started;
-  const renderedFrames = await countPngFrames(caseDir);
+  const renderedFrames = await countImageFrames(caseDir);
+  const entries = await fs.readdir(caseDir);
+  const totalBytes = (await Promise.all(entries.filter(isRenderedImage).map(async name => (await fs.stat(path.join(caseDir, name))).size))).reduce((sum, size) => sum + size, 0);
   const fps = renderedFrames / Math.max(0.001, elapsedMs / 1000);
   const result = {
     name: profileCase.name,
     renderConcurrency: profileCase.renderConcurrency,
     profile: profileCase.profile,
+    imageFormat: profileCase.imageFormat || "png",
     output: caseDir,
     elapsedMs: Math.round(elapsedMs),
     renderedFrames,
+    totalBytes,
     fps: Number(fps.toFixed(2)),
+    mbPerSecond: Number(((totalBytes / 1048576) / Math.max(0.001, elapsedMs / 1000)).toFixed(2)),
+    bottleneck: report.io ? classifyRenderBottleneck(fps, report.io.filesPerSecond) : "unknown",
     lastMeta,
   };
   report.cases.push(result);

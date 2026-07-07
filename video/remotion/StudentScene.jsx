@@ -38,7 +38,7 @@ export default function StudentScene({ record, settings }) {
   const scroll = useMemo(() => estimateCommentScroll(ratings.notes, settings.uiLanguage, {
     charsPerLine: settings.uiLanguage === "en" ? 30 : 18,
     lineHeight: 58,
-    viewportHeight: 386,
+    viewportHeight: 340,
   }), [ratings.notes, settings.uiLanguage]);
   const scrollStart = timeline.overallEnd + Math.round(settings.commentScrollDelay * fps);
   const scrollY = Math.min(scroll.distance, Math.max(0, frame - scrollStart) / fps * settings.commentScrollSpeed);

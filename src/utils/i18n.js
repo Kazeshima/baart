@@ -205,7 +205,7 @@ export const SCHOOL_LABELS_BY_LOCALE = {
 
 export const OVERALL_LABELS = {
   zh: ["拉完了", "NPC", "人上人", "顶级", "夯"],
-  en: ["Loser", "NPC", "Normie+", "Alpha", "Gigachad"],
+  en: ["Loser", "NPC", "Normie+", "Alpha", "GOAT"],
 };
 
 export function localeFor(language) {

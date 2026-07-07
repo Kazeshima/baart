@@ -34,7 +34,7 @@ export function studentPresentation(student, language) {
 
 export function StudentIdentity({ student, language = "zh", nameClassName, metaClassName, children }) {
   return <>
-    <div className={nameClassName}>{studentDisplayName(student, language)}</div>
+    <div className={nameClassName} style={{ whiteSpace: "pre-wrap" }}>{studentDisplayName(student, language)}</div>
     <div className={metaClassName}>{student.devName} · #{student.id}{student.school ? ` · ${schoolLabel(language, student.school)}` : ""}</div>
     {children}
   </>;

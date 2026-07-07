@@ -32,10 +32,15 @@ button, input, select { font: inherit; }
 .studio-output-location > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
 .studio-output-location code { min-width: 0; padding: 7px 8px; overflow: hidden; border: 1px solid var(--border); border-radius: 5px; color: var(--text-muted); background: var(--bg-card); font-family: var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
 .studio-output-location button { padding: 0 10px; border: 1px solid var(--border-bright); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: pointer; }
+.studio-benchmark { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
+.studio-benchmark button { height: 28px; padding: 0 10px; border: 1px solid var(--border-bright); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: pointer; }
+.studio-benchmark button:disabled { opacity: .45; cursor: not-allowed; }
+.studio-benchmark span { min-width: 0; line-height: 1.35; }
 .studio-order-list { max-height: 270px; overflow-y: auto; display: grid; gap: 5px; }
 .studio-order-item { min-height: 38px; padding: 5px 8px; display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: grab; touch-action: none; }
 .studio-order-item small { color: var(--text-muted); }
 .studio-order-handle { color: var(--text-muted); }
+.studio-order-item > span:not(.studio-order-handle), .studio-status span:first-child { white-space: pre-wrap; }
 .studio-render-button { position: sticky; bottom: 12px; height: 42px; border: 1px solid var(--accent-gold); border-radius: 6px; background: #1a1404; color: var(--accent-gold); font-weight: 800; cursor: pointer; }
 .studio-render-button:disabled { opacity: .4; cursor: not-allowed; }
 @media (max-width: 1050px) { .studio-layout { grid-template-columns: 1fr; } .studio-preview { position: static; height: auto; } .studio-sidebar { border-left: 0; border-top: 1px solid var(--border); } }

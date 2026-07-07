@@ -4,7 +4,7 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   width: 1920,
   height: 1080,
   fps: 30,
-  renderConcurrency: "8",
+  renderConcurrency: "adaptive",
   format: "mp4",
   outputName: "baart-arena-ratings",
   studentDuration: 12,
@@ -94,7 +94,7 @@ export function validateVideoSettings(settings) {
   if (!Number.isFinite(value.height) || value.height < 360) errors.push("Height must be at least 360px.");
   if (Number(value.width) * 9 !== Number(value.height) * 16) errors.push("Resolution must use a 16:9 aspect ratio.");
   if (![24, 25, 30, 50, 60].includes(Number(value.fps))) errors.push("FPS must be 24, 25, 30, 50, or 60.");
-  if (resolveRenderConcurrency(value.renderConcurrency) === null) errors.push("Render concurrency must be Auto, 25%, 50%, 75%, 100%, 1, 2, 4, or 8.");
+  if (resolveRenderConcurrency(value.renderConcurrency) === null) errors.push("Render concurrency must be Adaptive, Auto, 25%, 50%, 75%, 100%, 1, 2, 4, 6, 8, 12, or 16.");
   if (!['mp4', 'png'].includes(value.format)) errors.push("Output format must be MP4 or PNG frames.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
   if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");
@@ -123,11 +123,39 @@ export function clampProgress(value) {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
 
-export function resolveRenderConcurrency(value = DEFAULT_VIDEO_SETTINGS.renderConcurrency) {
+export function detectLogicalCores(fallback = 8) {
+  const cores = globalThis.navigator?.hardwareConcurrency;
+  return Number.isFinite(cores) && cores > 0 ? cores : fallback;
+}
+
+export function predictRenderConcurrency(logicalCores = detectLogicalCores()) {
+  const cores = Number(logicalCores);
+  if (!Number.isFinite(cores) || cores <= 0) return 4;
+  if (cores <= 4) return 2;
+  if (cores <= 8) return 4;
+  if (cores <= 14) return 6;
+  if (cores <= 24) return 8;
+  return 12;
+}
+
+export function benchmarkStorageKey(settings, logicalCores = detectLogicalCores()) {
+  const width = Number(settings?.width || DEFAULT_VIDEO_SETTINGS.width);
+  const height = Number(settings?.height || DEFAULT_VIDEO_SETTINGS.height);
+  const fps = Number(settings?.fps || DEFAULT_VIDEO_SETTINGS.fps);
+  const format = settings?.format || DEFAULT_VIDEO_SETTINGS.format;
+  const theme = settings?.theme || DEFAULT_VIDEO_SETTINGS.theme;
+  const uiLanguage = settings?.uiLanguage || DEFAULT_VIDEO_SETTINGS.uiLanguage;
+  const dataLanguage = settings?.dataLanguage || DEFAULT_VIDEO_SETTINGS.dataLanguage;
+  const cores = Number.isFinite(Number(logicalCores)) && Number(logicalCores) > 0 ? Number(logicalCores) : "unknown";
+  return `${cores}c-${width}x${height}-${fps}fps-${format}-${theme}-${uiLanguage}-${dataLanguage}`;
+}
+
+export function resolveRenderConcurrency(value = DEFAULT_VIDEO_SETTINGS.renderConcurrency, options = {}) {
+  if (value === "adaptive") return predictRenderConcurrency(options.logicalCores);
   if (value === undefined || value === null || value === "" || value === "auto") return undefined;
   if (["25%", "50%", "75%", "100%"].includes(value)) return value;
   const numeric = Number(value);
-  if ([1, 2, 4, 8].includes(numeric)) return numeric;
+  if ([1, 2, 4, 6, 8, 12, 16].includes(numeric)) return numeric;
   return null;
 }
 

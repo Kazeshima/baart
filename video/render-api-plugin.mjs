@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import { renderVideoProject } from "./render-service.mjs";
+import path from "node:path";
+import { renderVideoProject, benchmarkRenderConcurrency } from "./render-service.mjs";
 import { parseVideoProject } from "./core/manifest.js";
 import { applyJobProgress, browserDownloadPercent, cancelJob, isActiveRenderStatus } from "./core/renderJob.js";
 
@@ -86,6 +87,17 @@ function applyRenderApiMiddleware(server) {
           job.error = error instanceof Error ? error.message : String(error);
         });
         return sendJson(response, 202, publicJob(job));
+      }
+      if (request.method === "POST" && url.pathname === "/api/render/benchmark") {
+        const active = [...jobs.values()].find(job => isActiveRenderStatus(job.status));
+        if (active) return sendJson(response, 409, { error: "Another render is already active." });
+        const body = await readJson(request);
+        const project = parseVideoProject(body.project);
+        const result = await benchmarkRenderConcurrency(project, {
+          frames: Number(body.frames || 60),
+          outputRoot: path.join(process.cwd(), ".cache", "video-benchmark-api"),
+        });
+        return sendJson(response, 200, result);
       }
 
       const match = url.pathname.match(/^\/api\/render\/([^/]+)(\/cancel)?$/);
