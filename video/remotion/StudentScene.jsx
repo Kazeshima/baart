@@ -69,6 +69,11 @@ export default function StudentScene({ record, settings }) {
   }, [ratings.notes, settings.uiLanguage, settings.theme, qualityMode, scale]);
   const scrollDistance = measuredScrollDistance ?? scroll.distance;
   const scrollY = profile.disableCommentScroll ? 0 : commentScrollOffset({ frame, distance: scrollDistance, timeline, settings, fps });
+  const commentMaskClass = profile.disableCommentMask || qualityMode !== "quality"
+    ? "video-comments__viewport--no-mask"
+    : scrollY > 0.5
+      ? "video-comments__viewport--scrolling"
+      : "";
 
   return (
     <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text }}>
@@ -94,7 +99,7 @@ export default function StudentScene({ record, settings }) {
 
       {!profile.disableComments ? <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-section-label">{t(settings.uiLanguage, "comments")}</div>
-        <div ref={commentViewportRef} className={`video-comments__viewport ${profile.disableCommentMask || qualityMode !== "quality" ? "video-comments__viewport--no-mask" : ""}`}>
+        <div ref={commentViewportRef} className={`video-comments__viewport ${commentMaskClass}`}>
           <div ref={commentTextRef} className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{ratings.notes || "—"}</div>
         </div>
       </section> : null}

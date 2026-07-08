@@ -29,7 +29,8 @@
 .video-terrain img.video-terrain__rank { width: 54px; height: 29px; }
 .video-terrain span { color: var(--accent-gold); font-size: 22px; }
 .video-comments { position: absolute; left: 74px; top: 626px; z-index: 2; width: 700px; height: 352px; padding: 20px 28px; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 76%, transparent); }
-.video-comments__viewport { height: 260px; margin-top: 12px; overflow: hidden; mask-image: linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, transparent 100%); }
+.video-comments__viewport { height: 260px; margin-top: 12px; overflow: hidden; mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%); }
+.video-comments__viewport--scrolling { mask-image: linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, transparent 100%); }
 .video-comments__viewport--no-mask, .video-scene--fast .video-comments__viewport { mask-image: none; }
 .video-comments__text { color: var(--text-primary); font-size: 45px; line-height: 58px; font-weight: 600; white-space: pre-wrap; }
 .video-radar-panel { position: absolute; z-index: 2; left: 900px; top: 278px; width: 830px; height: 752px; padding: 16px 24px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 78%, transparent); }

@@ -136,10 +136,11 @@ test("scene fades fully out on the final frame", () => {
   assert.ok(sceneFadeOpacity(timeline.fadeOutStart, timeline) < 1);
 });
 
-test("quality comment mask fades both top and bottom edges", async () => {
+test("quality comment mask adds the top fade only while comments scroll", async () => {
   const css = await readFile(new URL("../video/video.css", import.meta.url), "utf8");
-  assert.match(css, /video-comments__viewport[^{]*\{[^}]*linear-gradient\(to bottom,\s*transparent 0%/s);
-  assert.match(css, /video-comments__viewport[^{]*\{[^}]*#000 9%[^}]*#000 88%[^}]*transparent 100%/s);
+  assert.match(css, /video-comments__viewport[^{]*\{[^}]*linear-gradient\(to bottom,\s*#000 0%/s);
+  assert.match(css, /video-comments__viewport--scrolling[^{]*\{[^}]*linear-gradient\(to bottom,\s*transparent 0%/s);
+  assert.match(css, /video-comments__viewport--scrolling[^{]*\{[^}]*#000 9%[^}]*#000 88%[^}]*transparent 100%/s);
 });
 
 test("shared rating order normalization and student record conversion support the main sidebar", () => {
