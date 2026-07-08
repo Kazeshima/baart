@@ -25,7 +25,7 @@ import {
   ratingsFromProjectRecords,
   safeCreateVideoProject,
 } from "./core/manifest.js";
-import { DEFAULT_ORDER } from "./core/sorting.js";
+import { DEFAULT_ORDER, RATING_ORDER_STORAGE_KEY, normalizeRatingOrder } from "./core/sorting.js";
 import { vt } from "./core/i18n.js";
 import { isActiveRenderStatus } from "./core/renderJob.js";
 import {
@@ -55,8 +55,12 @@ function WeightShareControl({ label, value, onChange }) {
   useEffect(() => setDraft(safeValue.toFixed(1)), [safeValue]);
   const commit = () => {
     const numeric = Number(draft);
-    if (Number.isFinite(numeric)) onChange(numeric);
-    else setDraft(safeValue.toFixed(1));
+    if (Number.isFinite(numeric)) {
+      const committed = onChange(numeric);
+      setDraft(Number(committed ?? safeValue).toFixed(1));
+    } else {
+      setDraft(safeValue.toFixed(1));
+    }
   };
   return <label className="studio-control studio-control--weight"><span>{label}</span><input type="range" min="0" max="100" step="0.1" value={safeValue} onChange={event => onChange(Number(event.target.value))} /><input type="number" min="0" max="100" step="0.1" value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} /><strong>{formatWeightShare(safeValue)}</strong></label>;
 }
@@ -108,6 +112,16 @@ function readSharedWeightSettings(fallback = {}) {
   };
 }
 
+function readSharedRatingOrder(fallback = DEFAULT_ORDER) {
+  return localStorage.getItem(RATING_ORDER_STORAGE_KEY)
+    ? normalizeRatingOrder(readStoredJson(RATING_ORDER_STORAGE_KEY))
+    : normalizeRatingOrder(fallback);
+}
+
+function persistSharedRatingOrder(order) {
+  localStorage.setItem(RATING_ORDER_STORAGE_KEY, JSON.stringify(normalizeRatingOrder(order)));
+}
+
 function persistSharedWeightSettings(settings) {
   if (settings.weightMode) localStorage.setItem(WEIGHT_MODE_KEY, settings.weightMode);
   if (settings.weightEditorMode) localStorage.setItem(WEIGHT_EDITOR_MODE_KEY, settings.weightEditorMode);
@@ -142,7 +156,7 @@ function benchmarkBottleneckLabel(language, value) {
 export default function VideoStudio() {
   const saved = useMemo(() => readStoredJson(PROJECT_KEY), []);
   const [settings, setSettings] = useState(() => initialVideoSettings(saved));
-  const [order, setOrder] = useState({ ...DEFAULT_ORDER, ...(saved.order || {}) });
+  const [order, setOrder] = useState(() => readSharedRatingOrder(saved.order));
   const [ratingsSource, setRatingsSource] = useState(() => readRatingsPayload().ratings);
   const [fetchedRecords, setFetchedRecords] = useState([]);
   const [snapshotRecords, setSnapshotRecords] = useState(null);
@@ -181,13 +195,21 @@ export default function VideoStudio() {
   }, [settings, order]);
 
   useEffect(() => {
+    persistSharedRatingOrder(order);
+  }, [order]);
+
+  useEffect(() => {
     const listener = event => {
-      if (![WEIGHT_MODE_KEY, WEIGHT_EDITOR_MODE_KEY, SHARED_WEIGHTS_KEY, SHARED_PRESET_WEIGHTS_KEY].includes(event.key)) return;
-      setSettings(current => ({ ...current, ...readSharedWeightSettings(current) }));
+      if ([WEIGHT_MODE_KEY, WEIGHT_EDITOR_MODE_KEY, SHARED_WEIGHTS_KEY, SHARED_PRESET_WEIGHTS_KEY].includes(event.key)) {
+        setSettings(current => ({ ...current, ...readSharedWeightSettings(current) }));
+      }
+      if (event.key === RATING_ORDER_STORAGE_KEY) {
+        setOrder(readSharedRatingOrder(order));
+      }
     };
     window.addEventListener("storage", listener);
     return () => window.removeEventListener("storage", listener);
-  }, []);
+  }, [order]);
 
   useEffect(() => {
     setBenchmarkResult(readStoredJson(BENCHMARK_KEY)[benchmarkStorageKey(settings)] || null);
@@ -285,7 +307,8 @@ export default function VideoStudio() {
         setSnapshotRecords(imported.records);
         persistSharedWeightSettings(imported.settings);
         setSettings({ ...imported.settings, ...readSharedWeightSettings(imported.settings) });
-        setOrder(imported.order);
+        persistSharedRatingOrder(imported.order);
+        setOrder(normalizeRatingOrder(imported.order));
         setOutputLocation("");
       } else {
         setSnapshotRecords(null);
@@ -473,7 +496,11 @@ export default function VideoStudio() {
             return <>
               <div className={`studio-unassigned ${fineState.unassignedWeightShare > 0 ? "is-incomplete" : ""}`}><span>{vt(language, "unassignedWeight")}</span><strong>{formatWeightShare(fineState.unassignedWeightShare)}</strong><progress value={fineState.unassignedWeightShare} max="100" /></div>
               {fineState.unassignedWeightShare > 0 ? <p className="studio-help studio-help--warning">{vt(language, "incompleteWeights")}</p> : null}
-              {DIMENSIONS.map(({ key }) => <WeightShareControl key={key} label={labels[key][0]} value={fineState.dimensionWeightShares?.[key]} onChange={value => updateSharedWeightShare(key, value)} />)}
+              {DIMENSIONS.map(({ key }) => <WeightShareControl key={key} label={labels[key][0]} value={fineState.dimensionWeightShares?.[key]} onChange={value => {
+                const next = adjustFineWeightShare(settings.sharedDimensionWeightShares, key, value).dimensionWeightShares[key];
+                updateSharedWeightShare(key, value);
+                return next;
+              }} />)}
             </>;
           })() : <p className="studio-help">{vt(language, "individualWeightsHelp")}</p>}
         </section>

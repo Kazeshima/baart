@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { WEIGHT_STORAGE_KEYS, useRatingStore } from "./store/ratingStore.js";
+import { useEffect, useRef, useState } from "react";
+import { RATING_ORDER_STORAGE_KEYS, WEIGHT_STORAGE_KEYS, useRatingStore } from "./store/ratingStore.js";
 import { LANGS, LANG_URLS, SEASONS } from "./utils/constants.js";
 import { UI_LANGS, t, terrainLabel } from "./utils/i18n.js";
 import { useExport } from "./components/ExportCard.jsx";
@@ -7,6 +7,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import StudentInfo from "./components/StudentInfo.jsx";
 import RatingPanel from "./components/RatingPanel.jsx";
 import OverallRating from "./components/OverallRating.jsx";
+import DimensionReport from "./components/DimensionReport.jsx";
 import { parseStudents } from "./utils/students.js";
 
 export default function App() {
@@ -16,11 +17,12 @@ export default function App() {
     selectedStudent,
     season, setSeason, arenaSeason, setArenaSeason,
     exportRatingsJSON, importRatingsJSON, loadRatingsFromFile,
-    syncSharedWeightSettingsFromStorage,
+    syncRatingOrderFromStorage, syncSharedWeightSettingsFromStorage,
   } = useRatingStore();
 
   const { exportCard } = useExport();
   const importRef = useRef(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     const url = LANG_URLS[language] || LANG_URLS.zh;
@@ -33,10 +35,11 @@ export default function App() {
   useEffect(() => {
     const listener = event => {
       if (WEIGHT_STORAGE_KEYS.includes(event.key)) syncSharedWeightSettingsFromStorage();
+      if (RATING_ORDER_STORAGE_KEYS.includes(event.key)) syncRatingOrderFromStorage();
     };
     window.addEventListener("storage", listener);
     return () => window.removeEventListener("storage", listener);
-  }, [syncSharedWeightSettingsFromStorage]);
+  }, [syncRatingOrderFromStorage, syncSharedWeightSettingsFromStorage]);
 
   const handleImport = (e) => {
     const file = e.target.files?.[0];
@@ -165,6 +168,9 @@ export default function App() {
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={() => setReportOpen(true)} title={t(uiLanguage, "dimensionRankReport")}>
+            {t(uiLanguage, "dimensionRankReport")}
+          </button>
           <button className="btn btn-ghost" onClick={() => { window.location.href = "./video.html"; }} title={t(uiLanguage, "videoStudio")}>
             {t(uiLanguage, "videoStudio")}
           </button>
@@ -202,6 +208,7 @@ export default function App() {
 
       {/* ── Sidebar ── */}
       <Sidebar />
+      <DimensionReport open={reportOpen} onClose={() => setReportOpen(false)} />
 
       {/* ── Main panel ── */}
       <div className="main-panel">

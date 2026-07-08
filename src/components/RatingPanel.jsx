@@ -4,7 +4,7 @@ import {
   DIMENSIONS, TIERS, TIER_COLORS,
 } from "../utils/constants.js";
 import { DIMENSION_LABELS, localeFor, t } from "../utils/i18n.js";
-import { WEIGHT_EDITOR_MODES, formatWeightShare, normalizeFineWeightState } from "../utils/scoring.js";
+import { WEIGHT_EDITOR_MODES, adjustFineWeightShare, formatWeightShare, normalizeFineWeightState } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 
 const TIER_BG = {
@@ -23,8 +23,12 @@ function WeightNumberInput({ value, onCommit }) {
 
   const commit = () => {
     const numeric = Number(draft);
-    if (Number.isFinite(numeric)) onCommit(numeric);
-    else setDraft(Number(value).toFixed(1));
+    if (Number.isFinite(numeric)) {
+      const committed = onCommit(numeric);
+      setDraft(Number(committed ?? value).toFixed(1));
+    } else {
+      setDraft(Number(value).toFixed(1));
+    }
   };
 
   return (
@@ -64,6 +68,11 @@ export default function RatingPanel() {
   const fineState = normalizeFineWeightState({ dimensionWeightShares: ratings.dimensionWeightShares });
   const unassigned = fineState.unassignedWeightShare;
   const isFineMode = weightEditorMode !== WEIGHT_EDITOR_MODES.preset;
+  const commitDimensionWeightShare = (dimension, value) => {
+    const next = adjustFineWeightShare(ratings.dimensionWeightShares, dimension, value).dimensionWeightShares[dimension];
+    setDimensionWeightShare(dimension, value);
+    return next;
+  };
 
   return (
     <div className="rating-section">
@@ -143,7 +152,7 @@ export default function RatingPanel() {
                     value={currentWeightShare}
                     onChange={event => setDimensionWeightShare(dim.key, Number(event.target.value))}
                   />
-                  <WeightNumberInput value={currentWeightShare} onCommit={value => setDimensionWeightShare(dim.key, value)} />
+                  <WeightNumberInput value={currentWeightShare} onCommit={value => commitDimensionWeightShare(dim.key, value)} />
                   <strong>{formatWeightShare(currentWeightShare)}</strong>
                 </label>
               ) : (

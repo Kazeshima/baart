@@ -1,52 +1,7 @@
-export const DEFAULT_ORDER = Object.freeze({
-  mode: "chronological",
-  direction: "asc",
-  manualIds: [],
-});
-
-function byId(a, b) {
-  return Number(a.student.id) - Number(b.student.id);
-}
-
-function chronological(a, b) {
-  const aCreated = a.ratings.createdAt;
-  const bCreated = b.ratings.createdAt;
-  if (!aCreated && !bCreated) return a.legacyOrder - b.legacyOrder;
-  if (!aCreated) return -1;
-  if (!bCreated) return 1;
-  return String(aCreated).localeCompare(String(bCreated)) || byId(a, b);
-}
-
-export function sortRatingRecords(records, order = DEFAULT_ORDER) {
-  const config = { ...DEFAULT_ORDER, ...order };
-  const result = [...records];
-  if (config.mode === "manual") {
-    const rank = new Map(config.manualIds.map((id, index) => [Number(id), index]));
-    result.sort((a, b) => {
-      const aRank = rank.has(Number(a.student.id)) ? rank.get(Number(a.student.id)) : Number.MAX_SAFE_INTEGER;
-      const bRank = rank.has(Number(b.student.id)) ? rank.get(Number(b.student.id)) : Number.MAX_SAFE_INTEGER;
-      return aRank - bRank || byId(a, b);
-    });
-    return result;
-  }
-  if (config.mode === "score") {
-    const direction = config.direction === "desc" ? -1 : 1;
-    result.sort((a, b) => {
-      const aScore = Number(a.ratings.overallScore);
-      const bScore = Number(b.ratings.overallScore);
-      const aValid = a.ratings.overallScore !== null && a.ratings.overallScore !== undefined && Number.isFinite(aScore);
-      const bValid = b.ratings.overallScore !== null && b.ratings.overallScore !== undefined && Number.isFinite(bScore);
-      if (!aValid && !bValid) return byId(a, b);
-      if (!aValid) return 1;
-      if (!bValid) return -1;
-      return (aScore - bScore) * direction || byId(a, b);
-    });
-    return result;
-  }
-  if (config.mode === "id") result.sort(byId);
-  else if (config.mode === "school") {
-    result.sort((a, b) => String(a.student.school || "").localeCompare(String(b.student.school || "")) || byId(a, b));
-  } else result.sort(chronological);
-  if (config.direction === "desc") result.reverse();
-  return result;
-}
+export {
+  DEFAULT_ORDER,
+  RATING_ORDER_STORAGE_KEY,
+  normalizeRatingOrder,
+  ratingRecordsFromStudents,
+  sortRatingRecords,
+} from "../../src/utils/ratingSorting.js";

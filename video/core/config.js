@@ -232,7 +232,13 @@ export function estimateCommentScroll(notes, language = "zh", options = {}) {
     return Math.max(1, Math.ceil(units / charsPerLine));
   };
   const lines = explicitLines.reduce((sum, line) => sum + wrapLine(line), 0);
-  return { lines, distance: Math.max(0, lines * lineHeight - viewportHeight) };
+  return { lines, distance: commentScrollDistanceFromHeights(lines * lineHeight, viewportHeight, options.threshold ?? 0.1) };
+}
+
+export function commentScrollDistanceFromHeights(textHeight, viewportHeight, threshold = 0.1) {
+  const distance = Number(textHeight) - Number(viewportHeight);
+  if (!Number.isFinite(distance) || distance <= Number(threshold)) return 0;
+  return Math.ceil(distance);
 }
 
 export function commentScrollFrames(timeline, settings = DEFAULT_VIDEO_SETTINGS, fps = DEFAULT_VIDEO_SETTINGS.fps) {

@@ -13,6 +13,7 @@ import {
   recalculateRatings,
 } from "../utils/scoring.js";
 import { timestampRating } from "../utils/ratingTimestamps.js";
+import { DEFAULT_ORDER, RATING_ORDER_STORAGE_KEY, normalizeRatingOrder } from "../utils/ratingSorting.js";
 
 const LS_LANG = "ba_rating_lang";
 const LS_UI_LANG = "ba_rating_ui_lang";
@@ -23,6 +24,7 @@ const LS_WEIGHT_MODE = "ba_rating_weight_mode";
 const LS_WEIGHT_EDITOR_MODE = "ba_rating_weight_editor_mode";
 const LS_SHARED_WEIGHTS = "ba_rating_shared_dimension_weight_shares";
 const LS_SHARED_PRESET_WEIGHTS = "ba_rating_shared_dimension_weights";
+const LS_RATING_ORDER = RATING_ORDER_STORAGE_KEY;
 const RATINGS_KEY = "ba_pvp_ratings";  // localStorage key for all saved ratings
 const RATINGS_FILE = "ratings/ba_pvp_ratings.json";
 
@@ -32,6 +34,7 @@ export const WEIGHT_STORAGE_KEYS = Object.freeze([
   LS_SHARED_WEIGHTS,
   LS_SHARED_PRESET_WEIGHTS,
 ]);
+export const RATING_ORDER_STORAGE_KEYS = Object.freeze([LS_RATING_ORDER]);
 
 function loadRatings() {
   try {
@@ -43,6 +46,18 @@ function loadRatings() {
 }
 function saveRatings(r) {
   localStorage.setItem(RATINGS_KEY, JSON.stringify(r));
+}
+
+function loadRatingOrder() {
+  try {
+    return normalizeRatingOrder(JSON.parse(localStorage.getItem(LS_RATING_ORDER) || "null") || DEFAULT_ORDER);
+  } catch {
+    return { ...DEFAULT_ORDER };
+  }
+}
+
+function saveRatingOrder(order) {
+  localStorage.setItem(LS_RATING_ORDER, JSON.stringify(normalizeRatingOrder(order)));
 }
 
 function loadSharedDimensionWeightShares() {
@@ -87,6 +102,7 @@ function parseRatingsPayload(payload) {
       sharedDimensionWeights: payload.sharedDimensionWeights
         ? normalizeDimensionWeights({ dimensionWeights: payload.sharedDimensionWeights })
         : null,
+      ratingOrder: payload.ratingOrder ? normalizeRatingOrder(payload.ratingOrder) : null,
     };
   }
   const ratings = payload || {};
@@ -99,6 +115,7 @@ function parseRatingsPayload(payload) {
     weightEditorMode: hasFine ? WEIGHT_EDITOR_MODES.fine : hasPreset ? WEIGHT_EDITOR_MODES.preset : null,
     sharedDimensionWeightShares: null,
     sharedDimensionWeights: null,
+    ratingOrder: null,
   };
 }
 
@@ -160,6 +177,7 @@ function ratingsExportPayload(state) {
     sharedDimensionWeightShares: fineState.dimensionWeightShares,
     sharedUnassignedWeightShare: fineState.unassignedWeightShare,
     sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: state.sharedDimensionWeights }),
+    ratingOrder: normalizeRatingOrder(state.ratingOrder),
     ratings: state.allRatings,
   };
 }
@@ -211,6 +229,7 @@ export const useRatingStore = create((set, get) => ({
   weightEditorMode: normalizeWeightEditorMode(localStorage.getItem(LS_WEIGHT_EDITOR_MODE)),
   sharedDimensionWeightShares: loadSharedDimensionWeightShares(),
   sharedDimensionWeights: loadSharedDimensionWeights(),
+  ratingOrder: loadRatingOrder(),
   lastFilePath: "",
   fileStatus: "",
 
@@ -269,6 +288,14 @@ export const useRatingStore = create((set, get) => ({
       sharedDimensionWeightShares: loadSharedDimensionWeightShares(),
       sharedDimensionWeights: loadSharedDimensionWeights(),
     });
+  },
+  setRatingOrder: (order) => {
+    const ratingOrder = normalizeRatingOrder(order);
+    saveRatingOrder(ratingOrder);
+    set({ ratingOrder });
+  },
+  syncRatingOrderFromStorage: () => {
+    set({ ratingOrder: loadRatingOrder() });
   },
   setStudents: (students) => set({ students, loading: false }),
   setError: (error) => set({ error, loading: false }),
@@ -431,6 +458,10 @@ export const useRatingStore = create((set, get) => ({
         saveSharedDimensionWeights(parsed.sharedDimensionWeights);
         nextState.sharedDimensionWeights = parsed.sharedDimensionWeights;
       }
+      if (parsed.ratingOrder) {
+        saveRatingOrder(parsed.ratingOrder);
+        nextState.ratingOrder = parsed.ratingOrder;
+      }
       saveRatings(data);
       set(nextState);
       return true;
@@ -459,6 +490,10 @@ export const useRatingStore = create((set, get) => ({
     if (parsed.sharedDimensionWeights) {
       saveSharedDimensionWeights(parsed.sharedDimensionWeights);
       nextState.sharedDimensionWeights = parsed.sharedDimensionWeights;
+    }
+    if (parsed.ratingOrder) {
+      saveRatingOrder(parsed.ratingOrder);
+      nextState.ratingOrder = parsed.ratingOrder;
     }
     saveRatings(data);
     set(nextState);

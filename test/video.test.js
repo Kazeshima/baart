@@ -5,6 +5,7 @@ import {
   DEFAULT_VIDEO_SETTINGS,
   benchmarkStorageKey,
   clampProgress,
+  commentScrollDistanceFromHeights,
   commentScrollFrames,
   commentScrollOffset,
   dimensionScanFrame,
@@ -17,7 +18,7 @@ import {
   validateVideoSettings,
 } from "../video/core/config.js";
 import { createVideoProject, parseVideoProject, ratingsFromProjectRecords } from "../video/core/manifest.js";
-import { sortRatingRecords } from "../video/core/sorting.js";
+import { normalizeRatingOrder, ratingRecordsFromStudents, sortRatingRecords } from "../video/core/sorting.js";
 import { applyJobProgress, browserDownloadPercent, cancelJob, isActiveRenderStatus } from "../video/core/renderJob.js";
 import { readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
@@ -30,6 +31,7 @@ import { collectRenderAssetUrls, renderAssetCacheKey, studentPortraitUrl } from 
 import { createProfileCases, safeProfileName } from "../video/core/profile.js";
 import { benchmarkOutputIo, classifyRenderBottleneck, selectBenchmarkConcurrencyCandidates } from "../video/render-service.mjs";
 import { vt } from "../video/core/i18n.js";
+import { buildDimensionReportSvg, dimensionReportRows } from "../src/utils/dimensionReport.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -123,6 +125,38 @@ test("overall score sorting supports both directions and keeps missing scores la
 
 test("manual order appends unlisted students by ID", () => {
   assert.deepEqual(ids(sortRatingRecords(records, { mode: "manual", manualIds: [10003, 10001] })), [10003, 10001, 10002]);
+});
+
+test("shared rating order normalization and student record conversion support the main sidebar", () => {
+  assert.deepEqual(normalizeRatingOrder({ mode: "invalid", direction: "sideways", manualIds: ["10003", -1, "bad"] }), {
+    mode: "chronological",
+    direction: "asc",
+    manualIds: [10003],
+  });
+  const students = records.map(record => record.student);
+  const allRatings = Object.fromEntries(records.map(record => [record.student.id, record.ratings]));
+  const converted = ratingRecordsFromStudents(students, allRatings, allRatings);
+  assert.deepEqual(ids(sortRatingRecords(converted, { mode: "manual", manualIds: [10002, 10001] })), [10002, 10001, 10003]);
+});
+
+test("dimension ranking report sorts by selected tier and omits missing dimensions", () => {
+  const parsed = parseVideoProject(fixture).records;
+  const rows = dimensionReportRows({
+    students: parsed.map(record => record.student),
+    ratingsById: Object.fromEntries(parsed.map(record => [record.student.id, record.ratings])),
+    dimension: "blindshot",
+    direction: "desc",
+    language: "en",
+  });
+  assert.deepEqual(rows.map(row => row.student.id), [10003, 10001, 10002]);
+  assert.deepEqual(dimensionReportRows({
+    students: parsed.map(record => record.student),
+    ratingsById: { [parsed[0].student.id]: { ...parsed[0].ratings, blindshot: null } },
+    dimension: "blindshot",
+  }), []);
+  const svg = buildDimensionReportSvg({ rows, dimension: "blindshot", language: "en", arenaSeason: "S9" });
+  assert.match(svg, /Dimension Ranks/);
+  assert.match(svg, /student\/icon\/10003\.webp/);
 });
 
 test("video project manifests validate and retain reproducible records", () => {
@@ -271,10 +305,19 @@ test("comment scrolling starts only when estimated text exceeds the viewport", (
   const long = estimateCommentScroll("Detailed arena note ".repeat(40), "en");
   assert.ok(long.lines > 3);
   assert.ok(long.distance > 0);
+  assert.equal(commentScrollDistanceFromHeights(260.05, 260), 0);
+  assert.equal(commentScrollDistanceFromHeights(260.2, 260), 1);
   const wrapped = estimateCommentScroll("averyveryveryveryverylongunbrokentoken", "en", { charsPerLine: 8, lineHeight: 10, viewportHeight: 10 });
   assert.ok(wrapped.lines > 1);
   const cjk = estimateCommentScroll("这是很长的竞技场评价说明".repeat(8), "zh", { charsPerLine: 8, lineHeight: 10, viewportHeight: 10 });
   assert.ok(cjk.distance > 0);
+  const supplied = estimateCommentScroll("伟大。酒谷这个五边形是瞎画的吧。不说了，黑月舜星牌序解是S9最天马行空的对策。喷不死黑子正常，喷不死瞬你也未必会输啊。", "zh", {
+    charsPerLine: 17,
+    lineHeight: 58,
+    viewportHeight: 260,
+  });
+  assert.equal(supplied.distance, 0);
+  assert.equal(commentScrollDistanceFromHeights(260.2, 260), 1);
 });
 
 test("fit-hold comment scrolling starts before overall reveal and finishes before fade-out", () => {

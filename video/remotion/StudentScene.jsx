@@ -1,12 +1,12 @@
-import React, { useMemo } from "react";
-import { Img, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Img, spring, useCurrentFrame, useCurrentScale, useVideoConfig } from "remotion";
 import { DIMENSIONS, OVERALL_COLORS } from "../../src/utils/constants.js";
 import { DIMENSION_LABELS, localeFor, t } from "../../src/utils/i18n.js";
 import { formatWeightShare } from "../../src/utils/scoring.js";
 import { studentDisplayName } from "../../src/utils/studentDisplay.js";
 import OverallBadge from "../../src/components/presentation/OverallBadge.jsx";
 import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators, studentPresentation } from "../../src/components/presentation/StudentPresentation.jsx";
-import { commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll } from "../core/config.js";
+import { commentScrollDistanceFromHeights, commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll } from "../core/config.js";
 import AnimatedRadar from "./AnimatedRadar.jsx";
 
 const palettes = {
@@ -31,6 +31,7 @@ function videoTitleFontSize(student, language) {
 export default function StudentScene({ record, settings }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const scale = useCurrentScale();
   const timeline = getTimeline({ ...settings, fps });
   const { student, ratings } = record;
   const profile = settings.renderProfile || {};
@@ -54,7 +55,23 @@ export default function StudentScene({ record, settings }) {
     lineHeight: 58,
     viewportHeight: 260,
   }), [ratings.notes, settings.uiLanguage]);
-  const scrollY = profile.disableCommentScroll ? 0 : commentScrollOffset({ frame, distance: scroll.distance, timeline, settings, fps });
+  const commentViewportRef = useRef(null);
+  const commentTextRef = useRef(null);
+  const [measuredScrollDistance, setMeasuredScrollDistance] = useState(null);
+  useLayoutEffect(() => {
+    if (!commentViewportRef.current || !commentTextRef.current) return;
+    const viewportRect = commentViewportRef.current.getBoundingClientRect();
+    const textRect = commentTextRef.current.getBoundingClientRect();
+    const viewportHeight = viewportRect.height / (scale || 1);
+    const textHeight = Math.max(
+      textRect.height / (scale || 1),
+      commentTextRef.current.scrollHeight || 0,
+    );
+    const measured = commentScrollDistanceFromHeights(textHeight, viewportHeight);
+    setMeasuredScrollDistance(current => Math.abs(Number(current ?? -1) - measured) > 0.5 ? measured : current);
+  }, [ratings.notes, settings.uiLanguage, settings.theme, qualityMode, scale]);
+  const scrollDistance = measuredScrollDistance ?? scroll.distance;
+  const scrollY = profile.disableCommentScroll ? 0 : commentScrollOffset({ frame, distance: scrollDistance, timeline, settings, fps });
 
   return (
     <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text }}>
@@ -80,8 +97,8 @@ export default function StudentScene({ record, settings }) {
 
       {!profile.disableComments ? <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-section-label">{t(settings.uiLanguage, "comments")}</div>
-        <div className={`video-comments__viewport ${profile.disableCommentMask || qualityMode !== "quality" ? "video-comments__viewport--no-mask" : ""}`}>
-          <div className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{ratings.notes || "—"}</div>
+        <div ref={commentViewportRef} className={`video-comments__viewport ${profile.disableCommentMask || qualityMode !== "quality" ? "video-comments__viewport--no-mask" : ""}`}>
+          <div ref={commentTextRef} className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{ratings.notes || "—"}</div>
         </div>
       </section> : null}
 

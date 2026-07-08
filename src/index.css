@@ -131,6 +131,26 @@ html, body, #root {
 .search-item__sub  { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
 
 /* Student list */
+.student-sort-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.student-sort-controls select {
+  min-width: 0;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  outline: none;
+}
+.student-sort-controls select:disabled { opacity: 0.5; }
 .student-list { flex: 1; overflow-y: auto; }
 .student-list-item {
   display: flex; align-items: center; gap: 10px;
@@ -139,8 +159,11 @@ html, body, #root {
   transition: background 0.1s;
 }
 .student-list-item:hover { background: var(--bg-card-hover); }
+.student-list-item.is-draggable { cursor: grab; touch-action: none; }
 .student-list-item.selected { background: #0e2236; border-left: 3px solid var(--accent-blue); }
+.student-list-item__handle { color: var(--text-muted); font-size: 13px; letter-spacing: -0.12em; flex-shrink: 0; }
 .student-list-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.student-list-item__body { min-width: 0; }
 .student-list-item__name { font-size: 13px; font-weight: 600; }
 .student-list-item__meta { font-size: 11px; color: var(--text-muted); }
 .student-list-item__rated {
@@ -633,6 +656,80 @@ html, body, #root {
   height: 100%; gap: 12px; color: var(--text-muted);
 }
 .empty-state__icon { font-size: 48px; opacity: 0.4; }
+
+/* Dimension report */
+.report-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.42);
+}
+.report-panel {
+  width: min(760px, 100vw);
+  height: 100%;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  box-shadow: -18px 0 48px rgba(0, 0, 0, 0.32);
+}
+.report-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.report-header h2 { margin: 0; font-size: 20px; }
+.report-header p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
+.report-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px auto;
+  gap: 10px;
+  align-items: end;
+}
+.report-controls label { display: grid; gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+.report-controls select {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+.report-status { color: var(--text-muted); font-size: 12px; }
+.report-list { min-height: 0; flex: 1; overflow-y: auto; display: grid; align-content: start; gap: 7px; }
+.report-empty { padding: 24px; text-align: center; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--radius); }
+.report-row {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 48px 44px minmax(0, 1fr) 54px 112px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.report-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 5px; }
+.report-rank { color: var(--text-muted); font-weight: 900; font-family: var(--font-mono); }
+.report-student { min-width: 0; display: grid; gap: 2px; }
+.report-student strong { overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; }
+.report-student small { overflow: hidden; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
+.report-tier {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid;
+  border-radius: 5px;
+  font-size: 20px;
+  font-weight: 900;
+}
+.report-overall { text-align: right; font-size: 13px; font-weight: 900; }
 .empty-state__text { font-size: 14px; }
 
 /* ─── Buttons ────────────────────────────────────────────────── */
