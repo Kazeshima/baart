@@ -15,6 +15,7 @@ export default function RatingPanel() {
   const {
     selectedStudent, getCurrentRatings,
     setDimensionRating, setDimensionWeightShare, uiLanguage,
+    weightMode, setWeightMode,
   } = useRatingStore();
 
   if (!selectedStudent) return null;
@@ -33,6 +34,13 @@ export default function RatingPanel() {
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>
           {t(uiLanguage, "dimensions")}
         </div>
+        <label className="dim-weight-mode">
+          <span>{t(uiLanguage, "weightMode")}</span>
+          <select value={weightMode} onChange={event => setWeightMode(event.target.value)}>
+            <option value="shared">{t(uiLanguage, "sharedWeights")}</option>
+            <option value="individual">{t(uiLanguage, "individualWeights")}</option>
+          </select>
+        </label>
 
         {DIMENSIONS.map(dim => {
           const current = ratings[dim.key];
@@ -72,6 +80,15 @@ export default function RatingPanel() {
                   max="100"
                   step="0.1"
                   value={currentWeightShare}
+                  onChange={event => setDimensionWeightShare(dim.key, Number(event.target.value))}
+                />
+                <input
+                  className="dim-weight-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={Number(currentWeightShare).toFixed(1)}
                   onChange={event => setDimensionWeightShare(dim.key, Number(event.target.value))}
                 />
                 <strong>{formatWeightShare(currentWeightShare)}</strong>

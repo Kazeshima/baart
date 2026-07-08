@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_DIMENSION_WEIGHTS,
+  WEIGHT_MODES,
   adjustDimensionWeightShare,
   computeOverallScore,
   formatWeightShare,
   normalizeDimensionWeightShares,
   normalizeDimensionWeights,
+  resolveDimensionWeightShares,
   recalculateRatings,
 } from "../src/utils/scoring.js";
 
@@ -83,6 +85,55 @@ test("slider redistribution keeps percentage shares normalized", () => {
     counterDef: 0,
     cost: 50,
   });
+});
+
+test("slider redistribution is proportional and preserves exact total", () => {
+  const adjusted = adjustDimensionWeightShare({
+    blindshot: 40,
+    counter: 30,
+    defense: 20,
+    counterDef: 10,
+    cost: 0,
+  }, "cost", 20);
+  assert.deepEqual(adjusted, {
+    blindshot: 32,
+    counter: 24,
+    defense: 16,
+    counterDef: 8,
+    cost: 20,
+  });
+
+  const decreased = adjustDimensionWeightShare({
+    blindshot: 40,
+    counter: 20,
+    defense: 20,
+    counterDef: 20,
+    cost: 0,
+  }, "blindshot", 10);
+  assert.equal(decreased.blindshot, 10);
+  assert.equal(decreased.counter, 30);
+  assert.equal(decreased.defense, 30);
+  assert.equal(decreased.counterDef, 30);
+  assert.equal(decreased.cost, 0);
+  assert.equal(Object.values(decreased).reduce((sum, value) => sum + value, 0), 100);
+});
+
+test("shared weight mode overrides individual shares while individual mode preserves them", () => {
+  const ratings = {
+    ...complete,
+    dimensionWeightShares: { blindshot: 100, counter: 0, defense: 0, counterDef: 0, cost: 0 },
+  };
+  const shared = { blindshot: 0, counter: 0, defense: 0, counterDef: 0, cost: 100 };
+  assert.deepEqual(resolveDimensionWeightShares(ratings, { weightMode: WEIGHT_MODES.shared, sharedDimensionWeightShares: shared }), shared);
+  assert.deepEqual(resolveDimensionWeightShares(ratings, { weightMode: WEIGHT_MODES.individual }), {
+    blindshot: 100,
+    counter: 0,
+    defense: 0,
+    counterDef: 0,
+    cost: 0,
+  });
+  assert.equal(computeOverallScore(ratings, { weightMode: WEIGHT_MODES.shared, sharedDimensionWeightShares: shared }), 1);
+  assert.equal(computeOverallScore(ratings, { weightMode: WEIGHT_MODES.individual }), 5);
 });
 
 test("automatic mode recalculates the overall tier", () => {

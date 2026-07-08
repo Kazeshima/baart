@@ -26,6 +26,10 @@ button, input, select { font: inherit; }
 .studio-control { min-height: 30px; display: grid; grid-template-columns: 1fr 145px; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; }
 .studio-control input, .studio-control select, .studio-actions button, .studio-render-status button { height: 28px; min-width: 0; padding: 0 8px; border: 1px solid var(--border-bright); border-radius: 5px; outline: 0; background: var(--bg-card); color: var(--text-primary); }
 .studio-control input:focus, .studio-control select:focus { border-color: var(--accent-blue); }
+.studio-control--weight { grid-template-columns: 82px minmax(0, 1fr) 58px 44px; }
+.studio-control--weight input[type="range"] { padding: 0; accent-color: var(--accent-gold); }
+.studio-control--weight strong { color: var(--accent-gold); font-family: var(--font-mono); text-align: right; }
+.studio-help { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
 .studio-actions { display: flex; gap: 7px; }
 .studio-actions button { flex: 1; cursor: pointer; }
 .studio-output-location { display: grid; gap: 5px; color: var(--text-secondary); font-size: 12px; }

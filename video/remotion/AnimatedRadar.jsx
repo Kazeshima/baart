@@ -10,8 +10,9 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
   const { fps } = useVideoConfig();
   const profile = settings.renderProfile || {};
   const timeline = getTimeline({ ...settings, fps });
-  const scanProgress = phaseProgress(frame, timeline.radarStart, timeline.radarDuration);
+  const scanProgress = profile.staticRadar ? 1 : phaseProgress(frame, timeline.radarStart, timeline.radarDuration);
   const dataProgress = DIMENSIONS.map((_, index) => {
+    if (profile.staticRadar) return 1;
     const start = dimensionScanFrame(timeline, index, DIMENSIONS.length);
     return interpolate(frame, [start, start + timeline.pointDuration], [0, 1], {
       easing: Easing.bezier(0.65, 0, 0.35, 1),
@@ -19,20 +20,20 @@ export default function AnimatedRadar({ ratings, language, settings, size = 570 
       extrapolateRight: "clamp",
     });
   });
-  const polygonProgress = interpolate(frame, [timeline.polygonStart, timeline.polygonEnd], [0, 1], {
+  const polygonProgress = profile.staticRadar ? 1 : interpolate(frame, [timeline.polygonStart, timeline.polygonEnd], [0, 1], {
     easing: Easing.bezier(0.16, 1, 0.3, 1),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const polygonOpacity = interpolate(frame, [timeline.polygonStart, timeline.polygonStart + Math.max(1, timeline.polygonDuration * 0.7)], [0, 1], {
+  const polygonOpacity = profile.staticRadar ? 1 : interpolate(frame, [timeline.polygonStart, timeline.polygonStart + Math.max(1, timeline.polygonDuration * 0.7)], [0, 1], {
     easing: Easing.out(Easing.cubic),
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const ringProgress = phaseProgress(frame, timeline.radarStart - Math.round(fps * 0.35), Math.round(fps * 0.5));
+  const ringProgress = profile.staticRadar ? 1 : phaseProgress(frame, timeline.radarStart - Math.round(fps * 0.35), Math.round(fps * 0.5));
   const axisProgress = DIMENSIONS.map(() => ringProgress);
-  const beamOpacity = !profile.simplifyRadar && frame >= timeline.radarStart && frame <= timeline.radarEnd ? settings.scanBeamIntensity : 0;
-  const rippleCount = profile.simplifyRadar ? 0 : settings.rippleCount;
+  const beamOpacity = !profile.simplifyRadar && !profile.staticRadar && frame >= timeline.radarStart && frame <= timeline.radarEnd ? settings.scanBeamIntensity : 0;
+  const rippleCount = profile.simplifyRadar || profile.disableRipples || profile.staticRadar ? 0 : settings.rippleCount;
 
   return (
     <div className="video-radar" style={{ width: size, height: size }}>

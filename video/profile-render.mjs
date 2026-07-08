@@ -59,7 +59,9 @@ const records = mergeRatedStudents(students, ratings);
 if (!records.length) throw new Error(`No rated students from ${ratingsPath} matched SchaleDB ${dataLanguage} metadata.`);
 
 const selectedCases = new Set(caseFilter.split(",").map(value => value.trim()).filter(Boolean));
-const cases = (quick ? createProfileCases().filter(item => ["full-adaptive", "full-adaptive-jpeg", "no-portrait-adaptive", "simple-radar-adaptive"].includes(item.name)) : createProfileCases())
+const allCases = createProfileCases();
+const quickCaseNames = new Set(["full-adaptive", "full-adaptive-jpeg", "no-portrait-adaptive", "simple-radar-adaptive"]);
+const cases = (quick && selectedCases.size === 0 ? allCases.filter(item => quickCaseNames.has(item.name)) : allCases)
   .filter(item => selectedCases.size === 0 || selectedCases.has(item.name));
 if (!cases.length) throw new Error(`No profile cases matched "${caseFilter}".`);
 const baseSettings = {
@@ -95,7 +97,7 @@ for (const profileCase of cases) {
   await fs.rm(caseDir, { recursive: true, force: true });
   const project = createVideoProject({
     records,
-    settings: { ...baseSettings, renderConcurrency: profileCase.renderConcurrency },
+    settings: { ...baseSettings, ...(profileCase.settings || {}), renderConcurrency: profileCase.renderConcurrency },
   });
 
   let lastMeta = {};
@@ -111,6 +113,7 @@ for (const profileCase of cases) {
     outputLocation: caseDir,
     frameRange: [0, frameCount - 1],
     profile: profileCase.profile,
+    settings: profileCase.settings || {},
     imageFormat: profileCase.imageFormat,
     assetCacheDir: path.join(profileRoot, "render-assets"),
   });

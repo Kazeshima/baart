@@ -5,6 +5,8 @@ import {
   DEFAULT_VIDEO_SETTINGS,
   benchmarkStorageKey,
   clampProgress,
+  commentScrollFrames,
+  commentScrollOffset,
   dimensionScanFrame,
   estimatePreviewFps,
   estimateCommentScroll,
@@ -71,6 +73,11 @@ test("render concurrency defaults to adaptive prediction and validates supported
 test("video profiling cases cover scene blocks and concurrency choices", () => {
   const cases = createProfileCases();
   assert.ok(cases.some(item => item.name === "no-portrait-adaptive" && item.profile.disablePortrait));
+  assert.ok(cases.some(item => item.name === "no-shadows-glows-adaptive" && item.profile.disableShadows));
+  assert.ok(cases.some(item => item.name === "no-comment-mask-scroll-adaptive" && item.profile.disableCommentMask && item.profile.disableCommentScroll));
+  assert.ok(cases.some(item => item.name === "static-radar-adaptive" && item.profile.staticRadar));
+  assert.ok(cases.some(item => item.name === "no-radar-ripples-adaptive" && item.profile.disableRipples));
+  assert.ok(cases.some(item => item.name === "fast-quality-mode-adaptive" && item.settings.renderQualityMode === "fast"));
   assert.ok(cases.some(item => item.name === "simple-radar-adaptive" && item.profile.simplifyRadar));
   assert.ok(!cases.some(item => item.renderConcurrency === "75%"));
   assert.ok(cases.some(item => item.name === "full-2" && item.renderConcurrency === "2"));
@@ -140,6 +147,8 @@ test("legacy manifests receive defaults and imported snapshots retain ratings", 
   });
   assert.equal(partial.settings.theme, DEFAULT_VIDEO_SETTINGS.theme);
   assert.equal(partial.settings.renderConcurrency, "adaptive");
+  assert.equal(partial.settings.weightMode, "shared");
+  assert.equal(partial.settings.renderQualityMode, "balanced");
   const ratings = ratingsFromProjectRecords(partial.records);
   assert.equal(ratings["10001"].notes, partial.records[0].ratings.notes);
   assert.deepEqual(partial.records.map(record => record.student), fixture.records.map(record => record.student));
@@ -266,6 +275,16 @@ test("comment scrolling starts only when estimated text exceeds the viewport", (
   assert.ok(wrapped.lines > 1);
   const cjk = estimateCommentScroll("这是很长的竞技场评价说明".repeat(8), "zh", { charsPerLine: 8, lineHeight: 10, viewportHeight: 10 });
   assert.ok(cjk.distance > 0);
+});
+
+test("fit-hold comment scrolling starts before overall reveal and finishes before fade-out", () => {
+  const settings = { ...DEFAULT_VIDEO_SETTINGS, fps: 30, commentScrollMode: "fitHold", commentScrollDelay: 0.8 };
+  const timeline = getTimeline(settings);
+  const scroll = commentScrollFrames(timeline, settings, settings.fps);
+  assert.ok(scroll.start < timeline.overallStart);
+  assert.ok(scroll.end <= timeline.fadeOutStart);
+  assert.equal(commentScrollOffset({ frame: scroll.start - 1, distance: 240, timeline, settings, fps: settings.fps }), 0);
+  assert.equal(commentScrollOffset({ frame: scroll.end, distance: 240, timeline, settings, fps: settings.fps }), 240);
 });
 
 test("preview FPS estimate is based on frame events per elapsed time", () => {

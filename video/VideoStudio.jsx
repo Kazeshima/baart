@@ -3,8 +3,9 @@ import { Player } from "@remotion/player";
 import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { LANG_URLS } from "../src/utils/constants.js";
-import { schoolLabel } from "../src/utils/i18n.js";
+import { DIMENSIONS, LANG_URLS } from "../src/utils/constants.js";
+import { DIMENSION_LABELS, localeFor, schoolLabel } from "../src/utils/i18n.js";
+import { adjustDimensionWeightShare, formatWeightShare } from "../src/utils/scoring.js";
 import { parseStudents } from "../src/utils/students.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import ArenaRatingVideo from "./remotion/ArenaRatingVideo.jsx";
@@ -29,11 +30,18 @@ import {
 } from "./render-client.js";
 
 const RATINGS_KEY = "ba_pvp_ratings";
+const WEIGHT_MODE_KEY = "ba_rating_weight_mode";
+const SHARED_WEIGHTS_KEY = "ba_rating_shared_dimension_weight_shares";
 const PROJECT_KEY = "baart_video_project_settings";
 const BENCHMARK_KEY = "baart_video_render_benchmarks";
 
 function NumberControl({ label, value, onChange, min = 0, max, step = 0.1 }) {
   return <label className="studio-control"><span>{label}</span><input type="number" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))} /></label>;
+}
+
+function WeightShareControl({ label, value, onChange }) {
+  const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+  return <label className="studio-control studio-control--weight"><span>{label}</span><input type="range" min="0" max="100" step="0.1" value={safeValue} onChange={event => onChange(Number(event.target.value))} /><input type="number" min="0" max="100" step="0.1" value={safeValue.toFixed(1)} onChange={event => onChange(Number(event.target.value))} /><strong>{formatWeightShare(safeValue)}</strong></label>;
 }
 
 function SortableStudent({ record, language }) {
@@ -57,6 +65,25 @@ function readStoredJson(key) {
   try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; }
 }
 
+function readRatingsPayload() {
+  const payload = readStoredJson(RATINGS_KEY);
+  if (payload?.ratings && typeof payload.ratings === "object") return payload;
+  return { ratings: payload || {} };
+}
+
+function initialVideoSettings(saved) {
+  const ratingsPayload = readRatingsPayload();
+  const storedSharedWeights = readStoredJson(SHARED_WEIGHTS_KEY);
+  return {
+    ...DEFAULT_VIDEO_SETTINGS,
+    weightMode: localStorage.getItem(WEIGHT_MODE_KEY) || ratingsPayload.weightMode || DEFAULT_VIDEO_SETTINGS.weightMode,
+    sharedDimensionWeightShares: storedSharedWeights.blindshot
+      ? storedSharedWeights
+      : ratingsPayload.sharedDimensionWeightShares || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeightShares,
+    ...(saved.settings || {}),
+  };
+}
+
 function formatDuration(seconds) {
   if (!Number.isFinite(seconds)) return "—";
   const total = Math.max(0, Math.round(seconds));
@@ -73,9 +100,9 @@ function benchmarkBottleneckLabel(language, value) {
 
 export default function VideoStudio() {
   const saved = useMemo(() => readStoredJson(PROJECT_KEY), []);
-  const [settings, setSettings] = useState({ ...DEFAULT_VIDEO_SETTINGS, ...(saved.settings || {}) });
+  const [settings, setSettings] = useState(() => initialVideoSettings(saved));
   const [order, setOrder] = useState({ ...DEFAULT_ORDER, ...(saved.order || {}) });
-  const [ratingsSource, setRatingsSource] = useState(() => readStoredJson(RATINGS_KEY));
+  const [ratingsSource, setRatingsSource] = useState(() => readRatingsPayload().ratings);
   const [fetchedRecords, setFetchedRecords] = useState([]);
   const [snapshotRecords, setSnapshotRecords] = useState(null);
   const [loadError, setLoadError] = useState("");
@@ -100,13 +127,13 @@ export default function VideoStudio() {
       .then(response => response.ok ? response.json() : Promise.reject(new Error(`Student data HTTP ${response.status}`)))
       .then(raw => {
         if (!cancelled) {
-          setFetchedRecords(mergeRatedStudents(parseStudents(raw), ratingsSource));
+          setFetchedRecords(mergeRatedStudents(parseStudents(raw), ratingsSource, settings));
           setLoadError("");
         }
       })
       .catch(error => { if (!cancelled) setLoadError(String(error)); });
     return () => { cancelled = true; };
-  }, [ratingsSource, settings.dataLanguage, snapshotRecords]);
+  }, [ratingsSource, settings.dataLanguage, settings.weightMode, settings.sharedDimensionWeightShares, snapshotRecords]);
 
   useEffect(() => {
     localStorage.setItem(PROJECT_KEY, JSON.stringify({ settings, order }));
@@ -162,6 +189,10 @@ export default function VideoStudio() {
   const activeRender = isActiveRenderStatus(renderJob?.status);
 
   const updateSetting = useCallback((key, value) => setSettings(current => ({ ...current, [key]: value })), []);
+  const updateSharedWeightShare = useCallback((key, value) => setSettings(current => ({
+    ...current,
+    sharedDimensionWeightShares: adjustDimensionWeightShare(current.sharedDimensionWeightShares, key, value),
+  })), []);
   const updateDataLanguage = value => {
     setSnapshotRecords(null);
     updateSetting("dataLanguage", value);
@@ -189,7 +220,15 @@ export default function VideoStudio() {
         setOutputLocation("");
       } else {
         setSnapshotRecords(null);
-        setRatingsSource(parsed);
+        const payload = parsed?.ratings && typeof parsed.ratings === "object" ? parsed : { ratings: parsed };
+        setRatingsSource(payload.ratings || {});
+        if (payload.weightMode || payload.sharedDimensionWeightShares) {
+          setSettings(current => ({
+            ...current,
+            weightMode: payload.weightMode || current.weightMode,
+            sharedDimensionWeightShares: payload.sharedDimensionWeightShares || current.sharedDimensionWeightShares,
+          }));
+        }
       }
       setCurrentFrame(0);
       setLoadError("");
@@ -333,6 +372,7 @@ export default function VideoStudio() {
           <label className="studio-control"><span>{vt(language, "preset")}</span><select value={`${settings.width}x${settings.height}`} onChange={event => { const [width, height] = event.target.value.split("x").map(Number); setSettings(current => ({ ...current, width, height })); }}><option value="1920x1080">1080p</option><option value="3840x2160">4K</option><option value="1280x720">720p</option></select></label>
           <label className="studio-control"><span>FPS</span><select value={settings.fps} onChange={event => updateSetting("fps", Number(event.target.value))}>{[24, 25, 30, 50, 60].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
           <label className="studio-control"><span>{vt(language, "renderConcurrency")}</span><select value={settings.renderConcurrency} onChange={event => updateSetting("renderConcurrency", event.target.value)}><option value="adaptive">{vt(language, "adaptive")}</option><option value="auto">{vt(language, "auto")}</option>{["100%", "1", "2", "4", "6", "8", "12", "16"].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="studio-control"><span>{vt(language, "renderQuality")}</span><select value={settings.renderQualityMode} onChange={event => updateSetting("renderQualityMode", event.target.value)}><option value="quality">{vt(language, "quality")}</option><option value="balanced">{vt(language, "balanced")}</option><option value="fast">{vt(language, "fast")}</option></select></label>
           <div className="studio-benchmark"><button type="button" disabled={!project || activeRender || benchmarking} onClick={runBenchmark}>{benchmarking ? vt(language, "benchmarking") : vt(language, "benchmarkConcurrency")}</button>{benchmarkResult?.best ? <span>{vt(language, "benchmarkBest")}: {benchmarkResult.best.renderConcurrency} · {benchmarkResult.best.fps} fps{benchmarkResult.best.medianFps ? ` (${vt(language, "median")} ${benchmarkResult.best.medianFps} fps)` : ""} · {vt(language, "benchmarkIo")}: {benchmarkResult.io?.filesPerSecond} {vt(language, "framesPerSecondUnit")} · {vt(language, "benchmarkBottleneck")}: {benchmarkBottleneckLabel(language, benchmarkResult.best.bottleneck)}</span> : null}{benchmarkResult ? <button type="button" onClick={() => downloadJson(`${settings.outputName}-benchmark-report.json`, benchmarkResult)}>{vt(language, "downloadBenchmarkReport")}</button> : null}</div>
           <label className="studio-control"><span>{vt(language, "format")}</span><select value={settings.format} onChange={event => { updateSetting("format", event.target.value); setOutputLocation(""); }}><option value="mp4">MP4</option><option value="png">{vt(language, "pngSequence")}</option><option value="jpeg">{vt(language, "jpegSequence")}</option></select></label>
           <label className="studio-control"><span>{vt(language, "filename")}</span><input value={settings.outputName} onChange={event => { updateSetting("outputName", event.target.value); setOutputLocation(""); }} /></label>
@@ -345,6 +385,13 @@ export default function VideoStudio() {
           <label className="studio-control"><span>{vt(language, "terrain")}</span><select value={settings.season} onChange={event => updateSetting("season", event.target.value)}>{["Street", "Outdoor", "Indoor"].map(value => <option key={value} value={value}>{vt(language, value)}</option>)}</select></label>
           <label className="studio-control"><span>{vt(language, "arenaSeason")}</span><input value={settings.arenaSeason} onChange={event => updateSetting("arenaSeason", event.target.value)} /></label>
           <NumberControl label={vt(language, "portraitOpacity")} value={settings.portraitOpacity} min={0} max={1} step={0.05} onChange={value => updateSetting("portraitOpacity", value)} />
+        </section>
+        <section className="studio-panel"><h2>{vt(language, "scoring")}</h2>
+          <label className="studio-control"><span>{vt(language, "weightMode")}</span><select value={settings.weightMode} onChange={event => updateSetting("weightMode", event.target.value)}><option value="shared">{vt(language, "sharedWeights")}</option><option value="individual">{vt(language, "individualWeights")}</option></select></label>
+          {settings.weightMode === "shared" ? DIMENSIONS.map(({ key }) => {
+            const labels = DIMENSION_LABELS[localeFor(language)] || DIMENSION_LABELS.zh;
+            return <WeightShareControl key={key} label={labels[key][0]} value={settings.sharedDimensionWeightShares?.[key]} onChange={value => updateSharedWeightShare(key, value)} />;
+          }) : <p className="studio-help">{vt(language, "individualWeightsHelp")}</p>}
         </section>
         <section className="studio-panel"><h2>{vt(language, "timing")}</h2>
           <NumberControl label={vt(language, "studentDuration")} value={settings.studentDuration} min={1} step={0.5} onChange={value => updateSetting("studentDuration", value)} />

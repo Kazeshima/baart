@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { DEFAULT_RATINGS } from "../../src/utils/constants.js";
-import { recalculateRatings } from "../../src/utils/scoring.js";
+import { DEFAULT_DIMENSION_WEIGHT_SHARES, DEFAULT_RATINGS, DIMENSIONS } from "../../src/utils/constants.js";
+import { normalizeDimensionWeightShares, normalizeWeightMode, recalculateRatings } from "../../src/utils/scoring.js";
 import { DEFAULT_VIDEO_SETTINGS, VIDEO_PROJECT_VERSION } from "./config.js";
 import { DEFAULT_ORDER, sortRatingRecords } from "./sorting.js";
 
 const finiteNonNegative = z.number().finite().nonnegative();
 const opacity = z.number().finite().min(0).max(1);
+const weightSharesSchema = z.object(Object.fromEntries(DIMENSIONS.map(({ key }) => [key, z.number().finite().min(0).max(100)])));
 
 export const videoSettingsSchema = z.object({
   width: z.number().int().min(640).max(7680),
@@ -30,6 +31,7 @@ export const videoSettingsSchema = z.object({
     z.literal(12),
     z.literal(16),
   ]).transform(value => String(value)),
+  renderQualityMode: z.enum(["quality", "balanced", "fast"]),
   format: z.enum(["mp4", "png", "jpeg"]),
   outputName: z.string().trim().min(1).max(128),
   studentDuration: z.number().finite().positive(),
@@ -60,6 +62,8 @@ export const videoSettingsSchema = z.object({
   dataLanguage: z.enum(["zh", "cn", "tw", "jp", "en"]),
   season: z.enum(["Street", "Outdoor", "Indoor"]),
   arenaSeason: z.string().trim().min(1).max(32),
+  weightMode: z.enum(["shared", "individual"]),
+  sharedDimensionWeightShares: weightSharesSchema.transform(value => normalizeDimensionWeightShares({ dimensionWeightShares: value })),
 }).refine(value => value.width * 9 === value.height * 16, { message: "Resolution must use a 16:9 aspect ratio.", path: ["width"] });
 
 export const videoProjectSchema = z.object({
@@ -77,7 +81,7 @@ export const videoProjectSchema = z.object({
   })),
 });
 
-export function normalizeVideoRating(raw = {}) {
+export function normalizeVideoRating(raw = {}, settings = DEFAULT_VIDEO_SETTINGS) {
   const ratings = { ...DEFAULT_RATINGS(), ...raw };
   if (!raw || !Object.hasOwn(raw, "dimensionWeightShares")) {
     delete ratings.dimensionWeightShares;
@@ -85,21 +89,31 @@ export function normalizeVideoRating(raw = {}) {
   if (typeof ratings.overall === "string") {
     ratings.overall = { E: 0, D: 0, C: 1, B: 2, A: 3, S: 4 }[ratings.overall] ?? null;
   }
-  return recalculateRatings(ratings);
+  return recalculateRatings(ratings, {
+    weightMode: normalizeWeightMode(settings.weightMode),
+    sharedDimensionWeightShares: settings.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
+  });
 }
 
-export function mergeRatedStudents(students, allRatings) {
+export function mergeRatedStudents(students, allRatings, settings = DEFAULT_VIDEO_SETTINGS) {
   const studentsById = new Map(students.map(student => [Number(student.id), student]));
   return Object.entries(allRatings || {}).flatMap(([id, ratings], legacyOrder) => {
     const student = studentsById.get(Number(id));
-    return student ? [{ student, ratings: normalizeVideoRating(ratings), legacyOrder }] : [];
+    return student ? [{ student, ratings: normalizeVideoRating(ratings, settings), legacyOrder }] : [];
   });
 }
 
 export function createVideoProject({ records, settings, order }) {
   const manifest = {
     version: VIDEO_PROJECT_VERSION,
-    settings: { ...DEFAULT_VIDEO_SETTINGS, ...settings },
+    settings: {
+      ...DEFAULT_VIDEO_SETTINGS,
+      ...settings,
+      weightMode: normalizeWeightMode(settings?.weightMode),
+      sharedDimensionWeightShares: normalizeDimensionWeightShares({
+        dimensionWeightShares: settings?.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
+      }),
+    },
     order: { ...DEFAULT_ORDER, ...order },
     records,
   };
@@ -109,7 +123,14 @@ export function createVideoProject({ records, settings, order }) {
 export function safeCreateVideoProject(value) {
   const manifest = {
     version: VIDEO_PROJECT_VERSION,
-    settings: { ...DEFAULT_VIDEO_SETTINGS, ...value.settings },
+    settings: {
+      ...DEFAULT_VIDEO_SETTINGS,
+      ...value.settings,
+      weightMode: normalizeWeightMode(value.settings?.weightMode),
+      sharedDimensionWeightShares: normalizeDimensionWeightShares({
+        dimensionWeightShares: value.settings?.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
+      }),
+    },
     order: { ...DEFAULT_ORDER, ...value.order },
     records: value.records || [],
   };
@@ -126,7 +147,7 @@ export function parseVideoProject(value) {
     ...project,
     records: project.records.map(record => ({
       ...record,
-      ratings: normalizeVideoRating(record.ratings),
+      ratings: normalizeVideoRating(record.ratings, project.settings),
     })),
   };
 }

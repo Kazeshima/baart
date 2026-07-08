@@ -6,7 +6,7 @@ import { formatWeightShare } from "../../src/utils/scoring.js";
 import { studentDisplayName } from "../../src/utils/studentDisplay.js";
 import OverallBadge from "../../src/components/presentation/OverallBadge.jsx";
 import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators, studentPresentation } from "../../src/components/presentation/StudentPresentation.jsx";
-import { getTimeline, phaseProgress, estimateCommentScroll } from "../core/config.js";
+import { commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll } from "../core/config.js";
 import AnimatedRadar from "./AnimatedRadar.jsx";
 
 const palettes = {
@@ -34,6 +34,8 @@ export default function StudentScene({ record, settings }) {
   const timeline = getTimeline({ ...settings, fps });
   const { student, ratings } = record;
   const profile = settings.renderProfile || {};
+  const qualityMode = settings.renderQualityMode || "balanced";
+  const fastRender = qualityMode === "fast" || profile.disableShadows;
   const assetSrc = src => settings.assetMap?.[src] || src;
   const AssetImg = props => <Img {...props} src={assetSrc(props.src)} />;
   const palette = palettes[settings.theme] || palettes.dark;
@@ -52,15 +54,11 @@ export default function StudentScene({ record, settings }) {
     lineHeight: 58,
     viewportHeight: 260,
   }), [ratings.notes, settings.uiLanguage]);
-  const scrollStart = timeline.overallEnd + Math.round(settings.commentScrollDelay * fps);
-  const scrollHoldFrames = Math.max(1, timeline.fadeOutStart - scrollStart - Math.round(fps * 0.15));
-  const scrollY = settings.commentScrollMode === "fixedSpeed"
-    ? Math.min(scroll.distance, Math.max(0, frame - scrollStart) / fps * settings.commentScrollSpeed)
-    : scroll.distance * phaseProgress(frame, scrollStart, scrollHoldFrames);
+  const scrollY = profile.disableCommentScroll ? 0 : commentScrollOffset({ frame, distance: scroll.distance, timeline, settings, fps });
 
   return (
-    <div className="video-scene baart-theme" data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text }}>
-      <div className="video-scene__grid" />
+    <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text }}>
+      {!profile.disableGrid ? <div className="video-scene__grid" /> : null}
       {!profile.disablePortrait ? <div className="video-portrait" style={{ opacity: settings.portraitOpacity }}>
         <AssetImg src={`https://schaledb.com/images/student/portrait/${student.id}.webp`} />
       </div> : null}
@@ -82,7 +80,7 @@ export default function StudentScene({ record, settings }) {
 
       {!profile.disableComments ? <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-section-label">{t(settings.uiLanguage, "comments")}</div>
-        <div className="video-comments__viewport">
+        <div className={`video-comments__viewport ${profile.disableCommentMask || qualityMode !== "quality" ? "video-comments__viewport--no-mask" : ""}`}>
           <div className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{ratings.notes || "—"}</div>
         </div>
       </section> : null}

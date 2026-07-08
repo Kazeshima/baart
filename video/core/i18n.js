@@ -1,9 +1,11 @@
 const TEXT = {
   zh: {
     studio: "视频工作室", back: "返回评级工具", empty: "请先在 BAART 中创建评级，或导入评级 JSON。",
-    noStudent: "无学生", students: "名学生", project: "项目", output: "输出", presentation: "显示",
+    noStudent: "无学生", students: "名学生", project: "项目", output: "输出", presentation: "显示", scoring: "计分",
     timing: "时间", effects: "效果", order: "顺序", importJson: "导入 JSON", saveProject: "保存项目",
-    preset: "分辨率", format: "格式", filename: "文件名", renderConcurrency: "渲染并行度", adaptive: "自适应", auto: "自动",
+    preset: "分辨率", format: "格式", filename: "文件名", renderConcurrency: "渲染并行度", renderQuality: "渲染质量", quality: "高质量", balanced: "平衡", fast: "快速",
+    weightMode: "权重模式", sharedWeights: "全体共用", individualWeights: "单独设置", individualWeightsHelp: "当前使用每个学生各自保存的权重占比。",
+    adaptive: "自适应", auto: "自动",
     benchmarkConcurrency: "测试最佳并行度", benchmarking: "测试中", benchmarkBest: "最佳",
     median: "中位数",
     benchmarkIo: "磁盘写入", benchmarkBottleneck: "瓶颈", downloadBenchmarkReport: "下载报告", framesPerSecondUnit: "帧/秒",
@@ -31,9 +33,11 @@ const TEXT = {
   },
   en: {
     studio: "Video Studio", back: "Back to Rating Tool", empty: "Create ratings in BAART or import a ratings JSON file.",
-    noStudent: "No student", students: "students", project: "Project", output: "Output", presentation: "Presentation",
+    noStudent: "No student", students: "students", project: "Project", output: "Output", presentation: "Presentation", scoring: "Scoring",
     timing: "Timing", effects: "Effects", order: "Order", importJson: "Import JSON", saveProject: "Save Project",
-    preset: "Preset", format: "Format", filename: "Filename", renderConcurrency: "Render concurrency", adaptive: "Adaptive", auto: "Auto",
+    preset: "Preset", format: "Format", filename: "Filename", renderConcurrency: "Render concurrency", renderQuality: "Render quality", quality: "Quality", balanced: "Balanced", fast: "Fast",
+    weightMode: "Weight mode", sharedWeights: "Shared", individualWeights: "Individual", individualWeightsHelp: "Using weight shares stored on each individual rating.",
+    adaptive: "Adaptive", auto: "Auto",
     benchmarkConcurrency: "Benchmark concurrency", benchmarking: "Benchmarking", benchmarkBest: "Best",
     median: "median",
     benchmarkIo: "Disk write", benchmarkBottleneck: "Bottleneck", downloadBenchmarkReport: "Download report", framesPerSecondUnit: "frames/s",

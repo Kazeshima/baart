@@ -229,6 +229,17 @@ html, body, #root {
   padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 700;
 }
 .type-badge img { width: 14px; height: 14px; filter: brightness(0) invert(1); }
+.app-root[data-theme="light"] .type-badge {
+  background-color: color-mix(in srgb, currentColor 18%, #ffffff 82%) !important;
+  box-shadow: inset 0 0 0 1px #ffffffb8;
+}
+.app-root[data-theme="light"] .type-badge img,
+.app-root[data-theme="light"] .terrain-item img,
+.app-root[data-theme="light"] .season-btn img,
+.app-root[data-theme="light"] .cover-icon img {
+  opacity: 1;
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, .75)) drop-shadow(0 0 2px rgba(15, 23, 42, .45));
+}
 
 /* Terrain row */
 .terrain-row { display: flex; gap: 8px; align-items: center; }
@@ -244,6 +255,13 @@ html, body, #root {
   border-color: var(--accent-gold);
   background: #1a1404;
   box-shadow: 0 0 8px #f0b42930;
+}
+.app-root[data-theme="light"] .terrain-item {
+  background: color-mix(in srgb, var(--bg-card) 86%, #ffffff 14%);
+}
+.app-root[data-theme="light"] .terrain-item.active,
+.app-root[data-theme="light"] .season-btn.active {
+  background: #fff2c4;
 }
 .terrain-item img { width: 22px; height: 22px; }
 .terrain-adapt img { height: 16px; }
@@ -373,6 +391,34 @@ html, body, #root {
   color: var(--accent-gold);
   font-family: var(--font-mono);
   font-size: 11px;
+  text-align: right;
+}
+.dim-weight-mode {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.dim-weight-mode select,
+.dim-weight-input {
+  height: 24px;
+  min-width: 0;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  outline: none;
+}
+.dim-weight-input {
+  width: 54px;
+  padding: 0 5px;
+  font-family: var(--font-mono);
   text-align: right;
 }
 .tier-btn {

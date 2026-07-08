@@ -6,6 +6,11 @@ export const WEIGHT_VALUES = Object.freeze({
   full: 1,
 });
 
+export const WEIGHT_MODES = Object.freeze({
+  shared: "shared",
+  individual: "individual",
+});
+
 export const DEFAULT_DIMENSION_WEIGHTS = Object.freeze({
   blindshot: "full",
   counter: "full",
@@ -47,6 +52,20 @@ export function normalizeDimensionWeightShares(ratings = {}) {
   const rawShares = Object.fromEntries(DIMENSIONS.map(({ key }) => [key, WEIGHT_VALUES[dimensionWeights[key]] ?? 0]));
   const tenths = normalizeShareTenths(rawShares);
   return Object.fromEntries(DIMENSIONS.map(({ key }, index) => [key, tenths[index] / SHARE_PRECISION]));
+}
+
+export function normalizeWeightMode(value) {
+  return value === WEIGHT_MODES.individual ? WEIGHT_MODES.individual : WEIGHT_MODES.shared;
+}
+
+export function resolveDimensionWeightShares(ratings = {}, options = {}) {
+  const mode = options.weightMode === undefined ? WEIGHT_MODES.individual : normalizeWeightMode(options.weightMode);
+  if (mode === WEIGHT_MODES.shared) {
+    return normalizeDimensionWeightShares({
+      dimensionWeightShares: options.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
+    });
+  }
+  return normalizeDimensionWeightShares(ratings);
 }
 
 export function formatWeightShare(value) {
@@ -99,8 +118,8 @@ export function normalizeDimensionWeights(ratings = {}) {
   }));
 }
 
-export function computeOverallScore(ratings) {
-  const dimensionWeightShares = normalizeDimensionWeightShares(ratings);
+export function computeOverallScore(ratings, options = {}) {
+  const dimensionWeightShares = resolveDimensionWeightShares(ratings, options);
   const weighted = DIMENSIONS.flatMap(({ key }) => {
     const tier = ratings[key];
     const share = dimensionWeightShares[key];
@@ -122,10 +141,13 @@ export function computeOverallLevel(score) {
   return 0;
 }
 
-export function recalculateRatings(ratings) {
+export function recalculateRatings(ratings, options = {}) {
   const dimensionWeights = normalizeDimensionWeights(ratings);
-  const dimensionWeightShares = normalizeDimensionWeightShares({ ...ratings, dimensionWeights });
-  const overallScore = computeOverallScore({ ...ratings, dimensionWeights, dimensionWeightShares });
+  const dimensionWeightShares = resolveDimensionWeightShares({ ...ratings, dimensionWeights }, options);
+  const overallScore = computeOverallScore({ ...ratings, dimensionWeights, dimensionWeightShares }, {
+    ...options,
+    weightMode: WEIGHT_MODES.individual,
+  });
   return {
     ...ratings,
     dimensionWeights,

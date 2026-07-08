@@ -270,6 +270,8 @@ function palette(theme = "dark") {
       muted: "#71839a",
       radarBg: "#f6f9fd",
       shadow: "#94a9bd",
+      iconFilter: "url(#lightIconContrast)",
+      iconChipOpacity: "1",
     };
   }
   return {
@@ -282,6 +284,8 @@ function palette(theme = "dark") {
     muted: "#4a6080",
     radarBg: "#0b1020",
     shadow: "#000000",
+    iconFilter: "",
+    iconChipOpacity: "0.9",
   };
 }
 
@@ -290,6 +294,7 @@ export function useExport() {
     selectedStudent,
     students,
     allRatings,
+    getEffectiveAllRatings,
     getCurrentRatings,
     season,
     arenaSeason,
@@ -299,6 +304,7 @@ export function useExport() {
   } = useRatingStore();
 
   const exportCard = async (mode = "compact", format = "svg") => {
+    const effectiveAllRatings = getEffectiveAllRatings();
     if (mode === "batch") {
       try {
         const rated = students.filter(s => allRatings[s.id]);
@@ -307,7 +313,7 @@ export function useExport() {
         const pngFailures = [];
         const fontCss = await exportFontCss();
         for (const student of rated) {
-          const ratings = normalizeExportRatings(allRatings[student.id]);
+          const ratings = normalizeExportRatings(effectiveAllRatings[student.id]);
           const compactSvg = await inlineSvgImages(buildExportSVG(student, ratings, { season, arenaSeason, uiLanguage, theme, mode: "compact", fontCss }));
           const fullSvg = await inlineSvgImages(buildExportSVG(student, ratings, { season, arenaSeason, uiLanguage, theme, mode: "full", fontCss }));
           const base = `${filenamePart(student.id)}_${filenamePart(student.devName || student.name)}`;
@@ -414,6 +420,10 @@ function defs(p) {
     </linearGradient>
     <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="${p.shadow}" flood-opacity="0.22"/>
+    </filter>
+    <filter id="lightIconContrast" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="#0f172a" flood-opacity="0.85"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="1.2" flood-color="#0f172a" flood-opacity="0.42"/>
     </filter>
   </defs>`;
 }
@@ -524,7 +534,7 @@ function coverMark(student, x, y, uiLanguage, p = palette()) {
   return `
   <g opacity="${active ? "1" : "0.45"}">
     <rect x="${x}" y="${y}" width="160" height="34" rx="6" fill="${p.card}" stroke="${p.stroke}"/>
-    <image href="${COVER_ICON}" x="${x + 10}" y="${y + 8}" width="18" height="18"/>
+    <image href="${COVER_ICON}" x="${x + 10}" y="${y + 8}" width="18" height="18" opacity="${p.iconChipOpacity}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
     <text x="${x + 38}" y="${y + 23}" fill="${active ? p.text : p.sub}" font-size="16" font-weight="800">${esc(active ? t(uiLanguage, "coverYes") : t(uiLanguage, "coverNo"))}</text>
   </g>`;
 }
@@ -537,10 +547,10 @@ function typeChips(student, labels, x, y, p = palette()) {
   return `
   <g>
     <rect x="${x}" y="${y}" width="138" height="34" rx="6" fill="${attackColor}22" stroke="${attackColor}"/>
-    <image href="${ATTACK_ICON}" x="${x + 10}" y="${y + 8}" width="18" height="18"/>
+    <image href="${ATTACK_ICON}" x="${x + 10}" y="${y + 8}" width="18" height="18" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
     <text x="${x + 36}" y="${y + 23}" fill="${attackColor}" font-size="17" font-weight="800">${esc(attackLabel)}</text>
     <rect x="${x + 150}" y="${y}" width="138" height="34" rx="6" fill="${defenseColor}22" stroke="${defenseColor}"/>
-    <image href="${DEFENSE_ICON}" x="${x + 160}" y="${y + 8}" width="18" height="18"/>
+    <image href="${DEFENSE_ICON}" x="${x + 160}" y="${y + 8}" width="18" height="18" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
     <text x="${x + 186}" y="${y + 23}" fill="${defenseColor}" font-size="17" font-weight="800">${esc(defenseLabel)}</text>
   </g>`;
 }
@@ -567,9 +577,9 @@ function terrainStrip(student, activeSeason, x, y, p = palette()) {
     cursor += width + 10;
     return `
     <rect x="${tx}" y="${y}" width="${width}" height="44" rx="6" fill="${active ? (p.bg === "#06080f" ? "#1a1404" : "#fff7dc") : p.card}" stroke="${active ? "#f0b429" : p.stroke}"/>
-    <image href="${s.icon}" x="${tx + 9}" y="${y + 8}" width="28" height="28"/>
-    <image href="${ADAPT_ICON_URL(level)}" x="${tx + 43}" y="${y + 12}" height="20" width="40"/>
-    ${hasUpgrade ? `<text x="${tx + 82}" y="${y + 27}" text-anchor="middle" fill="${active ? "#f0b429" : p.sub}" font-size="14" font-weight="900">→</text><image href="${ADAPT_ICON_URL(ue)}" x="${tx + 88}" y="${y + 12}" height="20" width="40"/>` : ""}`;
+    <image href="${s.icon}" x="${tx + 9}" y="${y + 8}" width="28" height="28" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
+    <image href="${ADAPT_ICON_URL(level)}" x="${tx + 43}" y="${y + 12}" height="20" width="40" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
+    ${hasUpgrade ? `<text x="${tx + 82}" y="${y + 27}" text-anchor="middle" fill="${active ? "#f0b429" : p.sub}" font-size="14" font-weight="900">→</text><image href="${ADAPT_ICON_URL(ue)}" x="${tx + 88}" y="${y + 12}" height="20" width="40" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>` : ""}`;
   }).join("");
   return `<g>${cells}</g>`;
 }

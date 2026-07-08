@@ -1,3 +1,6 @@
+import { DEFAULT_DIMENSION_WEIGHT_SHARES } from "../../src/utils/constants.js";
+import { normalizeDimensionWeightShares, normalizeWeightMode } from "../../src/utils/scoring.js";
+
 export const VIDEO_PROJECT_VERSION = 1;
 
 export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
@@ -5,6 +8,7 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   height: 1080,
   fps: 30,
   renderConcurrency: "adaptive",
+  renderQualityMode: "balanced",
   format: "mp4",
   outputName: "baart-arena-ratings",
   studentDuration: 12,
@@ -35,6 +39,8 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   dataLanguage: "zh",
   season: "Street",
   arenaSeason: "S9",
+  weightMode: "shared",
+  sharedDimensionWeightShares: { ...DEFAULT_DIMENSION_WEIGHT_SHARES },
 });
 
 export function frames(seconds, fps) {
@@ -102,6 +108,11 @@ export function validateVideoSettings(settings) {
   if (Number(value.width) * 9 !== Number(value.height) * 16) errors.push("Resolution must use a 16:9 aspect ratio.");
   if (![24, 25, 30, 50, 60].includes(Number(value.fps))) errors.push("FPS must be 24, 25, 30, 50, or 60.");
   if (resolveRenderConcurrency(value.renderConcurrency) === null) errors.push("Render concurrency must be Adaptive, Auto, 100%, 1, 2, 4, 6, 8, 12, or 16.");
+  if (!["quality", "balanced", "fast"].includes(value.renderQualityMode)) errors.push("Render quality mode must be Quality, Balanced, or Fast.");
+  if (normalizeWeightMode(value.weightMode) !== value.weightMode) errors.push("Weight mode must be Shared or Individual.");
+  const normalizedShares = normalizeDimensionWeightShares({ dimensionWeightShares: value.sharedDimensionWeightShares });
+  const shareTotal = Object.values(normalizedShares).reduce((sum, item) => sum + item, 0);
+  if (Math.abs(shareTotal - 100) > 0.001) errors.push("Shared weight shares must total 100%.");
   if (!['mp4', 'png', 'jpeg'].includes(value.format)) errors.push("Output format must be MP4, PNG frames, or JPEG frames.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
   if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");
@@ -219,4 +230,28 @@ export function estimateCommentScroll(notes, language = "zh", options = {}) {
   };
   const lines = explicitLines.reduce((sum, line) => sum + wrapLine(line), 0);
   return { lines, distance: Math.max(0, lines * lineHeight - viewportHeight) };
+}
+
+export function commentScrollFrames(timeline, settings = DEFAULT_VIDEO_SETTINGS, fps = DEFAULT_VIDEO_SETTINGS.fps) {
+  const value = { ...DEFAULT_VIDEO_SETTINGS, ...settings };
+  const commentEnterEnd = timeline.infoStart + timeline.infoStep * 2 + frames(value.infoEnterDuration, fps);
+  const requestedDelay = frames(value.commentScrollDelay, fps);
+  const latestUsefulStart = Math.max(commentEnterEnd, timeline.overallStart - frames(0.25, fps));
+  const start = Math.min(
+    Math.max(commentEnterEnd, commentEnterEnd + Math.round(requestedDelay * 0.35)),
+    latestUsefulStart,
+  );
+  const end = Math.max(start + 1, timeline.fadeOutStart - frames(0.2, fps));
+  return { start, end, duration: Math.max(1, end - start) };
+}
+
+export function commentScrollOffset({ frame, distance, timeline, settings = DEFAULT_VIDEO_SETTINGS, fps = DEFAULT_VIDEO_SETTINGS.fps }) {
+  const safeDistance = Math.max(0, Number(distance) || 0);
+  if (safeDistance <= 0) return 0;
+  const { start, duration } = commentScrollFrames(timeline, settings, fps);
+  if (settings.commentScrollMode === "fixedSpeed") {
+    const elapsedSeconds = Math.max(0, frame - start) / fps;
+    return Math.min(safeDistance, elapsedSeconds * settings.commentScrollSpeed);
+  }
+  return safeDistance * phaseProgress(frame, start, duration);
 }

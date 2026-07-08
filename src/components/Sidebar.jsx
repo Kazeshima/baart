@@ -7,10 +7,11 @@ export default function Sidebar() {
   const {
     students, searchQuery, searchResults,
     setSearchQuery, selectStudent, selectedStudent,
-    allRatings, uiLanguage,
+    allRatings, getEffectiveAllRatings, uiLanguage,
   } = useRatingStore();
 
   const locale = localeFor(uiLanguage);
+  const effectiveAllRatings = getEffectiveAllRatings();
 
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef(null);
@@ -36,8 +37,8 @@ export default function Sidebar() {
   const ratedStudents   = students
     .filter(s => ratedStudentIds.includes(s.id))
     .sort((a, b) => {
-      const ra = allRatings[a.id]?.overall;
-      const rb = allRatings[b.id]?.overall;
+      const ra = effectiveAllRatings[a.id]?.overall;
+      const rb = effectiveAllRatings[b.id]?.overall;
       return (rb ?? -1) - (ra ?? -1);
     });
 
@@ -68,12 +69,12 @@ export default function Sidebar() {
                   <div className="search-item__name">{s.name}</div>
                   <div className="search-item__sub">{s.devName} · {s.id}</div>
                 </div>
-                {allRatings[s.id]?.overall !== null && allRatings[s.id]?.overall !== undefined && (
+                {effectiveAllRatings[s.id]?.overall !== null && effectiveAllRatings[s.id]?.overall !== undefined && (
                   <span style={{
                     fontSize: 13, fontWeight: 700,
-                    color: OVERALL_COLORS[allRatings[s.id].overall],
+                    color: OVERALL_COLORS[effectiveAllRatings[s.id].overall],
                   }}>
-                    {OVERALL_LABELS[locale][allRatings[s.id].overall]}
+                    {OVERALL_LABELS[locale][effectiveAllRatings[s.id].overall]}
                   </span>
                 )}
               </div>
@@ -93,7 +94,7 @@ export default function Sidebar() {
           </div>
         )}
         {ratedStudents.map(s => {
-          const r = allRatings[s.id];
+          const r = effectiveAllRatings[s.id];
           const overall = r?.overall;
           return (
             <div
