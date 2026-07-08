@@ -183,7 +183,7 @@ export async function renderVideoProject(rawProject, callbacks = {}, options = {
   const assetCacheDir = options.assetCacheDir || path.join(process.cwd(), ".cache", "render-assets");
   const assetServer = await createRenderAssetServer(assetCacheDir);
   try {
-    const assetResult = await prepareRenderAssetMap(project, { cacheDir: assetCacheDir, baseUrl: assetServer.baseUrl });
+    const assetResult = await prepareRenderAssetMap(project, { cacheDir: assetCacheDir, baseUrl: assetServer.baseUrl, publicDir: path.join(rootDir, "public") });
     for (const failure of assetResult.failures) callbacks.onLog?.(`Asset cache warning: ${failure}`);
     callbacks.onLog?.(`Render asset cache: ${assetResult.cacheDir}`);
     const renderProjectData = {

@@ -714,11 +714,12 @@ html, body, #root {
   border-radius: var(--radius);
   background: var(--bg-card);
 }
-.report-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 5px; }
+.report-row > img { width: 44px; height: 44px; object-fit: cover; border-radius: 5px; }
 .report-rank { color: var(--text-muted); font-weight: 900; font-family: var(--font-mono); }
 .report-student { min-width: 0; display: grid; gap: 2px; }
 .report-student strong { overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; }
 .report-student small { overflow: hidden; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
+.report-school-icon { width: 16px; height: 16px; object-fit: contain; margin: 0 4px; vertical-align: -3px; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent-gold) 25%, transparent)); }
 .report-tier {
   min-height: 32px;
   display: inline-flex;

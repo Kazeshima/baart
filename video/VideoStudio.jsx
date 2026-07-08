@@ -16,6 +16,7 @@ import {
 } from "../src/utils/scoring.js";
 import { parseStudents } from "../src/utils/students.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
+import { schoolIconPath } from "../src/utils/schoolIcons.js";
 import ArenaRatingVideo from "./remotion/ArenaRatingVideo.jsx";
 import { DEFAULT_VIDEO_SETTINGS, benchmarkStorageKey, estimatePreviewFps, getTimeline, totalDurationInFrames, validateVideoSettings } from "./core/config.js";
 import {
@@ -68,8 +69,9 @@ function WeightShareControl({ label, value, onChange }) {
 function SortableStudent({ record, language }) {
   const id = String(record.student.id);
   const sortable = useSortable({ id });
+  const schoolIcon = schoolIconPath(record.student.school);
   return <div ref={sortable.setNodeRef} className="studio-order-item" style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }} {...sortable.attributes} {...sortable.listeners}>
-    <span className="studio-order-handle">⋮⋮</span><span>{studentDisplayName(record.student, language)}</span><small>#{record.student.id} · {schoolLabel(language, record.student.school)}</small>
+    <span className="studio-order-handle">⋮⋮</span><span>{studentDisplayName(record.student, language)}</span><small>#{record.student.id} · {schoolIcon ? <img className="studio-school-icon" src={schoolIcon} alt="" /> : null}{schoolLabel(language, record.student.school)}</small>
   </div>;
 }
 

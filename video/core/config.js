@@ -198,6 +198,13 @@ export function dimensionScanFrame(timeline, index, count = 5) {
   return timeline.radarStart + Math.round(timeline.radarDuration * (index / count));
 }
 
+export function sceneFadeOpacity(frame, timeline) {
+  return Math.min(
+    phaseProgress(frame, 0, timeline.fadeIn),
+    1 - phaseProgress(frame + 1, timeline.fadeOutStart, timeline.fadeOut || 1),
+  );
+}
+
 export function estimateCommentScroll(notes, language = "zh", options = {}) {
   const text = String(notes || "").trim();
   if (!text) return { lines: 0, distance: 0 };

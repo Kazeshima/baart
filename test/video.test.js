@@ -14,6 +14,7 @@ import {
   getTimeline,
   predictRenderConcurrency,
   resolveRenderConcurrency,
+  sceneFadeOpacity,
   totalDurationInFrames,
   validateVideoSettings,
 } from "../video/core/config.js";
@@ -26,6 +27,7 @@ import { OVERALL_LABELS, schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
 import { RADAR_ANGLES, RADAR_RADIUS, radarPoint, radarRevealCircle, radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
+import { schoolIconPath } from "../src/utils/schoolIcons.js";
 import { runWorker } from "../video/sidecar/worker.mjs";
 import { collectRenderAssetUrls, renderAssetCacheKey, studentPortraitUrl } from "../video/core/renderAssets.js";
 import { createProfileCases, safeProfileName } from "../video/core/profile.js";
@@ -125,6 +127,19 @@ test("overall score sorting supports both directions and keeps missing scores la
 
 test("manual order appends unlisted students by ID", () => {
   assert.deepEqual(ids(sortRatingRecords(records, { mode: "manual", manualIds: [10003, 10001] })), [10003, 10001, 10002]);
+});
+
+test("scene fades fully out on the final frame", () => {
+  const timeline = getTimeline(DEFAULT_VIDEO_SETTINGS);
+  assert.equal(sceneFadeOpacity(0, timeline), 0);
+  assert.equal(sceneFadeOpacity(timeline.duration - 1, timeline), 0);
+  assert.ok(sceneFadeOpacity(timeline.fadeOutStart, timeline) < 1);
+});
+
+test("quality comment mask fades both top and bottom edges", async () => {
+  const css = await readFile(new URL("../video/video.css", import.meta.url), "utf8");
+  assert.match(css, /video-comments__viewport[^{]*\{[^}]*linear-gradient\(to bottom,\s*transparent 0%/s);
+  assert.match(css, /video-comments__viewport[^{]*\{[^}]*#000 9%[^}]*#000 88%[^}]*transparent 100%/s);
 });
 
 test("shared rating order normalization and student record conversion support the main sidebar", () => {
@@ -247,6 +262,8 @@ test("school names localize without changing canonical English keys", () => {
   assert.equal(schoolLabel("zh", "Millennium"), "千年科学学园");
   assert.equal(schoolLabel("zh", "WildHunt"), "狂猎艺术学院");
   assert.equal(schoolLabel("en", "Trinity"), "Trinity");
+  assert.equal(schoolIconPath("Millennium"), "/assets/schoolicon/Millennium.png");
+  assert.equal(schoolIconPath("Sakugawa"), "");
 });
 
 test("English overall top label uses compact GOAT wording", () => {
@@ -296,8 +313,10 @@ test("render asset collection includes portraits and stable cache keys", () => {
   const project = parseVideoProject(fixture);
   const urls = collectRenderAssetUrls(project);
   assert.ok(urls.includes(studentPortraitUrl(10001)));
+  assert.ok(urls.includes(schoolIconPath("Abydos")));
   assert.ok(urls.some(url => url.includes("/images/ui/Type_Attack_s.png")));
   assert.match(renderAssetCacheKey(studentPortraitUrl(10001)), /^[a-f0-9]{24}\.webp$/);
+  assert.match(renderAssetCacheKey(schoolIconPath("Abydos")), /^[a-f0-9]{24}\.png$/);
 });
 
 test("comment scrolling starts only when estimated text exceeds the viewport", () => {

@@ -4,6 +4,7 @@ import http from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ADAPT_ICON_URL, ATTACK_ICON, COVER_ICON, DEFENSE_ICON, TERRAIN_ICONS } from "../../src/utils/constants.js";
+import { schoolIconPath } from "../../src/utils/schoolIcons.js";
 
 const ASSET_TIMEOUT_MS = 20_000;
 const RETRIES = 3;
@@ -14,7 +15,7 @@ export function studentPortraitUrl(id) {
 }
 
 export function renderAssetCacheKey(url) {
-  const parsed = new URL(url);
+  const parsed = new URL(url, "http://baart.local");
   const extension = path.extname(parsed.pathname) || ".asset";
   const hash = crypto.createHash("sha256").update(url).digest("hex").slice(0, 24);
   return `${hash}${extension}`;
@@ -30,8 +31,23 @@ export function collectRenderAssetUrls(project) {
   ]);
   for (const record of project.records || []) {
     if (record?.student?.id) urls.add(studentPortraitUrl(record.student.id));
+    const schoolIcon = schoolIconPath(record?.student?.school);
+    if (schoolIcon) urls.add(schoolIcon);
   }
   return [...urls].filter(Boolean);
+}
+
+function isLocalPublicAsset(url) {
+  return String(url || "").startsWith("/assets/");
+}
+
+function localPublicAssetPath(url, publicDir) {
+  const parsed = new URL(url, "http://baart.local");
+  const relative = decodeURIComponent(parsed.pathname).replace(/^\/+/, "");
+  if (relative.includes("..") || path.isAbsolute(relative)) {
+    throw new Error(`Invalid local asset path ${url}`);
+  }
+  return path.join(publicDir, relative);
 }
 
 async function fetchBytes(url, attempt = 1) {
@@ -50,13 +66,15 @@ async function fetchBytes(url, attempt = 1) {
   }
 }
 
-async function cacheOneAsset(url, cacheDir) {
+async function cacheOneAsset(url, cacheDir, options = {}) {
   const key = renderAssetCacheKey(url);
   const target = path.join(cacheDir, key);
   try {
     await fs.access(target);
   } catch {
-    const bytes = await fetchBytes(url);
+    const bytes = isLocalPublicAsset(url)
+      ? await fs.readFile(localPublicAssetPath(url, options.publicDir))
+      : await fetchBytes(url);
     await fs.writeFile(target, bytes);
   }
   return { key, fileUrl: pathToFileURL(target).href };
@@ -64,6 +82,7 @@ async function cacheOneAsset(url, cacheDir) {
 
 export async function prepareRenderAssetMap(project, options = {}) {
   const cacheDir = options.cacheDir || path.join(process.cwd(), ".cache", "render-assets");
+  const publicDir = options.publicDir || path.join(process.cwd(), "public");
   await fs.mkdir(cacheDir, { recursive: true });
   const assetMap = {};
   const failures = [];
@@ -75,7 +94,7 @@ export async function prepareRenderAssetMap(project, options = {}) {
       const url = urls[nextIndex];
       nextIndex += 1;
       try {
-        const cached = await cacheOneAsset(url, cacheDir);
+        const cached = await cacheOneAsset(url, cacheDir, { publicDir });
         assetMap[url] = options.baseUrl ? `${options.baseUrl}/${cached.key}` : cached.fileUrl;
       } catch (error) {
         const message = `${url}: ${error instanceof Error ? error.message : String(error)}`;

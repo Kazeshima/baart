@@ -6,7 +6,7 @@ import { formatWeightShare } from "../../src/utils/scoring.js";
 import { studentDisplayName } from "../../src/utils/studentDisplay.js";
 import OverallBadge from "../../src/components/presentation/OverallBadge.jsx";
 import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators, studentPresentation } from "../../src/components/presentation/StudentPresentation.jsx";
-import { commentScrollDistanceFromHeights, commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll } from "../core/config.js";
+import { commentScrollDistanceFromHeights, commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll, sceneFadeOpacity } from "../core/config.js";
 import AnimatedRadar from "./AnimatedRadar.jsx";
 
 const palettes = {
@@ -46,10 +46,7 @@ export default function StudentScene({ record, settings }) {
   const overallColor = ratings.overall !== null ? OVERALL_COLORS[ratings.overall] : palette.muted;
   const overallSpring = spring({ frame: frame - timeline.overallStart, fps, config: { damping: 14, stiffness: 115, mass: 0.8 } });
   const infoEnterFrames = Math.max(1, Math.round(settings.infoEnterDuration * fps));
-  const cardOpacity = Math.min(
-    phaseProgress(frame, 0, timeline.fadeIn),
-    1 - phaseProgress(frame, timeline.fadeOutStart, timeline.fadeOut || 1),
-  );
+  const cardOpacity = sceneFadeOpacity(frame, timeline);
   const scroll = useMemo(() => estimateCommentScroll(ratings.notes, settings.uiLanguage, {
     charsPerLine: settings.uiLanguage === "en" ? 28 : 17,
     lineHeight: 58,
@@ -83,7 +80,7 @@ export default function StudentScene({ record, settings }) {
 
       <header className="video-title" style={enterStyle(frame, timeline.infoStart, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-title__season">{settings.arenaSeason} · ARENA GUIDE</div>
-        <StudentIdentity student={student} language={settings.uiLanguage} nameClassName="video-title__name" metaClassName="video-title__meta" nameStyle={{ fontSize: titleFontSize }} />
+        <StudentIdentity student={student} language={settings.uiLanguage} nameClassName="video-title__name" metaClassName="video-title__meta" nameStyle={{ fontSize: titleFontSize }} ImageComponent={AssetImg} />
       </header>
 
       <section className="video-info" style={enterStyle(frame, timeline.infoStart + timeline.infoStep, infoEnterFrames, settings.infoEnterDistance)}>

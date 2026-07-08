@@ -87,11 +87,13 @@ if (!await exists(path.join(sidecarDir, "node_modules", "@remotion", "renderer",
 await fs.rm(runtimeAppDir, { recursive: true, force: true });
 await fs.mkdir(path.join(runtimeAppDir, "video", "sidecar"), { recursive: true });
 await fs.mkdir(path.join(runtimeAppDir, "src"), { recursive: true });
+await fs.mkdir(path.join(runtimeAppDir, "public", "assets"), { recursive: true });
 await fs.writeFile(path.join(runtimeAppDir, "package.json"), JSON.stringify({ private: true, type: "module" }));
 await fs.copyFile(path.join(root, "video", "render-service.mjs"), path.join(runtimeAppDir, "video", "render-service.mjs"));
 await fs.copyFile(path.join(sidecarDir, "worker.mjs"), path.join(runtimeAppDir, "video", "sidecar", "worker.mjs"));
 await fs.cp(path.join(root, "video", "core"), path.join(runtimeAppDir, "video", "core"), { recursive: true });
 await fs.cp(path.join(root, "src", "utils"), path.join(runtimeAppDir, "src", "utils"), { recursive: true });
+await fs.cp(path.join(root, "public", "assets", "schoolicon"), path.join(runtimeAppDir, "public", "assets", "schoolicon"), { recursive: true });
 await fs.cp(path.join(sidecarDir, "node_modules"), path.join(runtimeAppDir, "node_modules"), { recursive: true });
 
 const compositionDir = path.join(generatedDir, "composition");
@@ -112,7 +114,9 @@ const requiredRuntimeFiles = [
   path.join(runtimeAppDir, "video", "core", "manifest.js"),
   path.join(runtimeAppDir, "video", "core", "renderAssets.js"),
   path.join(runtimeAppDir, "src", "utils", "constants.js"),
+  path.join(runtimeAppDir, "src", "utils", "schoolIcons.js"),
   path.join(runtimeAppDir, "src", "utils", "studentDisplay.js"),
+  path.join(runtimeAppDir, "public", "assets", "schoolicon", "Millennium.png"),
   path.join(runtimeAppDir, "node_modules", "@remotion", "renderer", "package.json"),
   path.join(runtimeAppDir, "node_modules", "@remotion", "compositor-win32-x64-msvc", "remotion.exe"),
   path.join(compositionDir, "index.html"),

@@ -18,6 +18,7 @@ import {
   TYPE_LABELS_BY_LOCALE,
   WEAPON_LABELS_BY_LOCALE,
   localeFor,
+  schoolLabel,
   t,
   terrainLabel,
 } from "../utils/i18n.js";
@@ -25,6 +26,7 @@ import { RADAR_ANGLES } from "../utils/radar.js";
 import { WEIGHT_EDITOR_MODES, formatWeightShare, recalculateRatings } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 import { studentDisplayName } from "../utils/studentDisplay.js";
+import { schoolIconPath } from "../utils/schoolIcons.js";
 
 const CARD = {
   compact: { width: 960, height: 540, avatar: 148, radar: 330 },
@@ -91,7 +93,7 @@ function blobToDataUrl(blob) {
 }
 
 async function inlineSvgImages(svg) {
-  const urls = Array.from(new Set([...svg.matchAll(/href="(https:\/\/[^"]+)"/g)].map(match => match[1])));
+  const urls = Array.from(new Set([...svg.matchAll(/href="((?:https:\/\/|\/assets\/)[^"]+)"/g)].map(match => match[1])));
   let inlined = svg;
   for (const url of urls) {
     const response = await fetch(url);
@@ -265,6 +267,20 @@ function weightSummarySvg(ratings, uiLanguage, p, x, y, fontSize = 14) {
   </g>`;
 }
 
+function schoolMetaSvg(student, uiLanguage, x, y, p, options = {}) {
+  const school = student.school ? schoolLabel(uiLanguage, student.school) : "";
+  if (!school) return "";
+  const icon = schoolIconPath(student.school);
+  const fontSize = options.fontSize || 18;
+  const iconSize = options.iconSize || 22;
+  const textX = icon ? x + iconSize + 8 : x;
+  return `
+  <g>
+    ${icon ? `<image href="${icon}" x="${x}" y="${y - iconSize + 4}" width="${iconSize}" height="${iconSize}" preserveAspectRatio="xMidYMid meet" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>` : ""}
+    <text x="${textX}" y="${y}" fill="${options.fill || "#f0b429"}" font-size="${fontSize}" font-weight="900">${esc(trimText(school, options.maxChars || 20))}</text>
+  </g>`;
+}
+
 function palette(theme = "dark") {
   if (theme === "light") {
     return {
@@ -416,7 +432,7 @@ function studentMetaRows(student, ratings, season, uiLanguage) {
   ];
 }
 
-function buildExportSVG(student, ratings, options) {
+export function buildExportSVG(student, ratings, options) {
   return options.mode === "full"
     ? buildFullSVG(student, ratings, options)
     : buildCompactSVG(student, ratings, options);
@@ -485,6 +501,7 @@ ${commonStyles(p, options.fontCss)}
   <rect x="48" y="54" width="${avatar}" height="${avatar}" rx="8" fill="none" stroke="#2a3f5a" stroke-width="2"/>
   <text x="224" y="80" class="title" xml:space="preserve">${esc(options.arenaSeason || "")} · ${esc(displayName)}</text>
   <text x="226" y="110" class="sub mono">${esc(student.devName)} · #${student.id}</text>
+  ${schoolMetaSvg(student, options.uiLanguage, 390, 110, p, { fontSize: 18, iconSize: 22, maxChars: labels.locale === "en" ? 16 : 12 })}
   <text x="224" y="174" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 46 : 56}">${esc(overallText)}</text>
   <text x="224" y="204" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 18 : 25}">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
   ${typeChips(student, labels, 224, 214, p)}
@@ -526,7 +543,8 @@ ${commonStyles(p, options.fontCss)}
   <text x="50" y="${height - 108}" class="title" xml:space="preserve">${esc(displayName)}</text>
   <text x="52" y="${height - 74}" class="sub mono">${esc(student.devName)} · #${student.id}</text>
   <text x="376" y="78" class="title">${esc(options.arenaSeason || "")} Arena PvP Card</text>
-  <text x="376" y="112" class="sub mono" xml:space="preserve">${esc(displayName)} · ${esc(student.devName)} · #${student.id}</text>
+  <text x="376" y="112" class="sub mono">${esc(student.devName)} · #${student.id}</text>
+  ${schoolMetaSvg(student, options.uiLanguage, 520, 112, p, { fontSize: 18, iconSize: 22, maxChars: labels.locale === "en" ? 18 : 14 })}
   <rect x="842" y="42" width="398" height="168" rx="8" fill="${p.radarBg}" stroke="${overallColor}" stroke-width="2"/>
   <text x="866" y="76" class="label">${esc(t(options.uiLanguage, "overall"))}</text>
   <text x="866" y="158" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 58 : 76}">${esc(overallText)}</text>

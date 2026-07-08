@@ -16,6 +16,7 @@ import {
   t,
   terrainLabel,
 } from "../../utils/i18n.js";
+import { schoolIconPath } from "../../utils/schoolIcons.js";
 import { studentDisplayName } from "../../utils/studentDisplay.js";
 
 export function studentPresentation(student, language) {
@@ -32,13 +33,15 @@ export function studentPresentation(student, language) {
   };
 }
 
-export function StudentIdentity({ student, language = "zh", nameClassName, metaClassName, nameStyle, children }) {
+export function StudentIdentity({ student, language = "zh", nameClassName, metaClassName, nameStyle, children, ImageComponent = "img" }) {
   const school = student.school ? schoolLabel(language, student.school) : "";
+  const icon = schoolIconPath(student.school);
+  const Image = ImageComponent;
   return <>
     <div className={nameClassName} style={{ whiteSpace: "pre-wrap", ...nameStyle }}>{studentDisplayName(student, language)}</div>
     <div className={metaClassName}>
       <span>{student.devName}</span><span> · </span><span>#{student.id}</span>
-      {school ? <><span> · </span><span className="student-school-name">{school}</span></> : null}
+      {school ? <><span> · </span><span className="student-school-meta">{icon ? <Image className="student-school-icon" src={icon} alt="" /> : null}<span className="student-school-name">{school}</span></span></> : null}
     </div>
     {children}
   </>;

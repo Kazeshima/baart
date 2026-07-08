@@ -1,6 +1,7 @@
 import { DIMENSIONS, OVERALL_COLORS, TIER_COLORS, TIER_SCORES } from "./constants.js";
 import { DIMENSION_LABELS, OVERALL_LABELS, localeFor, schoolLabel, t } from "./i18n.js";
 import { studentDisplayName } from "./studentDisplay.js";
+import { schoolIconPath } from "./schoolIcons.js";
 
 export const REPORT_DIRECTIONS = Object.freeze(["desc", "asc"]);
 
@@ -53,6 +54,8 @@ export function buildDimensionReportSvg({ rows, dimension, direction = "desc", l
       ? Number(row.ratings.overallScore).toFixed(1)
       : "--";
     const icon = `https://schaledb.com/images/student/icon/${row.student.id}.webp`;
+    const schoolIcon = schoolIconPath(row.student.school);
+    const school = schoolLabel(language, row.student.school);
     return `
       <g transform="translate(32 ${y})">
         <rect x="0" y="0" width="896" height="54" rx="8" fill="${palette.panel}" stroke="${palette.border}"/>
@@ -60,7 +63,9 @@ export function buildDimensionReportSvg({ rows, dimension, direction = "desc", l
         <image href="${icon}" x="66" y="7" width="40" height="40" preserveAspectRatio="xMidYMid slice"/>
         <rect x="66" y="7" width="40" height="40" rx="5" fill="none" stroke="${palette.border}"/>
         <text x="122" y="25" fill="${palette.text}" font-size="21" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif" xml:space="preserve">${esc(row.name)}</text>
-        <text x="122" y="43" fill="${palette.sub}" font-size="13" font-weight="700" font-family="Rajdhani, Arial">#${row.student.id} · ${esc(schoolLabel(language, row.student.school))}</text>
+        <text x="122" y="43" fill="${palette.sub}" font-size="13" font-weight="700" font-family="Rajdhani, Arial">#${row.student.id}</text>
+        ${schoolIcon ? `<image href="${schoolIcon}" x="184" y="29" width="16" height="16" preserveAspectRatio="xMidYMid meet"/>` : ""}
+        <text x="${schoolIcon ? 204 : 184}" y="43" fill="${palette.sub}" font-size="13" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif">${esc(school)}</text>
         <rect x="630" y="10" width="54" height="34" rx="5" fill="${TIER_COLORS[row.tier]}22" stroke="${TIER_COLORS[row.tier]}"/>
         <text x="657" y="34" text-anchor="middle" fill="${TIER_COLORS[row.tier]}" font-size="26" font-weight="900" font-family="Rajdhani, Arial">${row.tier}</text>
         <text x="720" y="24" fill="${palette.sub}" font-size="13" font-weight="800" font-family="Rajdhani, Arial">${esc(t(language, "overallScore"))}</text>

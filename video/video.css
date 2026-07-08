@@ -9,7 +9,10 @@
 .video-title__season, .video-section-label { color: var(--accent-gold); font-size: 31px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .video-title__name { margin: 10px 0 3px; color: var(--text-primary); font-size: 100px; line-height: .98; font-weight: 800; letter-spacing: 0; white-space: pre-wrap; }
 .video-title__meta { color: var(--text-secondary); font-family: var(--font-mono); font-size: 31px; }
+.student-school-meta { display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; }
+.student-school-icon { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align: -0.16em; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent-gold) 35%, transparent)); }
 .video-title__meta .student-school-name { color: var(--accent-gold); font-family: var(--font-ui); font-size: 34px; font-weight: 900; text-shadow: 0 0 18px color-mix(in srgb, var(--accent-gold) 42%, transparent); }
+.video-title__meta .student-school-icon { width: 30px; height: 30px; }
 .video-info { position: absolute; left: 74px; top: 292px; width: 790px; z-index: 2; }
 .video-info__role { color: var(--text-primary); font-size: 45px; font-weight: 800; }
 .video-facts { display: flex; gap: 14px; margin-top: 20px; flex-wrap: wrap; }
@@ -26,7 +29,7 @@
 .video-terrain img.video-terrain__rank { width: 54px; height: 29px; }
 .video-terrain span { color: var(--accent-gold); font-size: 22px; }
 .video-comments { position: absolute; left: 74px; top: 626px; z-index: 2; width: 700px; height: 352px; padding: 20px 28px; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 76%, transparent); }
-.video-comments__viewport { height: 260px; margin-top: 12px; overflow: hidden; mask-image: linear-gradient(#000 0%, #000 88%, transparent 100%); }
+.video-comments__viewport { height: 260px; margin-top: 12px; overflow: hidden; mask-image: linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, transparent 100%); }
 .video-comments__viewport--no-mask, .video-scene--fast .video-comments__viewport { mask-image: none; }
 .video-comments__text { color: var(--text-primary); font-size: 45px; line-height: 58px; font-weight: 600; white-space: pre-wrap; }
 .video-radar-panel { position: absolute; z-index: 2; left: 900px; top: 278px; width: 830px; height: 752px; padding: 16px 24px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--bg-panel) 78%, transparent); }

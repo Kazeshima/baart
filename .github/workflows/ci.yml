@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop, feature/remotion-arena-video]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows checks
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Validate Remotion composition discovery
+        run: npm run video:compositions
+
+      - name: Smoke-render Remotion video paths
+        run: npm run video:smoke
+
+      - name: Smoke-test packaged renderer runtime
+        run: npm run renderer:smoke
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Check Rust app
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Check whitespace
+        run: git diff --check
+
