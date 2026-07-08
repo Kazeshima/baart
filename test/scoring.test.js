@@ -156,6 +156,17 @@ test("fine weight budget only changes the edited dimension and unassigned pool",
   assert.equal(decreased.unassignedWeightShare, 7.5);
 });
 
+test("fine weight illegal input clamps the edited dimension without moving others", () => {
+  const current = { blindshot: 25, counter: 20, defense: 20, counterDef: 20, cost: 10 };
+  const adjusted = adjustFineWeightShare(current, "cost", 100);
+  assert.deepEqual(adjusted.dimensionWeightShares, { blindshot: 25, counter: 20, defense: 20, counterDef: 20, cost: 15 });
+  assert.equal(adjusted.unassignedWeightShare, 0);
+
+  const negative = adjustFineWeightShare(current, "blindshot", -50);
+  assert.deepEqual(negative.dimensionWeightShares, { blindshot: 0, counter: 20, defense: 20, counterDef: 20, cost: 10 });
+  assert.equal(negative.unassignedWeightShare, 30);
+});
+
 test("fine mode blocks scoring until all weight is assigned", () => {
   const incomplete = {
     ...complete,

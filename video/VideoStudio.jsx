@@ -11,6 +11,8 @@ import {
   formatWeightShare,
   normalizeDimensionWeights,
   normalizeFineWeightState,
+  normalizeWeightEditorMode,
+  normalizeWeightMode,
 } from "../src/utils/scoring.js";
 import { parseStudents } from "../src/utils/students.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
@@ -47,9 +49,8 @@ function NumberControl({ label, value, onChange, min = 0, max, step = 0.1 }) {
   return <label className="studio-control"><span>{label}</span><input type="number" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))} /></label>;
 }
 
-function WeightShareControl({ label, value, max, onChange }) {
+function WeightShareControl({ label, value, onChange }) {
   const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
-  const safeMax = Number.isFinite(Number(max)) ? Number(max) : 100;
   const [draft, setDraft] = useState(safeValue.toFixed(1));
   useEffect(() => setDraft(safeValue.toFixed(1)), [safeValue]);
   const commit = () => {
@@ -57,7 +58,7 @@ function WeightShareControl({ label, value, max, onChange }) {
     if (Number.isFinite(numeric)) onChange(numeric);
     else setDraft(safeValue.toFixed(1));
   };
-  return <label className="studio-control studio-control--weight"><span>{label}</span><input type="range" min="0" max={safeMax} step="0.1" value={safeValue} onChange={event => onChange(Number(event.target.value))} /><input type="number" min="0" max="100" step="0.1" value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} /><strong>{formatWeightShare(safeValue)}</strong></label>;
+  return <label className="studio-control studio-control--weight"><span>{label}</span><input type="range" min="0" max="100" step="0.1" value={safeValue} onChange={event => onChange(Number(event.target.value))} /><input type="number" min="0" max="100" step="0.1" value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} /><strong>{formatWeightShare(safeValue)}</strong></label>;
 }
 
 function SortableStudent({ record, language }) {
@@ -87,21 +88,40 @@ function readRatingsPayload() {
   return { ratings: payload || {} };
 }
 
-function initialVideoSettings(saved) {
+function hasDimensionMap(value) {
+  return Boolean(value && typeof value === "object" && DIMENSIONS.every(({ key }) => Object.hasOwn(value, key)));
+}
+
+function readSharedWeightSettings(fallback = {}) {
   const ratingsPayload = readRatingsPayload();
   const storedSharedWeights = readStoredJson(SHARED_WEIGHTS_KEY);
   const storedPresetWeights = readStoredJson(SHARED_PRESET_WEIGHTS_KEY);
   return {
+    weightMode: normalizeWeightMode(localStorage.getItem(WEIGHT_MODE_KEY) || ratingsPayload.weightMode || fallback.weightMode || DEFAULT_VIDEO_SETTINGS.weightMode),
+    weightEditorMode: normalizeWeightEditorMode(localStorage.getItem(WEIGHT_EDITOR_MODE_KEY) || ratingsPayload.weightEditorMode || fallback.weightEditorMode || DEFAULT_VIDEO_SETTINGS.weightEditorMode),
+    sharedDimensionWeightShares: hasDimensionMap(storedSharedWeights)
+      ? normalizeFineWeightState({ dimensionWeightShares: storedSharedWeights }).dimensionWeightShares
+      : ratingsPayload.sharedDimensionWeightShares || fallback.sharedDimensionWeightShares || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeightShares,
+    sharedDimensionWeights: hasDimensionMap(storedPresetWeights)
+      ? normalizeDimensionWeights({ dimensionWeights: storedPresetWeights })
+      : ratingsPayload.sharedDimensionWeights || fallback.sharedDimensionWeights || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeights,
+  };
+}
+
+function persistSharedWeightSettings(settings) {
+  if (settings.weightMode) localStorage.setItem(WEIGHT_MODE_KEY, settings.weightMode);
+  if (settings.weightEditorMode) localStorage.setItem(WEIGHT_EDITOR_MODE_KEY, settings.weightEditorMode);
+  if (settings.sharedDimensionWeightShares) localStorage.setItem(SHARED_WEIGHTS_KEY, JSON.stringify(normalizeFineWeightState({ dimensionWeightShares: settings.sharedDimensionWeightShares }).dimensionWeightShares));
+  if (settings.sharedDimensionWeights) localStorage.setItem(SHARED_PRESET_WEIGHTS_KEY, JSON.stringify(normalizeDimensionWeights({ dimensionWeights: settings.sharedDimensionWeights })));
+}
+
+function initialVideoSettings(saved) {
+  const savedSettings = saved.settings || {};
+  const sharedWeightSettings = readSharedWeightSettings(savedSettings);
+  return {
     ...DEFAULT_VIDEO_SETTINGS,
-    weightMode: localStorage.getItem(WEIGHT_MODE_KEY) || ratingsPayload.weightMode || DEFAULT_VIDEO_SETTINGS.weightMode,
-    weightEditorMode: localStorage.getItem(WEIGHT_EDITOR_MODE_KEY) || ratingsPayload.weightEditorMode || DEFAULT_VIDEO_SETTINGS.weightEditorMode,
-    sharedDimensionWeightShares: storedSharedWeights.blindshot
-      ? storedSharedWeights
-      : ratingsPayload.sharedDimensionWeightShares || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeightShares,
-    sharedDimensionWeights: storedPresetWeights.blindshot
-      ? storedPresetWeights
-      : ratingsPayload.sharedDimensionWeights || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeights,
-    ...(saved.settings || {}),
+    ...savedSettings,
+    ...sharedWeightSettings,
   };
 }
 
@@ -161,6 +181,15 @@ export default function VideoStudio() {
   }, [settings, order]);
 
   useEffect(() => {
+    const listener = event => {
+      if (![WEIGHT_MODE_KEY, WEIGHT_EDITOR_MODE_KEY, SHARED_WEIGHTS_KEY, SHARED_PRESET_WEIGHTS_KEY].includes(event.key)) return;
+      setSettings(current => ({ ...current, ...readSharedWeightSettings(current) }));
+    };
+    window.addEventListener("storage", listener);
+    return () => window.removeEventListener("storage", listener);
+  }, []);
+
+  useEffect(() => {
     setBenchmarkResult(readStoredJson(BENCHMARK_KEY)[benchmarkStorageKey(settings)] || null);
   }, [settings.width, settings.height, settings.fps, settings.format, settings.theme, settings.uiLanguage, settings.dataLanguage]);
 
@@ -209,15 +238,29 @@ export default function VideoStudio() {
   const currentStudent = ordered[currentIndex]?.student;
   const activeRender = isActiveRenderStatus(renderJob?.status);
 
-  const updateSetting = useCallback((key, value) => setSettings(current => ({ ...current, [key]: value })), []);
-  const updateSharedWeightShare = useCallback((key, value) => setSettings(current => ({
-    ...current,
-    sharedDimensionWeightShares: adjustFineWeightShare(current.sharedDimensionWeightShares, key, value).dimensionWeightShares,
-  })), []);
-  const updateSharedPresetWeight = useCallback((key, value) => setSettings(current => ({
-    ...current,
-    sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: { ...current.sharedDimensionWeights, [key]: value } }),
-  })), []);
+  const updateSetting = useCallback((key, value) => setSettings(current => {
+    const next = { ...current, [key]: value };
+    if (["weightMode", "weightEditorMode", "sharedDimensionWeightShares", "sharedDimensionWeights"].includes(key)) {
+      persistSharedWeightSettings(next);
+    }
+    return next;
+  }), []);
+  const updateSharedWeightShare = useCallback((key, value) => setSettings(current => {
+    const next = {
+      ...current,
+      sharedDimensionWeightShares: adjustFineWeightShare(current.sharedDimensionWeightShares, key, value).dimensionWeightShares,
+    };
+    persistSharedWeightSettings(next);
+    return next;
+  }), []);
+  const updateSharedPresetWeight = useCallback((key, value) => setSettings(current => {
+    const next = {
+      ...current,
+      sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: { ...current.sharedDimensionWeights, [key]: value } }),
+    };
+    persistSharedWeightSettings(next);
+    return next;
+  }), []);
   const updateDataLanguage = value => {
     setSnapshotRecords(null);
     updateSetting("dataLanguage", value);
@@ -240,7 +283,8 @@ export default function VideoStudio() {
         const imported = parseVideoProject(parsed);
         setRatingsSource(ratingsFromProjectRecords(imported.records));
         setSnapshotRecords(imported.records);
-        setSettings(imported.settings);
+        persistSharedWeightSettings(imported.settings);
+        setSettings({ ...imported.settings, ...readSharedWeightSettings(imported.settings) });
         setOrder(imported.order);
         setOutputLocation("");
       } else {
@@ -248,13 +292,17 @@ export default function VideoStudio() {
         const payload = parsed?.ratings && typeof parsed.ratings === "object" ? parsed : { ratings: parsed };
         setRatingsSource(payload.ratings || {});
         if (payload.weightMode || payload.weightEditorMode || payload.sharedDimensionWeightShares || payload.sharedDimensionWeights) {
-          setSettings(current => ({
-            ...current,
-            weightMode: payload.weightMode || current.weightMode,
-            weightEditorMode: payload.weightEditorMode || current.weightEditorMode,
-            sharedDimensionWeightShares: payload.sharedDimensionWeightShares || current.sharedDimensionWeightShares,
-            sharedDimensionWeights: payload.sharedDimensionWeights || current.sharedDimensionWeights,
-          }));
+          setSettings(current => {
+            const next = {
+              ...current,
+              weightMode: payload.weightMode || current.weightMode,
+              weightEditorMode: payload.weightEditorMode || current.weightEditorMode,
+              sharedDimensionWeightShares: payload.sharedDimensionWeightShares || current.sharedDimensionWeightShares,
+              sharedDimensionWeights: payload.sharedDimensionWeights || current.sharedDimensionWeights,
+            };
+            persistSharedWeightSettings(next);
+            return { ...next, ...readSharedWeightSettings(next) };
+          });
         }
       }
       setCurrentFrame(0);
@@ -425,7 +473,7 @@ export default function VideoStudio() {
             return <>
               <div className={`studio-unassigned ${fineState.unassignedWeightShare > 0 ? "is-incomplete" : ""}`}><span>{vt(language, "unassignedWeight")}</span><strong>{formatWeightShare(fineState.unassignedWeightShare)}</strong><progress value={fineState.unassignedWeightShare} max="100" /></div>
               {fineState.unassignedWeightShare > 0 ? <p className="studio-help studio-help--warning">{vt(language, "incompleteWeights")}</p> : null}
-              {DIMENSIONS.map(({ key }) => <WeightShareControl key={key} label={labels[key][0]} value={fineState.dimensionWeightShares?.[key]} max={(fineState.dimensionWeightShares?.[key] || 0) + fineState.unassignedWeightShare} onChange={value => updateSharedWeightShare(key, value)} />)}
+              {DIMENSIONS.map(({ key }) => <WeightShareControl key={key} label={labels[key][0]} value={fineState.dimensionWeightShares?.[key]} onChange={value => updateSharedWeightShare(key, value)} />)}
             </>;
           })() : <p className="studio-help">{vt(language, "individualWeightsHelp")}</p>}
         </section>

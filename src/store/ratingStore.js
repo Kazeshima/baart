@@ -26,6 +26,13 @@ const LS_SHARED_PRESET_WEIGHTS = "ba_rating_shared_dimension_weights";
 const RATINGS_KEY = "ba_pvp_ratings";  // localStorage key for all saved ratings
 const RATINGS_FILE = "ratings/ba_pvp_ratings.json";
 
+export const WEIGHT_STORAGE_KEYS = Object.freeze([
+  LS_WEIGHT_MODE,
+  LS_WEIGHT_EDITOR_MODE,
+  LS_SHARED_WEIGHTS,
+  LS_SHARED_PRESET_WEIGHTS,
+]);
+
 function loadRatings() {
   try {
     const payload = JSON.parse(localStorage.getItem(RATINGS_KEY) || "{}");
@@ -254,6 +261,14 @@ export const useRatingStore = create((set, get) => ({
     });
     saveSharedDimensionWeights(sharedDimensionWeights);
     set({ sharedDimensionWeights });
+  },
+  syncSharedWeightSettingsFromStorage: () => {
+    set({
+      weightMode: normalizeWeightMode(localStorage.getItem(LS_WEIGHT_MODE)),
+      weightEditorMode: normalizeWeightEditorMode(localStorage.getItem(LS_WEIGHT_EDITOR_MODE)),
+      sharedDimensionWeightShares: loadSharedDimensionWeightShares(),
+      sharedDimensionWeights: loadSharedDimensionWeights(),
+    });
   },
   setStudents: (students) => set({ students, loading: false }),
   setError: (error) => set({ error, loading: false }),

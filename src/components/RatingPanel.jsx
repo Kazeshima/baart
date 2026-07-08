@@ -105,7 +105,6 @@ export default function RatingPanel() {
         {DIMENSIONS.map(dim => {
           const current = ratings[dim.key];
           const currentWeightShare = ratings.dimensionWeightShares[dim.key];
-          const maxWeightShare = currentWeightShare + unassigned;
           return (
             <div key={dim.key} className="dim-row">
               <div className="dim-label">
@@ -139,7 +138,7 @@ export default function RatingPanel() {
                   <input
                     type="range"
                     min="0"
-                    max={maxWeightShare}
+                    max="100"
                     step="0.1"
                     value={currentWeightShare}
                     onChange={event => setDimensionWeightShare(dim.key, Number(event.target.value))}

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useRatingStore } from "./store/ratingStore.js";
+import { WEIGHT_STORAGE_KEYS, useRatingStore } from "./store/ratingStore.js";
 import { LANGS, LANG_URLS, SEASONS } from "./utils/constants.js";
 import { UI_LANGS, t, terrainLabel } from "./utils/i18n.js";
 import { useExport } from "./components/ExportCard.jsx";
@@ -16,6 +16,7 @@ export default function App() {
     selectedStudent,
     season, setSeason, arenaSeason, setArenaSeason,
     exportRatingsJSON, importRatingsJSON, loadRatingsFromFile,
+    syncSharedWeightSettingsFromStorage,
   } = useRatingStore();
 
   const { exportCard } = useExport();
@@ -28,6 +29,14 @@ export default function App() {
       .then(data => setStudents(parseStudents(data)))
       .catch(e => setError(e.message));
   }, [language]);
+
+  useEffect(() => {
+    const listener = event => {
+      if (WEIGHT_STORAGE_KEYS.includes(event.key)) syncSharedWeightSettingsFromStorage();
+    };
+    window.addEventListener("storage", listener);
+    return () => window.removeEventListener("storage", listener);
+  }, [syncSharedWeightSettingsFromStorage]);
 
   const handleImport = (e) => {
     const file = e.target.files?.[0];
