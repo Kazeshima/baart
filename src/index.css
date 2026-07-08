@@ -374,6 +374,10 @@ html, body, #root {
 .dim-weight-row--slider {
   gap: 8px;
 }
+.dim-weight-row--presets {
+  gap: 6px;
+  flex-wrap: wrap;
+}
 .dim-weight-row > span {
   min-width: 42px;
   color: var(--text-muted);
@@ -414,6 +418,42 @@ html, body, #root {
   font-family: var(--font-ui);
   font-size: 11px;
   outline: none;
+}
+.unassigned-weight {
+  display: grid;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+}
+.unassigned-weight > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.unassigned-weight strong {
+  color: var(--accent-gold);
+  font-family: var(--font-mono);
+}
+.unassigned-weight progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent-gold);
+}
+.unassigned-weight small {
+  color: var(--accent-red);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.unassigned-weight.is-incomplete {
+  border-color: color-mix(in srgb, var(--accent-red) 55%, var(--border));
 }
 .dim-weight-input {
   width: 54px;
@@ -480,6 +520,12 @@ html, body, #root {
   font-family: var(--font-mono);
   color: var(--text-secondary);
   font-size: 14px;
+  font-weight: 700;
+}
+.score-warning {
+  color: var(--accent-red);
+  font-size: 11px;
+  line-height: 1.35;
   font-weight: 700;
 }
 .overall-controls {

@@ -2,10 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_DIMENSION_WEIGHTS,
+  WEIGHT_EDITOR_MODES,
   WEIGHT_MODES,
+  adjustFineWeightShare,
   adjustDimensionWeightShare,
   computeOverallScore,
   formatWeightShare,
+  hasIncompleteFineWeights,
+  normalizeFineWeightState,
   normalizeDimensionWeightShares,
   normalizeDimensionWeights,
   resolveDimensionWeightShares,
@@ -124,16 +128,44 @@ test("shared weight mode overrides individual shares while individual mode prese
     dimensionWeightShares: { blindshot: 100, counter: 0, defense: 0, counterDef: 0, cost: 0 },
   };
   const shared = { blindshot: 0, counter: 0, defense: 0, counterDef: 0, cost: 100 };
-  assert.deepEqual(resolveDimensionWeightShares(ratings, { weightMode: WEIGHT_MODES.shared, sharedDimensionWeightShares: shared }), shared);
-  assert.deepEqual(resolveDimensionWeightShares(ratings, { weightMode: WEIGHT_MODES.individual }), {
+  assert.deepEqual(resolveDimensionWeightShares(ratings, { weightMode: WEIGHT_MODES.shared, weightEditorMode: WEIGHT_EDITOR_MODES.fine, sharedDimensionWeightShares: shared }), shared);
+  assert.deepEqual(resolveDimensionWeightShares(ratings, { weightMode: WEIGHT_MODES.individual, weightEditorMode: WEIGHT_EDITOR_MODES.fine }), {
     blindshot: 100,
     counter: 0,
     defense: 0,
     counterDef: 0,
     cost: 0,
   });
-  assert.equal(computeOverallScore(ratings, { weightMode: WEIGHT_MODES.shared, sharedDimensionWeightShares: shared }), 1);
-  assert.equal(computeOverallScore(ratings, { weightMode: WEIGHT_MODES.individual }), 5);
+  assert.equal(computeOverallScore(ratings, { weightMode: WEIGHT_MODES.shared, weightEditorMode: WEIGHT_EDITOR_MODES.fine, sharedDimensionWeightShares: shared }), 1);
+  assert.equal(computeOverallScore(ratings, { weightMode: WEIGHT_MODES.individual, weightEditorMode: WEIGHT_EDITOR_MODES.fine }), 5);
+});
+
+test("fine weight budget only changes the edited dimension and unassigned pool", () => {
+  const current = { blindshot: 20, counter: 20, defense: 20, counterDef: 20, cost: 10 };
+  const state = normalizeFineWeightState({ dimensionWeightShares: current });
+  assert.equal(state.unassignedWeightShare, 10);
+  const increased = adjustFineWeightShare(current, "cost", 15);
+  assert.deepEqual(increased.dimensionWeightShares, { blindshot: 20, counter: 20, defense: 20, counterDef: 20, cost: 15 });
+  assert.equal(increased.unassignedWeightShare, 5);
+  const capped = adjustFineWeightShare(increased.dimensionWeightShares, "cost", 30);
+  assert.equal(capped.dimensionWeightShares.cost, 20);
+  assert.equal(capped.unassignedWeightShare, 0);
+  const decreased = adjustFineWeightShare(capped.dimensionWeightShares, "counter", 12.5);
+  assert.equal(decreased.dimensionWeightShares.counter, 12.5);
+  assert.equal(decreased.dimensionWeightShares.blindshot, 20);
+  assert.equal(decreased.unassignedWeightShare, 7.5);
+});
+
+test("fine mode blocks scoring until all weight is assigned", () => {
+  const incomplete = {
+    ...complete,
+    dimensionWeightShares: { blindshot: 20, counter: 20, defense: 20, counterDef: 20, cost: 10 },
+  };
+  assert.equal(hasIncompleteFineWeights(incomplete), true);
+  assert.equal(computeOverallScore(incomplete, { weightEditorMode: WEIGHT_EDITOR_MODES.fine }), null);
+  const completeFine = { ...incomplete, dimensionWeightShares: { ...incomplete.dimensionWeightShares, cost: 20 } };
+  assert.equal(hasIncompleteFineWeights(completeFine), false);
+  assert.equal(computeOverallScore(completeFine, { weightEditorMode: WEIGHT_EDITOR_MODES.fine }), 3);
 });
 
 test("automatic mode recalculates the overall tier", () => {

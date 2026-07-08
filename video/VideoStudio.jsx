@@ -5,7 +5,13 @@ import { SortableContext, arrayMove, verticalListSortingStrategy, useSortable } 
 import { CSS } from "@dnd-kit/utilities";
 import { DIMENSIONS, LANG_URLS } from "../src/utils/constants.js";
 import { DIMENSION_LABELS, localeFor, schoolLabel } from "../src/utils/i18n.js";
-import { adjustDimensionWeightShare, formatWeightShare } from "../src/utils/scoring.js";
+import {
+  WEIGHT_EDITOR_MODES,
+  adjustFineWeightShare,
+  formatWeightShare,
+  normalizeDimensionWeights,
+  normalizeFineWeightState,
+} from "../src/utils/scoring.js";
 import { parseStudents } from "../src/utils/students.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import ArenaRatingVideo from "./remotion/ArenaRatingVideo.jsx";
@@ -31,7 +37,9 @@ import {
 
 const RATINGS_KEY = "ba_pvp_ratings";
 const WEIGHT_MODE_KEY = "ba_rating_weight_mode";
+const WEIGHT_EDITOR_MODE_KEY = "ba_rating_weight_editor_mode";
 const SHARED_WEIGHTS_KEY = "ba_rating_shared_dimension_weight_shares";
+const SHARED_PRESET_WEIGHTS_KEY = "ba_rating_shared_dimension_weights";
 const PROJECT_KEY = "baart_video_project_settings";
 const BENCHMARK_KEY = "baart_video_render_benchmarks";
 
@@ -39,9 +47,17 @@ function NumberControl({ label, value, onChange, min = 0, max, step = 0.1 }) {
   return <label className="studio-control"><span>{label}</span><input type="number" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))} /></label>;
 }
 
-function WeightShareControl({ label, value, onChange }) {
+function WeightShareControl({ label, value, max, onChange }) {
   const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
-  return <label className="studio-control studio-control--weight"><span>{label}</span><input type="range" min="0" max="100" step="0.1" value={safeValue} onChange={event => onChange(Number(event.target.value))} /><input type="number" min="0" max="100" step="0.1" value={safeValue.toFixed(1)} onChange={event => onChange(Number(event.target.value))} /><strong>{formatWeightShare(safeValue)}</strong></label>;
+  const safeMax = Number.isFinite(Number(max)) ? Number(max) : 100;
+  const [draft, setDraft] = useState(safeValue.toFixed(1));
+  useEffect(() => setDraft(safeValue.toFixed(1)), [safeValue]);
+  const commit = () => {
+    const numeric = Number(draft);
+    if (Number.isFinite(numeric)) onChange(numeric);
+    else setDraft(safeValue.toFixed(1));
+  };
+  return <label className="studio-control studio-control--weight"><span>{label}</span><input type="range" min="0" max={safeMax} step="0.1" value={safeValue} onChange={event => onChange(Number(event.target.value))} /><input type="number" min="0" max="100" step="0.1" value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} /><strong>{formatWeightShare(safeValue)}</strong></label>;
 }
 
 function SortableStudent({ record, language }) {
@@ -74,12 +90,17 @@ function readRatingsPayload() {
 function initialVideoSettings(saved) {
   const ratingsPayload = readRatingsPayload();
   const storedSharedWeights = readStoredJson(SHARED_WEIGHTS_KEY);
+  const storedPresetWeights = readStoredJson(SHARED_PRESET_WEIGHTS_KEY);
   return {
     ...DEFAULT_VIDEO_SETTINGS,
     weightMode: localStorage.getItem(WEIGHT_MODE_KEY) || ratingsPayload.weightMode || DEFAULT_VIDEO_SETTINGS.weightMode,
+    weightEditorMode: localStorage.getItem(WEIGHT_EDITOR_MODE_KEY) || ratingsPayload.weightEditorMode || DEFAULT_VIDEO_SETTINGS.weightEditorMode,
     sharedDimensionWeightShares: storedSharedWeights.blindshot
       ? storedSharedWeights
       : ratingsPayload.sharedDimensionWeightShares || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeightShares,
+    sharedDimensionWeights: storedPresetWeights.blindshot
+      ? storedPresetWeights
+      : ratingsPayload.sharedDimensionWeights || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeights,
     ...(saved.settings || {}),
   };
 }
@@ -133,7 +154,7 @@ export default function VideoStudio() {
       })
       .catch(error => { if (!cancelled) setLoadError(String(error)); });
     return () => { cancelled = true; };
-  }, [ratingsSource, settings.dataLanguage, settings.weightMode, settings.sharedDimensionWeightShares, snapshotRecords]);
+  }, [ratingsSource, settings.dataLanguage, settings.weightMode, settings.weightEditorMode, settings.sharedDimensionWeightShares, settings.sharedDimensionWeights, snapshotRecords]);
 
   useEffect(() => {
     localStorage.setItem(PROJECT_KEY, JSON.stringify({ settings, order }));
@@ -191,7 +212,11 @@ export default function VideoStudio() {
   const updateSetting = useCallback((key, value) => setSettings(current => ({ ...current, [key]: value })), []);
   const updateSharedWeightShare = useCallback((key, value) => setSettings(current => ({
     ...current,
-    sharedDimensionWeightShares: adjustDimensionWeightShare(current.sharedDimensionWeightShares, key, value),
+    sharedDimensionWeightShares: adjustFineWeightShare(current.sharedDimensionWeightShares, key, value).dimensionWeightShares,
+  })), []);
+  const updateSharedPresetWeight = useCallback((key, value) => setSettings(current => ({
+    ...current,
+    sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: { ...current.sharedDimensionWeights, [key]: value } }),
   })), []);
   const updateDataLanguage = value => {
     setSnapshotRecords(null);
@@ -222,11 +247,13 @@ export default function VideoStudio() {
         setSnapshotRecords(null);
         const payload = parsed?.ratings && typeof parsed.ratings === "object" ? parsed : { ratings: parsed };
         setRatingsSource(payload.ratings || {});
-        if (payload.weightMode || payload.sharedDimensionWeightShares) {
+        if (payload.weightMode || payload.weightEditorMode || payload.sharedDimensionWeightShares || payload.sharedDimensionWeights) {
           setSettings(current => ({
             ...current,
             weightMode: payload.weightMode || current.weightMode,
+            weightEditorMode: payload.weightEditorMode || current.weightEditorMode,
             sharedDimensionWeightShares: payload.sharedDimensionWeightShares || current.sharedDimensionWeightShares,
+            sharedDimensionWeights: payload.sharedDimensionWeights || current.sharedDimensionWeights,
           }));
         }
       }
@@ -388,10 +415,19 @@ export default function VideoStudio() {
         </section>
         <section className="studio-panel"><h2>{vt(language, "scoring")}</h2>
           <label className="studio-control"><span>{vt(language, "weightMode")}</span><select value={settings.weightMode} onChange={event => updateSetting("weightMode", event.target.value)}><option value="shared">{vt(language, "sharedWeights")}</option><option value="individual">{vt(language, "individualWeights")}</option></select></label>
-          {settings.weightMode === "shared" ? DIMENSIONS.map(({ key }) => {
+          <label className="studio-control"><span>{vt(language, "weightEditorMode")}</span><select value={settings.weightEditorMode} onChange={event => updateSetting("weightEditorMode", event.target.value)}><option value="fine">{vt(language, "fineWeights")}</option><option value="preset">{vt(language, "presetWeights")}</option></select></label>
+          {settings.weightMode === "shared" ? (() => {
             const labels = DIMENSION_LABELS[localeFor(language)] || DIMENSION_LABELS.zh;
-            return <WeightShareControl key={key} label={labels[key][0]} value={settings.sharedDimensionWeightShares?.[key]} onChange={value => updateSharedWeightShare(key, value)} />;
-          }) : <p className="studio-help">{vt(language, "individualWeightsHelp")}</p>}
+            const fineState = normalizeFineWeightState({ dimensionWeightShares: settings.sharedDimensionWeightShares });
+            if (settings.weightEditorMode === WEIGHT_EDITOR_MODES.preset) {
+              return DIMENSIONS.map(({ key }) => <div key={key} className="studio-control studio-control--presets"><span>{labels[key][0]}</span><div>{["none", "half", "full"].map(weight => <button key={weight} type="button" className={settings.sharedDimensionWeights?.[key] === weight ? "active" : ""} onClick={() => updateSharedPresetWeight(key, weight)}>{vt(language, weight === "none" ? "weightNone" : weight === "half" ? "weightHalf" : "weightFull")}</button>)}</div></div>);
+            }
+            return <>
+              <div className={`studio-unassigned ${fineState.unassignedWeightShare > 0 ? "is-incomplete" : ""}`}><span>{vt(language, "unassignedWeight")}</span><strong>{formatWeightShare(fineState.unassignedWeightShare)}</strong><progress value={fineState.unassignedWeightShare} max="100" /></div>
+              {fineState.unassignedWeightShare > 0 ? <p className="studio-help studio-help--warning">{vt(language, "incompleteWeights")}</p> : null}
+              {DIMENSIONS.map(({ key }) => <WeightShareControl key={key} label={labels[key][0]} value={fineState.dimensionWeightShares?.[key]} max={(fineState.dimensionWeightShares?.[key] || 0) + fineState.unassignedWeightShare} onChange={value => updateSharedWeightShare(key, value)} />)}
+            </>;
+          })() : <p className="studio-help">{vt(language, "individualWeightsHelp")}</p>}
         </section>
         <section className="studio-panel"><h2>{vt(language, "timing")}</h2>
           <NumberControl label={vt(language, "studentDuration")} value={settings.studentDuration} min={1} step={0.5} onChange={value => updateSetting("studentDuration", value)} />

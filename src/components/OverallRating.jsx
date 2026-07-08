@@ -2,7 +2,7 @@ import {
   DIMENSIONS, OVERALL_LEVELS, OVERALL_COLORS,
 } from "../utils/constants.js";
 import { DIMENSION_LABELS, OVERALL_LABELS, localeFor, t } from "../utils/i18n.js";
-import { formatWeightShare } from "../utils/scoring.js";
+import { WEIGHT_EDITOR_MODES, formatWeightShare } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 import OverallBadge from "./presentation/OverallBadge.jsx";
 
@@ -21,6 +21,7 @@ export default function OverallRating() {
   if (!selectedStudent) return null;
   const ratings = getCurrentRatings();
   const { overall, overallScore, overallAuto, dimensionWeightShares, notes } = ratings;
+  const weightsIncomplete = ratings.weightEditorMode === WEIGHT_EDITOR_MODES.fine && Number(ratings.unassignedWeightShare || 0) > 0;
   const locale = localeFor(uiLanguage);
   const dimensionLabels = DIMENSION_LABELS[locale] || DIMENSION_LABELS.zh;
 
@@ -36,6 +37,7 @@ export default function OverallRating() {
           <div className="score-line">
             {t(uiLanguage, "overallScore")} {overallScore !== null ? overallScore.toFixed(1) : "--"} / 5.0
           </div>
+          {weightsIncomplete && <div className="score-warning">{t(uiLanguage, "incompleteWeights")}</div>}
 
           {/* Auto/manual toggle */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>

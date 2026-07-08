@@ -2,9 +2,13 @@ import { create } from "zustand";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { DEFAULT_DIMENSION_WEIGHT_SHARES, DEFAULT_RATINGS } from "../utils/constants.js";
 import {
+  DEFAULT_DIMENSION_WEIGHTS,
+  WEIGHT_EDITOR_MODES,
   WEIGHT_MODES,
-  adjustDimensionWeightShare,
-  normalizeDimensionWeightShares,
+  adjustFineWeightShare,
+  normalizeDimensionWeights,
+  normalizeFineWeightState,
+  normalizeWeightEditorMode,
   normalizeWeightMode,
   recalculateRatings,
 } from "../utils/scoring.js";
@@ -16,7 +20,9 @@ const LS_SEASON = "ba_rating_season";
 const LS_ARENA_SEASON = "ba_rating_arena_season";
 const LS_THEME = "ba_rating_theme";
 const LS_WEIGHT_MODE = "ba_rating_weight_mode";
+const LS_WEIGHT_EDITOR_MODE = "ba_rating_weight_editor_mode";
 const LS_SHARED_WEIGHTS = "ba_rating_shared_dimension_weight_shares";
+const LS_SHARED_PRESET_WEIGHTS = "ba_rating_shared_dimension_weights";
 const RATINGS_KEY = "ba_pvp_ratings";  // localStorage key for all saved ratings
 const RATINGS_FILE = "ratings/ba_pvp_ratings.json";
 
@@ -34,29 +40,59 @@ function saveRatings(r) {
 
 function loadSharedDimensionWeightShares() {
   try {
-    return normalizeDimensionWeightShares({
+    return normalizeFineWeightState({
       dimensionWeightShares: JSON.parse(localStorage.getItem(LS_SHARED_WEIGHTS) || "null") || DEFAULT_DIMENSION_WEIGHT_SHARES,
-    });
+    }).dimensionWeightShares;
   } catch {
-    return normalizeDimensionWeightShares({ dimensionWeightShares: DEFAULT_DIMENSION_WEIGHT_SHARES });
+    return normalizeFineWeightState({ dimensionWeightShares: DEFAULT_DIMENSION_WEIGHT_SHARES }).dimensionWeightShares;
   }
 }
 
 function saveSharedDimensionWeightShares(shares) {
-  localStorage.setItem(LS_SHARED_WEIGHTS, JSON.stringify(normalizeDimensionWeightShares({ dimensionWeightShares: shares })));
+  localStorage.setItem(LS_SHARED_WEIGHTS, JSON.stringify(normalizeFineWeightState({ dimensionWeightShares: shares }).dimensionWeightShares));
+}
+
+function loadSharedDimensionWeights() {
+  try {
+    return normalizeDimensionWeights({ dimensionWeights: JSON.parse(localStorage.getItem(LS_SHARED_PRESET_WEIGHTS) || "null") || DEFAULT_DIMENSION_WEIGHTS });
+  } catch {
+    return { ...DEFAULT_DIMENSION_WEIGHTS };
+  }
+}
+
+function saveSharedDimensionWeights(weights) {
+  localStorage.setItem(LS_SHARED_PRESET_WEIGHTS, JSON.stringify(normalizeDimensionWeights({ dimensionWeights: weights })));
 }
 
 function parseRatingsPayload(payload) {
   if (payload && typeof payload === "object" && !Array.isArray(payload) && payload.ratings && typeof payload.ratings === "object") {
+    const hasSharedFine = Boolean(payload.sharedDimensionWeightShares);
+    const hasSharedPreset = Boolean(payload.sharedDimensionWeights);
     return {
       ratings: payload.ratings,
       weightMode: normalizeWeightMode(payload.weightMode),
+      weightEditorMode: payload.weightEditorMode
+        ? normalizeWeightEditorMode(payload.weightEditorMode)
+        : (hasSharedPreset && !hasSharedFine ? WEIGHT_EDITOR_MODES.preset : null),
       sharedDimensionWeightShares: payload.sharedDimensionWeightShares
-        ? normalizeDimensionWeightShares({ dimensionWeightShares: payload.sharedDimensionWeightShares })
+        ? normalizeFineWeightState({ dimensionWeightShares: payload.sharedDimensionWeightShares }).dimensionWeightShares
+        : null,
+      sharedDimensionWeights: payload.sharedDimensionWeights
+        ? normalizeDimensionWeights({ dimensionWeights: payload.sharedDimensionWeights })
         : null,
     };
   }
-  return { ratings: payload || {}, weightMode: null, sharedDimensionWeightShares: null };
+  const ratings = payload || {};
+  const values = ratings && typeof ratings === "object" && !Array.isArray(ratings) ? Object.values(ratings) : [];
+  const hasFine = values.some(item => item && typeof item === "object" && Object.hasOwn(item, "dimensionWeightShares"));
+  const hasPreset = values.some(item => item && typeof item === "object" && (Object.hasOwn(item, "dimensionWeights") || Object.hasOwn(item, "costWeight")));
+  return {
+    ratings,
+    weightMode: null,
+    weightEditorMode: hasFine ? WEIGHT_EDITOR_MODES.fine : hasPreset ? WEIGHT_EDITOR_MODES.preset : null,
+    sharedDimensionWeightShares: null,
+    sharedDimensionWeights: null,
+  };
 }
 
 function normalizeRatings(ratings) {
@@ -68,7 +104,10 @@ function normalizeRatings(ratings) {
     const legacy = { E: 0, D: 0, C: 1, B: 2, A: 3, S: 4 };
     normalized.overall = legacy[normalized.overall] ?? null;
   }
-  return recalculateRatings(normalized, { weightMode: WEIGHT_MODES.individual });
+  const legacyEditorMode = ratings && Object.hasOwn(ratings, "dimensionWeightShares")
+    ? WEIGHT_EDITOR_MODES.fine
+    : WEIGHT_EDITOR_MODES.preset;
+  return recalculateRatings(normalized, { weightMode: WEIGHT_MODES.individual, weightEditorMode: legacyEditorMode });
 }
 
 function normalizeRatingCollection(data) {
@@ -82,7 +121,9 @@ function normalizeRatingCollection(data) {
 function effectiveOptions(state) {
   return {
     weightMode: state.weightMode,
+    weightEditorMode: state.weightEditorMode,
     sharedDimensionWeightShares: state.sharedDimensionWeightShares,
+    sharedDimensionWeights: state.sharedDimensionWeights,
   };
 }
 
@@ -99,15 +140,19 @@ function effectiveRatingCollection(allRatings, state) {
 
 function prepareStoredRating(rating, state) {
   if (state.weightMode !== WEIGHT_MODES.shared) return rating;
-  const { dimensionWeightShares, ...rest } = rating;
+  const { dimensionWeightShares, dimensionWeights, costWeight, unassignedWeightShare, weightEditorMode, ...rest } = rating;
   return rest;
 }
 
 function ratingsExportPayload(state) {
+  const fineState = normalizeFineWeightState({ dimensionWeightShares: state.sharedDimensionWeightShares });
   return {
     version: 2,
     weightMode: state.weightMode,
-    sharedDimensionWeightShares: normalizeDimensionWeightShares({ dimensionWeightShares: state.sharedDimensionWeightShares }),
+    weightEditorMode: state.weightEditorMode,
+    sharedDimensionWeightShares: fineState.dimensionWeightShares,
+    sharedUnassignedWeightShare: fineState.unassignedWeightShare,
+    sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: state.sharedDimensionWeights }),
     ratings: state.allRatings,
   };
 }
@@ -156,7 +201,9 @@ export const useRatingStore = create((set, get) => ({
   // All saved ratings: { [studentId]: RatingObject }
   allRatings: loadRatings(),
   weightMode: normalizeWeightMode(localStorage.getItem(LS_WEIGHT_MODE)),
+  weightEditorMode: normalizeWeightEditorMode(localStorage.getItem(LS_WEIGHT_EDITOR_MODE)),
   sharedDimensionWeightShares: loadSharedDimensionWeightShares(),
+  sharedDimensionWeights: loadSharedDimensionWeights(),
   lastFilePath: "",
   fileStatus: "",
 
@@ -190,11 +237,23 @@ export const useRatingStore = create((set, get) => ({
     localStorage.setItem(LS_WEIGHT_MODE, mode);
     set({ weightMode: mode });
   },
+  setWeightEditorMode: (weightEditorMode) => {
+    const mode = normalizeWeightEditorMode(weightEditorMode);
+    localStorage.setItem(LS_WEIGHT_EDITOR_MODE, mode);
+    set({ weightEditorMode: mode });
+  },
   setSharedDimensionWeightShare: (dimension, share) => {
     const current = get().sharedDimensionWeightShares;
-    const sharedDimensionWeightShares = adjustDimensionWeightShare(current, dimension, share);
+    const sharedDimensionWeightShares = adjustFineWeightShare(current, dimension, share).dimensionWeightShares;
     saveSharedDimensionWeightShares(sharedDimensionWeightShares);
     set({ sharedDimensionWeightShares });
+  },
+  setSharedDimensionWeight: (dimension, weight) => {
+    const sharedDimensionWeights = normalizeDimensionWeights({
+      dimensionWeights: { ...get().sharedDimensionWeights, [dimension]: weight },
+    });
+    saveSharedDimensionWeights(sharedDimensionWeights);
+    set({ sharedDimensionWeights });
   },
   setStudents: (students) => set({ students, loading: false }),
   setError: (error) => set({ error, loading: false }),
@@ -263,6 +322,10 @@ export const useRatingStore = create((set, get) => ({
 
   setDimensionWeight: (dimension, weight) => {
     const s = get();
+    if (s.weightMode === WEIGHT_MODES.shared) {
+      s.setSharedDimensionWeight(dimension, weight);
+      return;
+    }
     if (!s.selectedStudent) return;
     const id = s.selectedStudent.id;
     const isNew = !Object.hasOwn(s.allRatings, id);
@@ -271,7 +334,7 @@ export const useRatingStore = create((set, get) => ({
       ...existing,
       dimensionWeights: { ...existing.dimensionWeights, [dimension]: weight },
       dimensionWeightShares: undefined,
-    }, effectiveOptions(s)), isNew);
+    }, { ...effectiveOptions(s), weightEditorMode: WEIGHT_EDITOR_MODES.preset }), isNew);
     const allRatings = { ...s.allRatings, [id]: prepareStoredRating(updated, s) };
     set({ allRatings });
     saveRatings(allRatings);
@@ -291,8 +354,8 @@ export const useRatingStore = create((set, get) => ({
     const existing = effectiveRatings(s.allRatings[id] || {}, s);
     const updated = timestampRating(recalculateRatings({
       ...existing,
-      dimensionWeightShares: adjustDimensionWeightShare(existing.dimensionWeightShares, dimension, share),
-    }, { weightMode: WEIGHT_MODES.individual }), isNew);
+      dimensionWeightShares: adjustFineWeightShare(existing.dimensionWeightShares, dimension, share).dimensionWeightShares,
+    }, { weightMode: WEIGHT_MODES.individual, weightEditorMode: WEIGHT_EDITOR_MODES.fine }), isNew);
     const allRatings = { ...s.allRatings, [id]: prepareStoredRating(updated, s) };
     set({ allRatings });
     saveRatings(allRatings);
@@ -341,9 +404,17 @@ export const useRatingStore = create((set, get) => ({
         localStorage.setItem(LS_WEIGHT_MODE, parsed.weightMode);
         nextState.weightMode = parsed.weightMode;
       }
+      if (parsed.weightEditorMode) {
+        localStorage.setItem(LS_WEIGHT_EDITOR_MODE, parsed.weightEditorMode);
+        nextState.weightEditorMode = parsed.weightEditorMode;
+      }
       if (parsed.sharedDimensionWeightShares) {
         saveSharedDimensionWeightShares(parsed.sharedDimensionWeightShares);
         nextState.sharedDimensionWeightShares = parsed.sharedDimensionWeightShares;
+      }
+      if (parsed.sharedDimensionWeights) {
+        saveSharedDimensionWeights(parsed.sharedDimensionWeights);
+        nextState.sharedDimensionWeights = parsed.sharedDimensionWeights;
       }
       saveRatings(data);
       set(nextState);
@@ -362,9 +433,17 @@ export const useRatingStore = create((set, get) => ({
       localStorage.setItem(LS_WEIGHT_MODE, parsed.weightMode);
       nextState.weightMode = parsed.weightMode;
     }
+    if (parsed.weightEditorMode) {
+      localStorage.setItem(LS_WEIGHT_EDITOR_MODE, parsed.weightEditorMode);
+      nextState.weightEditorMode = parsed.weightEditorMode;
+    }
     if (parsed.sharedDimensionWeightShares) {
       saveSharedDimensionWeightShares(parsed.sharedDimensionWeightShares);
       nextState.sharedDimensionWeightShares = parsed.sharedDimensionWeightShares;
+    }
+    if (parsed.sharedDimensionWeights) {
+      saveSharedDimensionWeights(parsed.sharedDimensionWeights);
+      nextState.sharedDimensionWeights = parsed.sharedDimensionWeights;
     }
     saveRatings(data);
     set(nextState);

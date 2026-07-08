@@ -22,7 +22,7 @@ import {
   terrainLabel,
 } from "../utils/i18n.js";
 import { RADAR_ANGLES } from "../utils/radar.js";
-import { formatWeightShare, recalculateRatings } from "../utils/scoring.js";
+import { WEIGHT_EDITOR_MODES, formatWeightShare, recalculateRatings } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 import { studentDisplayName } from "../utils/studentDisplay.js";
 
@@ -48,7 +48,14 @@ function normalizeExportRatings(raw) {
   if (typeof ratings.overall === "string") {
     ratings.overall = { E: 0, D: 0, C: 1, B: 2, A: 3, S: 4 }[ratings.overall] ?? null;
   }
-  return recalculateRatings(ratings);
+  return recalculateRatings(ratings, {
+    weightMode: "individual",
+    weightEditorMode: ratings.weightEditorMode || WEIGHT_EDITOR_MODES.preset,
+  });
+}
+
+function hasIncompleteExportWeights(ratings) {
+  return ratings?.weightEditorMode === WEIGHT_EDITOR_MODES.fine && Number(ratings.unassignedWeightShare || 0) > 0;
 }
 
 async function svgToPngBytes(svg, width, height) {
@@ -308,6 +315,11 @@ export function useExport() {
     if (mode === "batch") {
       try {
         const rated = students.filter(s => allRatings[s.id]);
+        const incomplete = rated.find(student => hasIncompleteExportWeights(effectiveAllRatings[student.id]));
+        if (incomplete) {
+          alert(t(uiLanguage, "incompleteWeights"));
+          return;
+        }
         const files = [];
         const encoder = new TextEncoder();
         const pngFailures = [];
@@ -344,6 +356,10 @@ export function useExport() {
 
     if (!selectedStudent) return;
     const ratings = getCurrentRatings();
+    if (hasIncompleteExportWeights(ratings)) {
+      alert(t(uiLanguage, "incompleteWeights"));
+      return;
+    }
     const fontCss = await exportFontCss();
     const rawSvg = buildExportSVG(selectedStudent, ratings, { season, arenaSeason, uiLanguage, theme, mode, fontCss });
     const suffix = mode === "full" ? "full" : "compact";

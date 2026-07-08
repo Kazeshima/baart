@@ -1,5 +1,5 @@
 import { DEFAULT_DIMENSION_WEIGHT_SHARES } from "../../src/utils/constants.js";
-import { normalizeDimensionWeightShares, normalizeWeightMode } from "../../src/utils/scoring.js";
+import { DEFAULT_DIMENSION_WEIGHTS, WEIGHT_EDITOR_MODES, normalizeDimensionWeights, normalizeFineWeightState, normalizeWeightEditorMode, normalizeWeightMode } from "../../src/utils/scoring.js";
 
 export const VIDEO_PROJECT_VERSION = 1;
 
@@ -40,7 +40,9 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   season: "Street",
   arenaSeason: "S9",
   weightMode: "shared",
+  weightEditorMode: "fine",
   sharedDimensionWeightShares: { ...DEFAULT_DIMENSION_WEIGHT_SHARES },
+  sharedDimensionWeights: { ...DEFAULT_DIMENSION_WEIGHTS },
 });
 
 export function frames(seconds, fps) {
@@ -110,9 +112,10 @@ export function validateVideoSettings(settings) {
   if (resolveRenderConcurrency(value.renderConcurrency) === null) errors.push("Render concurrency must be Adaptive, Auto, 100%, 1, 2, 4, 6, 8, 12, or 16.");
   if (!["quality", "balanced", "fast"].includes(value.renderQualityMode)) errors.push("Render quality mode must be Quality, Balanced, or Fast.");
   if (normalizeWeightMode(value.weightMode) !== value.weightMode) errors.push("Weight mode must be Shared or Individual.");
-  const normalizedShares = normalizeDimensionWeightShares({ dimensionWeightShares: value.sharedDimensionWeightShares });
-  const shareTotal = Object.values(normalizedShares).reduce((sum, item) => sum + item, 0);
-  if (Math.abs(shareTotal - 100) > 0.001) errors.push("Shared weight shares must total 100%.");
+  if (normalizeWeightEditorMode(value.weightEditorMode) !== value.weightEditorMode) errors.push("Weight editor mode must be Fine or Preset.");
+  const fineState = normalizeFineWeightState({ dimensionWeightShares: value.sharedDimensionWeightShares });
+  if (value.weightEditorMode === WEIGHT_EDITOR_MODES.fine && fineState.unassignedWeightShare > 0) errors.push("Fine weights must be fully assigned before rendering.");
+  normalizeDimensionWeights({ dimensionWeights: value.sharedDimensionWeights });
   if (!['mp4', 'png', 'jpeg'].includes(value.format)) errors.push("Output format must be MP4, PNG frames, or JPEG frames.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
   if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");

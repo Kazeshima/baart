@@ -1,12 +1,20 @@
 import { z } from "zod";
 import { DEFAULT_DIMENSION_WEIGHT_SHARES, DEFAULT_RATINGS, DIMENSIONS } from "../../src/utils/constants.js";
-import { normalizeDimensionWeightShares, normalizeWeightMode, recalculateRatings } from "../../src/utils/scoring.js";
+import {
+  DEFAULT_DIMENSION_WEIGHTS,
+  normalizeDimensionWeights,
+  normalizeFineWeightState,
+  normalizeWeightEditorMode,
+  normalizeWeightMode,
+  recalculateRatings,
+} from "../../src/utils/scoring.js";
 import { DEFAULT_VIDEO_SETTINGS, VIDEO_PROJECT_VERSION } from "./config.js";
 import { DEFAULT_ORDER, sortRatingRecords } from "./sorting.js";
 
 const finiteNonNegative = z.number().finite().nonnegative();
 const opacity = z.number().finite().min(0).max(1);
 const weightSharesSchema = z.object(Object.fromEntries(DIMENSIONS.map(({ key }) => [key, z.number().finite().min(0).max(100)])));
+const dimensionWeightsSchema = z.object(Object.fromEntries(DIMENSIONS.map(({ key }) => [key, z.enum(["none", "half", "full"])])));
 
 export const videoSettingsSchema = z.object({
   width: z.number().int().min(640).max(7680),
@@ -63,7 +71,9 @@ export const videoSettingsSchema = z.object({
   season: z.enum(["Street", "Outdoor", "Indoor"]),
   arenaSeason: z.string().trim().min(1).max(32),
   weightMode: z.enum(["shared", "individual"]),
-  sharedDimensionWeightShares: weightSharesSchema.transform(value => normalizeDimensionWeightShares({ dimensionWeightShares: value })),
+  weightEditorMode: z.enum(["fine", "preset"]),
+  sharedDimensionWeightShares: weightSharesSchema.transform(value => normalizeFineWeightState({ dimensionWeightShares: value }).dimensionWeightShares),
+  sharedDimensionWeights: dimensionWeightsSchema.transform(value => normalizeDimensionWeights({ dimensionWeights: value })),
 }).refine(value => value.width * 9 === value.height * 16, { message: "Resolution must use a 16:9 aspect ratio.", path: ["width"] });
 
 export const videoProjectSchema = z.object({
@@ -91,7 +101,9 @@ export function normalizeVideoRating(raw = {}, settings = DEFAULT_VIDEO_SETTINGS
   }
   return recalculateRatings(ratings, {
     weightMode: normalizeWeightMode(settings.weightMode),
+    weightEditorMode: normalizeWeightEditorMode(settings.weightEditorMode),
     sharedDimensionWeightShares: settings.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
+    sharedDimensionWeights: settings.sharedDimensionWeights || DEFAULT_DIMENSION_WEIGHTS,
   });
 }
 
@@ -110,9 +122,11 @@ export function createVideoProject({ records, settings, order }) {
       ...DEFAULT_VIDEO_SETTINGS,
       ...settings,
       weightMode: normalizeWeightMode(settings?.weightMode),
-      sharedDimensionWeightShares: normalizeDimensionWeightShares({
+      weightEditorMode: normalizeWeightEditorMode(settings?.weightEditorMode),
+      sharedDimensionWeightShares: normalizeFineWeightState({
         dimensionWeightShares: settings?.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
-      }),
+      }).dimensionWeightShares,
+      sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: settings?.sharedDimensionWeights || DEFAULT_DIMENSION_WEIGHTS }),
     },
     order: { ...DEFAULT_ORDER, ...order },
     records,
@@ -127,9 +141,11 @@ export function safeCreateVideoProject(value) {
       ...DEFAULT_VIDEO_SETTINGS,
       ...value.settings,
       weightMode: normalizeWeightMode(value.settings?.weightMode),
-      sharedDimensionWeightShares: normalizeDimensionWeightShares({
+      weightEditorMode: normalizeWeightEditorMode(value.settings?.weightEditorMode),
+      sharedDimensionWeightShares: normalizeFineWeightState({
         dimensionWeightShares: value.settings?.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
-      }),
+      }).dimensionWeightShares,
+      sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: value.settings?.sharedDimensionWeights || DEFAULT_DIMENSION_WEIGHTS }),
     },
     order: { ...DEFAULT_ORDER, ...value.order },
     records: value.records || [],

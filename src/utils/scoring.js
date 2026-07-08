@@ -11,6 +11,11 @@ export const WEIGHT_MODES = Object.freeze({
   individual: "individual",
 });
 
+export const WEIGHT_EDITOR_MODES = Object.freeze({
+  fine: "fine",
+  preset: "preset",
+});
+
 export const DEFAULT_DIMENSION_WEIGHTS = Object.freeze({
   blindshot: "full",
   counter: "full",
@@ -21,6 +26,7 @@ export const DEFAULT_DIMENSION_WEIGHTS = Object.freeze({
 
 export const WEIGHT_SHARE_TOTAL = 100;
 const SHARE_PRECISION = 10;
+const TOTAL_TENTHS = WEIGHT_SHARE_TOTAL * SHARE_PRECISION;
 
 function normalizeShareTenths(rawShares) {
   const values = DIMENSIONS.map(({ key }) => {
@@ -54,18 +60,61 @@ export function normalizeDimensionWeightShares(ratings = {}) {
   return Object.fromEntries(DIMENSIONS.map(({ key }, index) => [key, tenths[index] / SHARE_PRECISION]));
 }
 
+function roundTenths(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.round(numeric * SHARE_PRECISION)) : 0;
+}
+
+function sharesFromTenths(tenths) {
+  return Object.fromEntries(DIMENSIONS.map(({ key }, index) => [key, (tenths[index] || 0) / SHARE_PRECISION]));
+}
+
+export function normalizeFineWeightState(value = {}) {
+  const source = value.dimensionWeightShares || value;
+  let tenths = DIMENSIONS.map(({ key }) => roundTenths(source?.[key]));
+  const total = tenths.reduce((sum, item) => sum + item, 0);
+  if (total > TOTAL_TENTHS) {
+    const exact = tenths.map(item => (item / total) * TOTAL_TENTHS);
+    const floors = exact.map(Math.floor);
+    let remainder = TOTAL_TENTHS - floors.reduce((sum, item) => sum + item, 0);
+    const order = exact
+      .map((item, index) => ({ index, fraction: item - floors[index] }))
+      .sort((a, b) => b.fraction - a.fraction);
+    for (let i = 0; i < remainder; i += 1) floors[order[i % order.length].index] += 1;
+    tenths = floors;
+  }
+  const assignedTenths = tenths.reduce((sum, item) => sum + item, 0);
+  return {
+    dimensionWeightShares: sharesFromTenths(tenths),
+    unassignedWeightShare: (TOTAL_TENTHS - assignedTenths) / SHARE_PRECISION,
+  };
+}
+
+export function hasIncompleteFineWeights(value = {}) {
+  return normalizeFineWeightState(value).unassignedWeightShare > 0;
+}
+
 export function normalizeWeightMode(value) {
   return value === WEIGHT_MODES.individual ? WEIGHT_MODES.individual : WEIGHT_MODES.shared;
 }
 
+export function normalizeWeightEditorMode(value) {
+  return value === WEIGHT_EDITOR_MODES.preset ? WEIGHT_EDITOR_MODES.preset : WEIGHT_EDITOR_MODES.fine;
+}
+
 export function resolveDimensionWeightShares(ratings = {}, options = {}) {
   const mode = options.weightMode === undefined ? WEIGHT_MODES.individual : normalizeWeightMode(options.weightMode);
-  if (mode === WEIGHT_MODES.shared) {
-    return normalizeDimensionWeightShares({
-      dimensionWeightShares: options.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
-    });
+  const editorMode = normalizeWeightEditorMode(options.weightEditorMode || WEIGHT_EDITOR_MODES.preset);
+  if (editorMode === WEIGHT_EDITOR_MODES.preset) {
+    if (mode === WEIGHT_MODES.shared && options.sharedDimensionWeights) {
+      return normalizeDimensionWeightShares({ dimensionWeights: options.sharedDimensionWeights });
+    }
+    return normalizeDimensionWeightShares({ ...ratings, dimensionWeightShares: undefined });
   }
-  return normalizeDimensionWeightShares(ratings);
+  if (mode === WEIGHT_MODES.shared) {
+    return normalizeFineWeightState({ dimensionWeightShares: options.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES }).dimensionWeightShares;
+  }
+  return normalizeFineWeightState(ratings).dimensionWeightShares;
 }
 
 export function formatWeightShare(value) {
@@ -105,6 +154,15 @@ export function adjustDimensionWeightShare(currentShares, changedKey, nextValue)
   return normalizeDimensionWeightShares({ dimensionWeightShares: result });
 }
 
+export function adjustFineWeightShare(currentShares, changedKey, nextValue) {
+  const current = normalizeFineWeightState({ dimensionWeightShares: currentShares });
+  const currentValue = current.dimensionWeightShares[changedKey] ?? 0;
+  const max = currentValue + current.unassignedWeightShare;
+  const target = Math.max(0, Math.min(max, Number(nextValue)));
+  const nextShares = { ...current.dimensionWeightShares, [changedKey]: Number.isFinite(target) ? target : currentValue };
+  return normalizeFineWeightState({ dimensionWeightShares: nextShares });
+}
+
 export function normalizeDimensionWeights(ratings = {}) {
   const supplied = ratings.dimensionWeights || {};
   const legacyCost = Object.hasOwn(WEIGHT_VALUES, ratings.costWeight)
@@ -119,6 +177,14 @@ export function normalizeDimensionWeights(ratings = {}) {
 }
 
 export function computeOverallScore(ratings, options = {}) {
+  const editorMode = normalizeWeightEditorMode(options.weightEditorMode || WEIGHT_EDITOR_MODES.preset);
+  const mode = options.weightMode === undefined ? WEIGHT_MODES.individual : normalizeWeightMode(options.weightMode);
+  if (editorMode === WEIGHT_EDITOR_MODES.fine) {
+    const fineState = mode === WEIGHT_MODES.shared
+      ? normalizeFineWeightState({ dimensionWeightShares: options.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES })
+      : normalizeFineWeightState(ratings);
+    if (fineState.unassignedWeightShare > 0) return null;
+  }
   const dimensionWeightShares = resolveDimensionWeightShares(ratings, options);
   const weighted = DIMENSIONS.flatMap(({ key }) => {
     const tier = ratings[key];
@@ -143,15 +209,23 @@ export function computeOverallLevel(score) {
 
 export function recalculateRatings(ratings, options = {}) {
   const dimensionWeights = normalizeDimensionWeights(ratings);
+  const editorMode = normalizeWeightEditorMode(options.weightEditorMode || WEIGHT_EDITOR_MODES.preset);
   const dimensionWeightShares = resolveDimensionWeightShares({ ...ratings, dimensionWeights }, options);
   const overallScore = computeOverallScore({ ...ratings, dimensionWeights, dimensionWeightShares }, {
     ...options,
-    weightMode: WEIGHT_MODES.individual,
+    weightMode: editorMode === WEIGHT_EDITOR_MODES.preset ? WEIGHT_MODES.individual : options.weightMode,
   });
+  const unassignedWeightShare = editorMode === WEIGHT_EDITOR_MODES.fine
+    ? (options.weightMode === WEIGHT_MODES.shared
+        ? normalizeFineWeightState({ dimensionWeightShares: options.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES }).unassignedWeightShare
+        : normalizeFineWeightState({ dimensionWeightShares }).unassignedWeightShare)
+    : 0;
   return {
     ...ratings,
     dimensionWeights,
     dimensionWeightShares,
+    unassignedWeightShare,
+    weightEditorMode: editorMode,
     costWeight: dimensionWeights.cost,
     overallScore,
     overall: ratings.overallAuto === false ? ratings.overall : computeOverallLevel(overallScore),
