@@ -9,10 +9,11 @@
 .video-title__season, .video-section-label { color: var(--accent-gold); font-size: 31px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .video-title__name { margin: 10px 0 3px; color: var(--text-primary); font-size: 100px; line-height: .98; font-weight: 800; letter-spacing: 0; white-space: pre-wrap; }
 .video-title__meta { color: var(--text-secondary); font-family: var(--font-mono); font-size: 31px; }
-.student-school-meta { display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; }
-.student-school-icon { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align: -0.16em; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent-gold) 35%, transparent)); }
-.video-title__meta .student-school-name { color: var(--accent-gold); font-family: var(--font-ui); font-size: 34px; font-weight: 900; text-shadow: 0 0 18px color-mix(in srgb, var(--accent-gold) 42%, transparent); }
-.video-title__meta .student-school-icon { width: 30px; height: 30px; }
+.student-school-meta { display: inline-flex; align-items: center; gap: 10px; vertical-align: middle; }
+.student-school-icon { width: 1.54em; height: 1.54em; object-fit: contain; vertical-align: -0.25em; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent-gold) 35%, transparent)); }
+.video-scene[data-theme="light"] .student-school-icon { filter: drop-shadow(0 1px 1px rgba(15, 23, 42, .9)) drop-shadow(0 0 3px rgba(15, 23, 42, .55)); }
+.video-title__meta .student-school-name { color: var(--accent-gold); font-family: var(--font-ui); font-size: 48px; font-weight: 900; text-shadow: 0 0 18px color-mix(in srgb, var(--accent-gold) 42%, transparent); }
+.video-title__meta .student-school-icon { width: 42px; height: 42px; }
 .video-info { position: absolute; left: 74px; top: 292px; width: 790px; z-index: 2; }
 .video-info__role { color: var(--text-primary); font-size: 45px; font-weight: 800; }
 .video-facts { display: flex; gap: 14px; margin-top: 20px; flex-wrap: wrap; }

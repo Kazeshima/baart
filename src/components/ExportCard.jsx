@@ -501,7 +501,7 @@ ${commonStyles(p, options.fontCss)}
   <rect x="48" y="54" width="${avatar}" height="${avatar}" rx="8" fill="none" stroke="#2a3f5a" stroke-width="2"/>
   <text x="224" y="80" class="title" xml:space="preserve">${esc(options.arenaSeason || "")} · ${esc(displayName)}</text>
   <text x="226" y="110" class="sub mono">${esc(student.devName)} · #${student.id}</text>
-  ${schoolMetaSvg(student, options.uiLanguage, 390, 110, p, { fontSize: 18, iconSize: 22, maxChars: labels.locale === "en" ? 16 : 12 })}
+  ${schoolMetaSvg(student, options.uiLanguage, 224, 140, p, { fontSize: 25, iconSize: 31, maxChars: labels.locale === "en" ? 16 : 12 })}
   <text x="224" y="174" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 46 : 56}">${esc(overallText)}</text>
   <text x="224" y="204" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 18 : 25}">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
   ${typeChips(student, labels, 224, 214, p)}
@@ -544,7 +544,7 @@ ${commonStyles(p, options.fontCss)}
   <text x="52" y="${height - 74}" class="sub mono">${esc(student.devName)} · #${student.id}</text>
   <text x="376" y="78" class="title">${esc(options.arenaSeason || "")} Arena PvP Card</text>
   <text x="376" y="112" class="sub mono">${esc(student.devName)} · #${student.id}</text>
-  ${schoolMetaSvg(student, options.uiLanguage, 520, 112, p, { fontSize: 18, iconSize: 22, maxChars: labels.locale === "en" ? 18 : 14 })}
+  ${schoolMetaSvg(student, options.uiLanguage, 376, 136, p, { fontSize: 25, iconSize: 31, maxChars: labels.locale === "en" ? 18 : 14 })}
   <rect x="842" y="42" width="398" height="168" rx="8" fill="${p.radarBg}" stroke="${overallColor}" stroke-width="2"/>
   <text x="866" y="76" class="label">${esc(t(options.uiLanguage, "overall"))}</text>
   <text x="866" y="158" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 58 : 76}">${esc(overallText)}</text>

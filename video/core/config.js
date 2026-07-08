@@ -3,6 +3,7 @@ import { DEFAULT_DIMENSION_WEIGHTS, WEIGHT_EDITOR_MODES, normalizeDimensionWeigh
 
 export const VIDEO_PROJECT_VERSION = 1;
 export const COMMENT_SCROLL_TOP_GAP = 28;
+export const COMMENT_SCROLL_BOTTOM_CLEARANCE = 34;
 
 export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   width: 1920,
@@ -213,6 +214,7 @@ export function estimateCommentScroll(notes, language = "zh", options = {}) {
   const lineHeight = options.lineHeight || 34;
   const viewportHeight = options.viewportHeight || 116;
   const topGap = Math.max(0, Number(options.topGap) || 0);
+  const bottomClearance = Math.max(0, Number(options.bottomClearance) || 0);
   const explicitLines = text.split(/\r?\n/);
   const wrapLine = line => {
     if (!line) return 1;
@@ -241,13 +243,13 @@ export function estimateCommentScroll(notes, language = "zh", options = {}) {
     return Math.max(1, Math.ceil(units / charsPerLine));
   };
   const lines = explicitLines.reduce((sum, line) => sum + wrapLine(line), 0);
-  return { lines, distance: commentScrollDistanceFromHeights(lines * lineHeight + topGap, viewportHeight, options.threshold ?? 0.1) };
+  return { lines, distance: commentScrollDistanceFromHeights(lines * lineHeight + topGap, viewportHeight, options.threshold ?? 0.1, bottomClearance) };
 }
 
-export function commentScrollDistanceFromHeights(textHeight, viewportHeight, threshold = 0.1) {
+export function commentScrollDistanceFromHeights(textHeight, viewportHeight, threshold = 0.1, bottomClearance = 0) {
   const distance = Number(textHeight) - Number(viewportHeight);
   if (!Number.isFinite(distance) || distance <= Number(threshold)) return 0;
-  return Math.ceil(distance);
+  return Math.ceil(distance + Math.max(0, Number(bottomClearance) || 0));
 }
 
 export function commentScrollFrames(timeline, settings = DEFAULT_VIDEO_SETTINGS, fps = DEFAULT_VIDEO_SETTINGS.fps) {

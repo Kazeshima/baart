@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag, for example v1.1.0"
+        description: "Release tag, for example v1.1.1"
         required: true
-        default: "v1.1.0"
+        default: "v1.1.1"
       draft:
         description: "Create a draft release"
         required: true
@@ -60,7 +60,30 @@ jobs:
           releaseBody: |
             BAART Windows x64 release.
 
-            This build includes the standalone Remotion renderer runtime, generated local school icons, and Windows installers.
+            This build includes the standalone Remotion renderer runtime, generated local school icons, Windows installers, and a portable standalone executable.
           releaseDraft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft == 'true' || false }}
           prerelease: false
           args: --target x86_64-pc-windows-msvc
+
+      - name: Prepare portable executable asset
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          $source = "src-tauri/target/x86_64-pc-windows-msvc/release/baart.exe"
+          if (!(Test-Path $source)) {
+            $source = "src-tauri/target/release/baart.exe"
+          }
+          if (!(Test-Path $source)) {
+            throw "Portable executable not found in target release directories"
+          }
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item $source "release-assets/BAART-$tag-windows-x64-portable.exe"
+
+      - name: Upload portable executable
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft == 'true' || false }}
+          files: release-assets/BAART-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}-windows-x64-portable.exe

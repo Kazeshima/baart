@@ -52,7 +52,8 @@ button, input, select { font: inherit; }
 .studio-order-list { max-height: 270px; overflow-y: auto; display: grid; gap: 5px; }
 .studio-order-item { min-height: 38px; padding: 5px 8px; display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: grab; touch-action: none; }
 .studio-order-item small { color: var(--text-muted); }
-.studio-school-icon { width: 15px; height: 15px; margin: 0 4px; object-fit: contain; vertical-align: -3px; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent-gold) 25%, transparent)); }
+.studio-school-icon { width: 21px; height: 21px; margin: 0 5px; object-fit: contain; vertical-align: -6px; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent-gold) 25%, transparent)); }
+[data-theme="light"] .studio-school-icon { filter: drop-shadow(0 1px 1px rgba(15, 23, 42, .85)) drop-shadow(0 0 3px rgba(15, 23, 42, .5)); }
 .studio-order-handle { color: var(--text-muted); }
 .studio-order-item > span:not(.studio-order-handle), .studio-status span:first-child { white-space: pre-wrap; }
 .studio-render-button { position: sticky; bottom: 12px; height: 42px; border: 1px solid var(--accent-gold); border-radius: 6px; background: #1a1404; color: var(--accent-gold); font-weight: 800; cursor: pointer; }

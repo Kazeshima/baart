@@ -42,8 +42,8 @@ export function buildDimensionReportSvg({ rows, dimension, direction = "desc", l
   const visibleRows = Math.max(1, rows.length);
   const height = Math.min(1920, 160 + visibleRows * rowHeight);
   const palette = theme === "light"
-    ? { bg: "#edf3f8", panel: "#f8fbff", text: "#1b2b3d", sub: "#53677e", border: "#b9c8d8" }
-    : { bg: "#06080f", panel: "#0d1120", text: "#e8f0fe", sub: "#8da4be", border: "#1e2d42" };
+    ? { bg: "#edf3f8", panel: "#f8fbff", text: "#1b2b3d", sub: "#53677e", border: "#b9c8d8", iconFilter: "url(#lightIconContrast)" }
+    : { bg: "#06080f", panel: "#0d1120", text: "#e8f0fe", sub: "#8da4be", border: "#1e2d42", iconFilter: "" };
   const title = `${arenaSeason} · ${dimensionLabel} · ${direction === "asc" ? t(language, "bottomToTop") : t(language, "topToBottom")}`;
   const renderedRows = rows.slice(0, Math.floor((height - 150) / rowHeight)).map((row, index) => {
     const y = 122 + index * rowHeight;
@@ -64,8 +64,8 @@ export function buildDimensionReportSvg({ rows, dimension, direction = "desc", l
         <rect x="66" y="7" width="40" height="40" rx="5" fill="none" stroke="${palette.border}"/>
         <text x="122" y="25" fill="${palette.text}" font-size="21" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif" xml:space="preserve">${esc(row.name)}</text>
         <text x="122" y="43" fill="${palette.sub}" font-size="13" font-weight="700" font-family="Rajdhani, Arial">#${row.student.id}</text>
-        ${schoolIcon ? `<image href="${schoolIcon}" x="184" y="29" width="16" height="16" preserveAspectRatio="xMidYMid meet"/>` : ""}
-        <text x="${schoolIcon ? 204 : 184}" y="43" fill="${palette.sub}" font-size="13" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif">${esc(school)}</text>
+        ${schoolIcon ? `<image href="${schoolIcon}" x="184" y="24" width="22" height="22" preserveAspectRatio="xMidYMid meet" ${palette.iconFilter ? `filter="${palette.iconFilter}"` : ""}/>` : ""}
+        <text x="${schoolIcon ? 212 : 184}" y="43" fill="${palette.sub}" font-size="13" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif">${esc(school)}</text>
         <rect x="630" y="10" width="54" height="34" rx="5" fill="${TIER_COLORS[row.tier]}22" stroke="${TIER_COLORS[row.tier]}"/>
         <text x="657" y="34" text-anchor="middle" fill="${TIER_COLORS[row.tier]}" font-size="26" font-weight="900" font-family="Rajdhani, Arial">${row.tier}</text>
         <text x="720" y="24" fill="${palette.sub}" font-size="13" font-weight="800" font-family="Rajdhani, Arial">${esc(t(language, "overallScore"))}</text>
@@ -73,6 +73,12 @@ export function buildDimensionReportSvg({ rows, dimension, direction = "desc", l
       </g>`;
   }).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <defs>
+      <filter id="lightIconContrast" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="#0f172a" flood-opacity="0.85"/>
+        <feDropShadow dx="0" dy="0" stdDeviation="1.2" flood-color="#0f172a" flood-opacity="0.42"/>
+      </filter>
+    </defs>
     <rect width="${width}" height="${height}" fill="${palette.bg}"/>
     <text x="32" y="54" fill="${palette.text}" font-size="30" font-weight="900" font-family="Rajdhani, Microsoft YaHei, sans-serif">${esc(t(language, "dimensionRankReport"))}</text>
     <text x="32" y="88" fill="${palette.sub}" font-size="18" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif">${esc(title)}</text>
