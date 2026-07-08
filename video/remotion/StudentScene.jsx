@@ -6,7 +6,7 @@ import { formatWeightShare } from "../../src/utils/scoring.js";
 import { studentDisplayName } from "../../src/utils/studentDisplay.js";
 import OverallBadge from "../../src/components/presentation/OverallBadge.jsx";
 import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators, studentPresentation } from "../../src/components/presentation/StudentPresentation.jsx";
-import { commentScrollDistanceFromHeights, commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll, sceneFadeOpacity } from "../core/config.js";
+import { COMMENT_SCROLL_TOP_GAP, commentScrollDistanceFromHeights, commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll, sceneFadeOpacity } from "../core/config.js";
 import AnimatedRadar from "./AnimatedRadar.jsx";
 
 const palettes = {
@@ -47,11 +47,14 @@ export default function StudentScene({ record, settings }) {
   const overallSpring = spring({ frame: frame - timeline.overallStart, fps, config: { damping: 14, stiffness: 115, mass: 0.8 } });
   const infoEnterFrames = Math.max(1, Math.round(settings.infoEnterDuration * fps));
   const cardOpacity = sceneFadeOpacity(frame, timeline);
+  const hasQualityCommentMask = !profile.disableCommentMask && qualityMode === "quality";
+  const commentTopGap = hasQualityCommentMask ? COMMENT_SCROLL_TOP_GAP : 0;
   const scroll = useMemo(() => estimateCommentScroll(ratings.notes, settings.uiLanguage, {
     charsPerLine: settings.uiLanguage === "en" ? 28 : 17,
     lineHeight: 58,
     viewportHeight: 260,
-  }), [ratings.notes, settings.uiLanguage]);
+    topGap: commentTopGap,
+  }), [ratings.notes, settings.uiLanguage, commentTopGap]);
   const commentViewportRef = useRef(null);
   const commentTextRef = useRef(null);
   const [measuredScrollDistance, setMeasuredScrollDistance] = useState(null);
@@ -64,16 +67,12 @@ export default function StudentScene({ record, settings }) {
       textRect.height / (scale || 1),
       commentTextRef.current.scrollHeight || 0,
     );
-    const measured = commentScrollDistanceFromHeights(textHeight, viewportHeight);
+    const measured = commentScrollDistanceFromHeights(textHeight + commentTopGap, viewportHeight);
     setMeasuredScrollDistance(current => Math.abs(Number(current ?? -1) - measured) > 0.5 ? measured : current);
-  }, [ratings.notes, settings.uiLanguage, settings.theme, qualityMode, scale]);
+  }, [ratings.notes, settings.uiLanguage, settings.theme, qualityMode, commentTopGap, scale]);
   const scrollDistance = measuredScrollDistance ?? scroll.distance;
   const scrollY = profile.disableCommentScroll ? 0 : commentScrollOffset({ frame, distance: scrollDistance, timeline, settings, fps });
-  const commentMaskClass = profile.disableCommentMask || qualityMode !== "quality"
-    ? "video-comments__viewport--no-mask"
-    : scrollY > 0.5
-      ? "video-comments__viewport--scrolling"
-      : "";
+  const commentMaskClass = hasQualityCommentMask ? "video-comments__viewport--quality" : "video-comments__viewport--no-mask";
 
   return (
     <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text }}>
@@ -99,7 +98,7 @@ export default function StudentScene({ record, settings }) {
 
       {!profile.disableComments ? <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-section-label">{t(settings.uiLanguage, "comments")}</div>
-        <div ref={commentViewportRef} className={`video-comments__viewport ${commentMaskClass}`}>
+        <div ref={commentViewportRef} className={`video-comments__viewport ${commentMaskClass}`} style={{ "--comment-scroll-top-gap": `${commentTopGap}px` }}>
           <div ref={commentTextRef} className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{ratings.notes || "—"}</div>
         </div>
       </section> : null}

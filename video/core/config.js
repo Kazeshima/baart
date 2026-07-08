@@ -2,6 +2,7 @@ import { DEFAULT_DIMENSION_WEIGHT_SHARES } from "../../src/utils/constants.js";
 import { DEFAULT_DIMENSION_WEIGHTS, WEIGHT_EDITOR_MODES, normalizeDimensionWeights, normalizeFineWeightState, normalizeWeightEditorMode, normalizeWeightMode } from "../../src/utils/scoring.js";
 
 export const VIDEO_PROJECT_VERSION = 1;
+export const COMMENT_SCROLL_TOP_GAP = 28;
 
 export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   width: 1920,
@@ -211,6 +212,7 @@ export function estimateCommentScroll(notes, language = "zh", options = {}) {
   const charsPerLine = options.charsPerLine || (language === "en" ? 22 : 14);
   const lineHeight = options.lineHeight || 34;
   const viewportHeight = options.viewportHeight || 116;
+  const topGap = Math.max(0, Number(options.topGap) || 0);
   const explicitLines = text.split(/\r?\n/);
   const wrapLine = line => {
     if (!line) return 1;
@@ -239,7 +241,7 @@ export function estimateCommentScroll(notes, language = "zh", options = {}) {
     return Math.max(1, Math.ceil(units / charsPerLine));
   };
   const lines = explicitLines.reduce((sum, line) => sum + wrapLine(line), 0);
-  return { lines, distance: commentScrollDistanceFromHeights(lines * lineHeight, viewportHeight, options.threshold ?? 0.1) };
+  return { lines, distance: commentScrollDistanceFromHeights(lines * lineHeight + topGap, viewportHeight, options.threshold ?? 0.1) };
 }
 
 export function commentScrollDistanceFromHeights(textHeight, viewportHeight, threshold = 0.1) {

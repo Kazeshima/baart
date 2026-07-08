@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   DEFAULT_VIDEO_SETTINGS,
+  COMMENT_SCROLL_TOP_GAP,
   benchmarkStorageKey,
   clampProgress,
   commentScrollDistanceFromHeights,
@@ -136,11 +137,14 @@ test("scene fades fully out on the final frame", () => {
   assert.ok(sceneFadeOpacity(timeline.fadeOutStart, timeline) < 1);
 });
 
-test("quality comment mask adds the top fade only while comments scroll", async () => {
+test("quality comment mask reserves a top gap before text reaches the fade", async () => {
   const css = await readFile(new URL("../video/video.css", import.meta.url), "utf8");
-  assert.match(css, /video-comments__viewport[^{]*\{[^}]*linear-gradient\(to bottom,\s*#000 0%/s);
-  assert.match(css, /video-comments__viewport--scrolling[^{]*\{[^}]*linear-gradient\(to bottom,\s*transparent 0%/s);
-  assert.match(css, /video-comments__viewport--scrolling[^{]*\{[^}]*#000 9%[^}]*#000 88%[^}]*transparent 100%/s);
+  assert.equal(COMMENT_SCROLL_TOP_GAP, 28);
+  assert.match(css, /video-comments__viewport--quality[^{]*\{[^}]*padding-top:\s*var\(--comment-scroll-top-gap/s);
+  assert.match(css, /video-comments__viewport--quality[^{]*\{[^}]*linear-gradient\(to bottom,\s*transparent 0%/s);
+  assert.match(css, /video-comments__viewport--quality[^{]*\{[^}]*#000 9%[^}]*#000 88%[^}]*transparent 100%/s);
+  assert.equal(commentScrollDistanceFromHeights(260, 260), 0);
+  assert.equal(commentScrollDistanceFromHeights(260 + COMMENT_SCROLL_TOP_GAP, 260), COMMENT_SCROLL_TOP_GAP);
 });
 
 test("shared rating order normalization and student record conversion support the main sidebar", () => {
