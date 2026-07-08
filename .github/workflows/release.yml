@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag, for example v1.1.1"
+        description: "Release tag, for example v1.1.2"
         required: true
-        default: "v1.1.1"
+        default: "v1.1.2"
       draft:
         description: "Create a draft release"
         required: true
@@ -60,30 +60,60 @@ jobs:
           releaseBody: |
             BAART Windows x64 release.
 
-            This build includes the standalone Remotion renderer runtime, generated local school icons, Windows installers, and a portable standalone executable.
+            This build includes the standalone Remotion renderer runtime, generated local school icons, Windows installers, and a portable ZIP bundle with the executable plus required renderer resources.
           releaseDraft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft == 'true' || false }}
           prerelease: false
           args: --target x86_64-pc-windows-msvc
 
-      - name: Prepare portable executable asset
+      - name: Prepare portable bundle asset
         shell: pwsh
         run: |
           $tag = "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
-          $source = "src-tauri/target/x86_64-pc-windows-msvc/release/baart.exe"
-          if (!(Test-Path $source)) {
-            $source = "src-tauri/target/release/baart.exe"
-          }
-          if (!(Test-Path $source)) {
+          $candidateRoots = @(
+            "src-tauri/target/x86_64-pc-windows-msvc/release",
+            "src-tauri/target/release"
+          )
+          $releaseRoot = $candidateRoots | Where-Object { Test-Path (Join-Path $_ "baart.exe") } | Select-Object -First 1
+          if (!$releaseRoot) {
             throw "Portable executable not found in target release directories"
           }
-          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
-          Copy-Item $source "release-assets/BAART-$tag-windows-x64-portable.exe"
+          $required = @(
+            "baart.exe",
+            "baart-node.exe",
+            "renderer/app/video/sidecar/worker.mjs",
+            "renderer/composition",
+            "renderer/app/node_modules/@remotion/compositor-win32-x64-msvc"
+          )
+          foreach ($relative in $required) {
+            $path = Join-Path $releaseRoot $relative
+            if (!(Test-Path $path)) {
+              throw "Portable runtime is incomplete; missing $path"
+            }
+          }
 
-      - name: Upload portable executable
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          $portableRoot = "release-assets/BAART-$tag-windows-x64-portable"
+          Remove-Item $portableRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
+          Copy-Item -LiteralPath (Join-Path $releaseRoot "baart.exe") -Destination $portableRoot
+          Copy-Item -LiteralPath (Join-Path $releaseRoot "baart-node.exe") -Destination $portableRoot
+          Copy-Item -LiteralPath (Join-Path $releaseRoot "renderer") -Destination $portableRoot -Recurse
+          if (Test-Path (Join-Path $releaseRoot "resources")) {
+            Copy-Item -LiteralPath (Join-Path $releaseRoot "resources") -Destination $portableRoot -Recurse
+          }
+          @"
+          BAART portable bundle
+
+          Keep baart.exe, baart-node.exe, and the renderer folder together.
+          Video Studio rendering and benchmarking will fail if baart.exe is copied out by itself.
+          "@ | Set-Content -Path (Join-Path $portableRoot "README-portable.txt") -Encoding UTF8
+          Compress-Archive -Path "$portableRoot/*" -DestinationPath "release-assets/BAART-$tag-windows-x64-portable.zip" -Force
+
+      - name: Upload portable bundle
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft == 'true' || false }}
-          files: release-assets/BAART-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}-windows-x64-portable.exe
+          files: release-assets/BAART-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}-windows-x64-portable.zip

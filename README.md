@@ -38,13 +38,13 @@ Run the desktop app:
 npm run tauri dev
 ```
 
-Build the Windows app, portable executable, and installers:
+Build the Windows app, portable ZIP bundle, and installers:
 
 ```powershell
 npm run tauri build
 ```
 
-The build prepares local school icons, the standalone renderer runtime, Remotion modules, compositor binaries, the prebuilt composition bundle, the portable `baart.exe`, and installers. GitHub Releases publish both installer packages and a portable standalone Windows x64 executable.
+The build prepares local school icons, the standalone renderer runtime, Remotion modules, compositor binaries, the prebuilt composition bundle, and installers. GitHub Releases publish installer packages plus a portable Windows x64 ZIP bundle; keep `baart.exe`, `baart-node.exe`, and the `renderer/` folder together when using the portable build.
 
 ## Documentation
 

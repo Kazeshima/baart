@@ -30,12 +30,14 @@ Visual checks before tagging:
 
 The release workflow runs on `v*` tags and manual dispatch. It builds Windows x64 Tauri artifacts and uploads them to GitHub Releases.
 
-For `v1.1.0`:
+Portable downloads must be ZIP bundles, not a raw copied `baart.exe`. Video Studio rendering depends on sibling runtime resources (`baart-node.exe` and `renderer/`) that are not embedded in the executable.
+
+For a new patch release:
 
 ```powershell
 git checkout main
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.1.x
+git push origin v1.1.x
 ```
 
 The workflow prepares school icons and renderer runtime assets before building. The generated assets are included in the release artifacts, but generated caches and local test data remain untracked.

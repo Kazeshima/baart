@@ -38,13 +38,13 @@ npm run dev
 npm run tauri dev
 ```
 
-构建 Windows 应用、便携 exe 和安装包：
+构建 Windows 应用、便携 ZIP 和安装包：
 
 ```powershell
 npm run tauri build
 ```
 
-构建流程会准备本地学校图标、独立渲染器运行时、Remotion 模块、合成器二进制文件、预构建合成包、便携 `baart.exe` 和安装包。GitHub Releases 会同时发布安装包和 Windows x64 便携独立可执行文件。
+构建流程会准备本地学校图标、独立渲染器运行时、Remotion 模块、合成器二进制文件、预构建合成包和安装包。GitHub Releases 会同时发布安装包和 Windows x64 便携 ZIP；使用便携版时必须让 `baart.exe`、`baart-node.exe` 和 `renderer/` 文件夹保持在一起。
 
 ## 文档
 
