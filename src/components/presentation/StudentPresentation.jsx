@@ -33,8 +33,8 @@ export function studentPresentation(student, language) {
   };
 }
 
-export function StudentIdentity({ student, language = "zh", nameClassName, metaClassName, nameStyle, children, ImageComponent = "img" }) {
-  const school = student.school ? schoolLabel(language, student.school) : "";
+export function StudentIdentity({ student, language = "zh", nameClassName, metaClassName, nameStyle, children, ImageComponent = "img", showSchool = true }) {
+  const school = showSchool ? schoolLabel(language, student.school) : "";
   const icon = schoolIconPath(student.school);
   const Image = ImageComponent;
   return <>

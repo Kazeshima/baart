@@ -39,6 +39,10 @@ export const UI_TEXT = {
     exportPng: "导出PNG",
     rankReportEmpty: "该维度还没有可排名的评分",
     close: "关闭",
+    cancel: "取消",
+    exportPreview: "导出预览",
+    saveSvg: "保存SVG",
+    savePng: "保存PNG",
     emptyTitle: "从左侧搜索并选择学生开始评级",
     autosaveHint: "评级自动保存到本地，同时可写入JSON文件",
     loading: "LOADING STUDENT DATA...",
@@ -122,6 +126,10 @@ export const UI_TEXT = {
     exportPng: "Export PNG",
     rankReportEmpty: "No rated students in this dimension yet",
     close: "Close",
+    cancel: "Cancel",
+    exportPreview: "Export Preview",
+    saveSvg: "Save SVG",
+    savePng: "Save PNG",
     emptyTitle: "Search and select a student from the left",
     autosaveHint: "Ratings autosave locally and can be written to JSON",
     loading: "LOADING STUDENT DATA...",
@@ -244,7 +252,7 @@ export const SCHOOL_LABELS_BY_LOCALE = {
     SRT: "SRT特殊学园", Sakugawa: "栅川中学", Shanhaijing: "山海经高级中学", Tokiwadai: "常盘台中学",
     Trinity: "三一综合学园", Valkyrie: "瓦尔基里警察学校", WildHunt: "狂猎艺术学院",
   },
-  en: {},
+  en: { ETC: "Other" },
 };
 
 export const OVERALL_LABELS = {
@@ -268,5 +276,6 @@ export function terrainLabel(language, terrainKey) {
 
 export function schoolLabel(language, schoolKey) {
   const locale = localeFor(language);
+  if (!schoolKey) return SCHOOL_LABELS_BY_LOCALE[locale]?.ETC || SCHOOL_LABELS_BY_LOCALE.zh.ETC;
   return SCHOOL_LABELS_BY_LOCALE[locale]?.[schoolKey] || schoolKey || "";
 }

@@ -107,11 +107,11 @@ export default function StudentScene({ record, settings }) {
 
       <section className="video-radar-panel" style={enterStyle(frame, timeline.radarStart - Math.round(fps * 0.25), Math.max(1, Math.round(settings.infoEnterDuration * fps)), 18)}>
         <AnimatedRadar ratings={ratings} language={settings.uiLanguage} settings={settings} size={640} />
-        <div className="video-weights">
-          <span className="video-weights__label">{t(settings.uiLanguage, "weightsUsed")}</span>
-          {DIMENSIONS.map(({ key }) => <span key={key}>{dimensionLabels[key][0]} <strong>{formatWeightShare(ratings.dimensionWeightShares?.[key])}</strong></span>)}
-        </div>
       </section>
+      <div className="video-weights" style={enterStyle(frame, timeline.radarStart, Math.max(1, Math.round(settings.infoEnterDuration * fps)), 12)}>
+        <span className="video-weights__label">{t(settings.uiLanguage, "weightsUsed")}</span>
+        {DIMENSIONS.map(({ key }) => <span key={key}>{dimensionLabels[key][0]} <strong>{formatWeightShare(ratings.dimensionWeightShares?.[key])}</strong></span>)}
+      </div>
 
       <section className="video-overall" style={{ opacity: overallSpring, transform: `scale(${0.82 + overallSpring * 0.18})`, borderColor: overallColor, boxShadow: `0 0 ${settings.overallGlowStrength * overallSpring}px ${overallColor}35` }}>
         <div className="video-section-label">{t(settings.uiLanguage, "overall")}</div>

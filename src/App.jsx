@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { RATING_ORDER_STORAGE_KEYS, WEIGHT_STORAGE_KEYS, useRatingStore } from "./store/ratingStore.js";
 import { LANGS, LANG_URLS, SEASONS } from "./utils/constants.js";
 import { UI_LANGS, t, terrainLabel } from "./utils/i18n.js";
-import { useExport } from "./components/ExportCard.jsx";
+import { ExportPreviewModal, useExport } from "./components/ExportCard.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import StudentInfo from "./components/StudentInfo.jsx";
 import RatingPanel from "./components/RatingPanel.jsx";
@@ -20,7 +20,7 @@ export default function App() {
     syncRatingOrderFromStorage, syncSharedWeightSettingsFromStorage,
   } = useRatingStore();
 
-  const { exportCard } = useExport();
+  const { exportCard, exportPreview, saveExportPreview, closeExportPreview } = useExport();
   const importRef = useRef(null);
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -209,6 +209,7 @@ export default function App() {
       {/* ── Sidebar ── */}
       <Sidebar />
       <DimensionReport open={reportOpen} onClose={() => setReportOpen(false)} />
+      <ExportPreviewModal preview={exportPreview} onSave={saveExportPreview} onClose={closeExportPreview} />
 
       {/* ── Main panel ── */}
       <div className="main-panel">

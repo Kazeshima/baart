@@ -749,6 +749,53 @@ html, body, #root {
 .btn-gold { background: #1a1404; border-color: var(--accent-gold); color: var(--accent-gold); }
 .btn-gold:hover { background: var(--accent-gold); color: #000; }
 
+/* ─── Export preview ─────────────────────────────────────────── */
+.export-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+}
+.export-preview-panel {
+  width: min(1180px, 96vw);
+  max-height: 94vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  box-shadow: 0 24px 72px rgba(0, 0, 0, .48);
+}
+.export-preview-header,
+.export-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.export-preview-header h2 { margin: 0; font-size: 20px; }
+.export-preview-header p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; font-family: var(--font-mono); }
+.export-preview-canvas {
+  min-height: 0;
+  max-height: calc(94vh - 144px);
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+}
+.export-preview-canvas svg {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+.export-preview-actions { justify-content: flex-end; }
+
 /* ─── Select ─────────────────────────────────────────────────── */
 .styled-select {
   background: var(--bg-card);

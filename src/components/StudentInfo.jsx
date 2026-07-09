@@ -66,7 +66,7 @@ export default function StudentInfo({ student }) {
           <img src={collectionUrl} alt={student.name} />
         )}
         <div className="student-card__portrait-overlay">
-          <StudentIdentity student={{ ...student, school: "" }} language={uiLanguage} nameClassName="student-card__name" metaClassName="student-card__devname" />
+          <StudentIdentity student={student} language={uiLanguage} nameClassName="student-card__name" metaClassName="student-card__devname" showSchool={false} />
         </div>
       </div>
 

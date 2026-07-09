@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   DIMENSIONS,
   TIER_COLORS,
@@ -20,13 +21,13 @@ import {
   localeFor,
   schoolLabel,
   t,
-  terrainLabel,
 } from "../utils/i18n.js";
 import { RADAR_ANGLES } from "../utils/radar.js";
 import { WEIGHT_EDITOR_MODES, formatWeightShare, recalculateRatings } from "../utils/scoring.js";
 import { useRatingStore } from "../store/ratingStore.js";
 import { studentDisplayName } from "../utils/studentDisplay.js";
 import { schoolIconPath } from "../utils/schoolIcons.js";
+import { fitStaticExportText } from "../utils/exportText.js";
 
 const CARD = {
   compact: { width: 960, height: 540, avatar: 148, radar: 330 },
@@ -192,33 +193,6 @@ function labelPack(uiLanguage) {
   };
 }
 
-function wrapText(value, maxChars, maxLines) {
-  const text = String(value || "").replace(/\s+/g, " ").trim();
-  if (!text) return [];
-  const lines = [];
-  let current = "";
-  for (const token of text.split(" ")) {
-    const next = current ? `${current} ${token}` : token;
-    if (next.length <= maxChars) {
-      current = next;
-      continue;
-    }
-    if (current) lines.push(current);
-    current = token;
-    while (current.length > maxChars) {
-      lines.push(current.slice(0, maxChars));
-      current = current.slice(maxChars);
-    }
-    if (lines.length >= maxLines) break;
-  }
-  if (current && lines.length < maxLines) lines.push(current);
-  if (lines.length > maxLines) lines.length = maxLines;
-  if (lines.length && text.length > lines.join(" ").length) {
-    lines[lines.length - 1] = `${lines[lines.length - 1].replace(/\.{3}$/, "")}...`;
-  }
-  return lines;
-}
-
 function trimText(value, maxChars) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   if (text.length <= maxChars) return text;
@@ -226,19 +200,29 @@ function trimText(value, maxChars) {
 }
 
 function noteBlock(text, x, y, width, height, uiLanguage, p, options = {}) {
-  const lines = wrapText(text, options.maxChars || 36, options.maxLines || 2);
-  if (!lines.length) return "";
-  const fontSize = options.fontSize || 18;
-  const lineGap = options.lineGap || fontSize + 4;
-  const labelY = options.labelY || y + 22;
-  const textY = options.textY || y + 44;
-  const label = t(uiLanguage, "notes");
+  const locale = localeFor(uiLanguage);
+  const paddingX = options.paddingX ?? 18;
+  const paddingTop = options.paddingTop ?? 44;
+  const paddingBottom = options.paddingBottom ?? 16;
+  const labelY = options.labelY || y + 28;
+  const textY = options.textY || y + paddingTop;
+  const textWidth = width - paddingX * 2;
+  const textHeight = height - paddingTop - paddingBottom;
+  const fit = fitStaticExportText(text, {
+    width: textWidth,
+    height: textHeight,
+    maxFont: options.maxFont || 25,
+    minFont: options.minFont || 13,
+    unitFactor: options.unitFactor || (locale === "en" ? 0.88 : 0.98),
+    lineHeight: options.lineHeight || 1.16,
+  });
+  const label = options.label || t(uiLanguage, "comments");
   return `
   <g>
-    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="7" fill="${p.card}" stroke="${p.stroke}"/>
+    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="8" fill="${p.card}" fill-opacity="${options.opacity || p.cardOpacity || "0.76"}" stroke="${p.stroke}"/>
     ${options.hideLabel ? "" : `<text x="${x + 14}" y="${labelY}" class="label">${esc(label)}</text>`}
-    <text x="${x + 14}" y="${textY}" fill="${p.text}" font-size="${fontSize}" font-weight="800">
-      ${lines.map((line, i) => `<tspan x="${x + 14}" dy="${i === 0 ? 0 : lineGap}">${esc(line)}</tspan>`).join("")}
+    <text x="${x + paddingX}" y="${textY}" fill="${p.text}" font-size="${fit.fontSize}" font-weight="700">
+      ${fit.lines.map((line, i) => `<tspan x="${x + paddingX}" dy="${i === 0 ? 0 : fit.lineGap}">${esc(line)}</tspan>`).join("")}
     </text>
   </g>`;
 }
@@ -251,43 +235,75 @@ function compactSummary(student, labels, uiLanguage) {
   return { role, weapon };
 }
 
-function weightSummarySvg(ratings, uiLanguage, p, x, y, fontSize = 14) {
+function weightSummarySvg(ratings, uiLanguage, p, x, y, fontSize = 14, options = {}) {
   const labels = DIMENSION_LABELS[localeFor(uiLanguage)] || DIMENSION_LABELS.zh;
   const items = DIMENSIONS.map(({ key }) => ({
     label: labels[key][0],
     value: formatWeightShare(ratings.dimensionWeightShares?.[key]),
   }));
-  const groups = [items.slice(0, 2), items.slice(2)];
-  const line = (group, lineY) => `<text x="${x}" y="${lineY}" font-size="${fontSize}" font-weight="800" fill="${p.sub}">${group.map((item, index) => `${index ? `<tspan fill="${p.muted}"> · </tspan>` : ""}<tspan>${esc(item.label)} </tspan><tspan fill="#f0b429" font-weight="900">${item.value}</tspan>`).join("")}</text>`;
+  const anchor = options.anchor || "start";
+  const title = options.hideLabel ? "" : `<tspan fill="${p.muted}" font-weight="900">${esc(t(uiLanguage, "weightsUsed"))}</tspan><tspan fill="${p.muted}"> · </tspan>`;
   return `
   <g>
-    <text x="${x}" y="${y}" class="label">${esc(t(uiLanguage, "weightsUsed"))}</text>
-    ${line(groups[0], y + 20)}
-    ${line(groups[1], y + 40)}
+    <text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${fontSize}" font-weight="800" fill="${p.sub}">${title}${items.map((item, index) => `${index ? `<tspan fill="${p.muted}"> · </tspan>` : ""}<tspan>${esc(item.label)} </tspan><tspan fill="#f0b429" font-weight="900">${item.value}</tspan>`).join("")}</text>
   </g>`;
 }
 
 function schoolMetaSvg(student, uiLanguage, x, y, p, options = {}) {
-  const school = student.school ? schoolLabel(uiLanguage, student.school) : "";
-  if (!school) return "";
+  const school = schoolLabel(uiLanguage, student.school);
   const icon = schoolIconPath(student.school);
   const fontSize = options.fontSize || 18;
   const iconSize = options.iconSize || 22;
   const textX = icon ? x + iconSize + 8 : x;
+  const iconY = y - fontSize * 0.35 - iconSize / 2;
   return `
   <g>
-    ${icon ? `<image href="${icon}" x="${x}" y="${y - iconSize + 4}" width="${iconSize}" height="${iconSize}" preserveAspectRatio="xMidYMid meet" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>` : ""}
+    ${icon ? `<image href="${icon}" x="${x}" y="${iconY}" width="${iconSize}" height="${iconSize}" preserveAspectRatio="xMidYMid meet" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>` : ""}
     <text x="${textX}" y="${y}" fill="${options.fill || "#f0b429"}" font-size="${fontSize}" font-weight="900">${esc(trimText(school, options.maxChars || 20))}</text>
   </g>`;
+}
+
+function panelRect(x, y, width, height, p, options = {}) {
+  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${options.rx || 8}" fill="${options.fill || p.card}" fill-opacity="${options.opacity || p.cardOpacity || "0.76"}" stroke="${options.stroke || p.stroke}" ${options.strokeWidth ? `stroke-width="${options.strokeWidth}"` : ""}/>`;
+}
+
+function overallPanelSvg(ratings, uiLanguage, x, y, width, height, p, options = {}) {
+  const locale = localeFor(uiLanguage);
+  const overall = ratings.overall;
+  const color = overall !== null && overall !== undefined ? OVERALL_COLORS[overall] : p.muted;
+  const label = overall !== null && overall !== undefined ? OVERALL_LABELS[locale][overall] : "?";
+  const score = ratings.overallScore !== null && ratings.overallScore !== undefined ? Number(ratings.overallScore).toFixed(1) : "--";
+  const titleWidth = options.titleWidth || Math.round(width * 0.24);
+  const ratingSize = options.ratingSize || (locale === "en" ? 54 : 72);
+  const scoreSize = options.scoreSize || (locale === "en" ? 50 : 58);
+  const titleSize = options.titleSize || 23;
+  const ratingClass = locale === "en" ? "rating-latin" : "rating";
+  const baseline = y + height * 0.66;
+  return `
+  <g class="export-overall">
+    ${panelRect(x, y, width, height, p, { fill: p.panel, opacity: options.opacity || "0.58", stroke: color, strokeWidth: 2 })}
+    <text x="${x + 24}" y="${y + height / 2 - 4}" class="label" fill="${p.muted}" font-size="${titleSize}" font-weight="900">${esc(t(uiLanguage, "overall"))}</text>
+    <text x="${x + titleWidth}" y="${baseline}" class="${ratingClass}" fill="${color}" font-size="${ratingSize}" font-weight="400">${esc(label)}</text>
+    <text x="${x + width - 28}" y="${baseline}" text-anchor="end" class="${ratingClass}" fill="${color}" font-size="${scoreSize}" font-weight="400">${esc(score)}</text>
+  </g>`;
+}
+
+function exportTitleFontSize(student, language, max = 68, min = 38) {
+  const displayName = studentDisplayName(student, language);
+  const weightedLength = Array.from(displayName).reduce((sum, character) => sum + (/[\u3000-\u30ff\u3400-\u9fff\uff00-\uffef]/.test(character) ? 1.9 : 1), 0);
+  if (weightedLength > 21) return Math.max(min, max - 26);
+  if (weightedLength > 18) return Math.max(min, max - 18);
+  if (weightedLength > 15) return Math.max(min, max - 10);
+  return max;
 }
 
 function palette(theme = "dark") {
   if (theme === "light") {
     return {
-      bg: "#edf3f8",
+      bg: "#e4edf5",
       panel: "#f8fbff",
       card: "#e7eef6",
-      stroke: "#b2c1d1",
+      stroke: "#b9c8d8",
       text: "#1b2b3d",
       sub: "#53677e",
       muted: "#71839a",
@@ -295,6 +311,8 @@ function palette(theme = "dark") {
       shadow: "#94a9bd",
       iconFilter: "url(#lightIconContrast)",
       iconChipOpacity: "1",
+      cardOpacity: "0.78",
+      portraitShade: "#e4edf5",
     };
   }
   return {
@@ -309,10 +327,13 @@ function palette(theme = "dark") {
     shadow: "#000000",
     iconFilter: "",
     iconChipOpacity: "0.9",
+    cardOpacity: "0.76",
+    portraitShade: "#06080f",
   };
 }
 
 export function useExport() {
+  const [exportPreview, setExportPreview] = useState(null);
   const {
     selectedStudent,
     students,
@@ -325,6 +346,25 @@ export function useExport() {
     theme,
     downloadFile,
   } = useRatingStore();
+
+  const closeExportPreview = () => setExportPreview(null);
+
+  const saveExportPreview = async () => {
+    if (!exportPreview) return;
+    try {
+      if (exportPreview.format === "png") {
+        const bytes = await svgToPngBytes(exportPreview.svg, exportPreview.width, exportPreview.height);
+        const path = await downloadFile(exportPreview.filename, bytes, "image/png");
+        if (path) alert(`${t(uiLanguage, "savedTo")}: ${path}`);
+      } else {
+        const path = await downloadFile(exportPreview.filename, exportPreview.svg, "image/svg+xml;charset=utf-8");
+        if (path) alert(`${t(uiLanguage, "savedTo")}: ${path}`);
+      }
+      setExportPreview(null);
+    } catch (err) {
+      alert(`${t(uiLanguage, "exportFailed")}: ${err?.message || err}`);
+    }
+  };
 
   const exportCard = async (mode = "compact", format = "svg") => {
     const effectiveAllRatings = getEffectiveAllRatings();
@@ -381,55 +421,46 @@ export function useExport() {
     const suffix = mode === "full" ? "full" : "compact";
     const baseName = `${filenamePart(selectedStudent.id)}_${filenamePart(selectedStudent.devName || selectedStudent.name)}_${suffix}`;
     try {
-      if (format === "png") {
-        const { width, height } = CARD[mode];
-        const bytes = await svgToPngBytes(await inlineSvgImages(rawSvg), width, height);
-        const path = await downloadFile(`${baseName}.png`, bytes, "image/png");
-        if (path) alert(`${t(uiLanguage, "savedTo")}: ${path}`);
-      } else {
-        const svg = await inlineSvgImages(rawSvg);
-        const path = await downloadFile(`${baseName}.svg`, svg, "image/svg+xml;charset=utf-8");
-        if (path) alert(`${t(uiLanguage, "savedTo")}: ${path}`);
-      }
+      const { width, height } = CARD[mode];
+      const svg = await inlineSvgImages(rawSvg);
+      setExportPreview({
+        svg,
+        width,
+        height,
+        mode,
+        format,
+        filename: `${baseName}.${format}`,
+      });
     } catch (err) {
       alert(`${t(uiLanguage, "exportFailed")}: ${err}`);
     }
   };
 
-  return { exportCard };
+  return { exportCard, exportPreview, saveExportPreview, closeExportPreview };
 }
 
-function studentMetaRows(student, ratings, season, uiLanguage) {
-  const labels = labelPack(uiLanguage);
-  const squadLabel = student.squadType === "Support" ? labels.role.SupportSquad : labels.role.Main;
-  const attackLabel = labels.type[student.bulletType] || student.bulletType;
-  const defenseLabel = labels.type[student.armorType] || student.armorType;
-  const weaponLabel = labels.weapon[student.weaponType] || "";
-  const coverLabel = student.cover ? t(uiLanguage, "coverYes") : t(uiLanguage, "coverNo");
-  const activeTerrain = SEASONS.find(s => s.key === season) || SEASONS[0];
-  const levelMap = {
-    Street: student.streetAdapt,
-    Outdoor: student.outdoorAdapt,
-    Indoor: student.indoorAdapt,
-  };
-  const activeLevel = levelMap[activeTerrain.key] ?? 0;
-  const ueLevel = {
-    Street: student.ueStreetAdapt,
-    Outdoor: student.ueOutdoorAdapt,
-    Indoor: student.ueIndoorAdapt,
-  }[activeTerrain.key];
-  const activeTerrainLabel = terrainLabel(uiLanguage, activeTerrain.key);
-  const terrainText = ueLevel !== undefined && ueLevel !== activeLevel
-    ? `${activeTerrainLabel} / UE50`
-    : `${activeTerrainLabel}`;
-
-  return [
-    [t(uiLanguage, "role"), `${squadLabel} / ${labels.role[student.tacticRole] || student.tacticRole}`],
-    [t(uiLanguage, "type"), `${attackLabel} / ${defenseLabel}`],
-    [t(uiLanguage, "weapon"), `${student.weaponType} ${weaponLabel} / ${t(uiLanguage, "range")} ${student.range}`],
-    [t(uiLanguage, "cover"), `${coverLabel} / ${t(uiLanguage, "position")} ${student.position}`],
-    [t(uiLanguage, "terrain"), terrainText],
-  ];
+export function ExportPreviewModal({ preview, onSave, onClose }) {
+  const { uiLanguage } = useRatingStore();
+  if (!preview) return null;
+  const saveLabel = preview.format === "png" ? t(uiLanguage, "savePng") : t(uiLanguage, "saveSvg");
+  return (
+    <div className="export-preview-overlay" role="dialog" aria-modal="true" aria-label={t(uiLanguage, "exportPreview")}>
+      <div className="export-preview-panel">
+        <div className="export-preview-header">
+          <div>
+            <h2>{t(uiLanguage, "exportPreview")}</h2>
+            <p>{preview.filename}</p>
+          </div>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{t(uiLanguage, "close")}</button>
+        </div>
+        <div className="export-preview-canvas" style={{ aspectRatio: `${preview.width} / ${preview.height}` }} dangerouslySetInnerHTML={{ __html: preview.svg }} />
+        <div className="export-preview-actions">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{t(uiLanguage, "cancel")}</button>
+          <button type="button" className="btn btn-primary" onClick={onSave}>{saveLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function buildExportSVG(student, ratings, options) {
@@ -449,6 +480,13 @@ function defs(p) {
     <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#172033"/>
       <stop offset="1" stop-color="#0b1020"/>
+    </linearGradient>
+    <linearGradient id="portraitShade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="${p.bg}" stop-opacity="0.98"/>
+      <stop offset="0.30" stop-color="${p.bg}" stop-opacity="0.86"/>
+      <stop offset="0.53" stop-color="${p.bg}" stop-opacity="0.46"/>
+      <stop offset="0.74" stop-color="${p.bg}" stop-opacity="0.82"/>
+      <stop offset="1" stop-color="${p.bg}" stop-opacity="0.98"/>
     </linearGradient>
     <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="${p.shadow}" flood-opacity="0.22"/>
@@ -470,7 +508,8 @@ function commonStyles(p, fontCss = "") {
     .rating-latin { font-family: "Black Ops One", "Segoe UI Black", "Arial Rounded MT Bold", sans-serif; font-weight: 400; letter-spacing: 0; }
     .title { font-size: 34px; font-weight: 800; fill: ${p.text}; letter-spacing: 0; }
     .sub { font-size: 18px; fill: ${p.sub}; }
-    .label { font-size: 17px; fill: ${p.muted}; font-weight: 800; letter-spacing: 0; }
+    .label { font-size: 17px; fill: ${p.muted}; font-weight: 900; letter-spacing: 0; }
+    .section-label { fill: #f0b429; font-size: 20px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
     .value { font-size: 24px; fill: ${p.text}; font-weight: 700; }
     .small { font-size: 17px; fill: ${p.sub}; }
     .watermark { font-size: 14px; fill: ${p.muted}; font-weight: 700; }
@@ -479,16 +518,13 @@ function commonStyles(p, fontCss = "") {
 
 function buildCompactSVG(student, ratings, options) {
   const { width, height, avatar, radar } = CARD.compact;
+  const radarSize = Math.min(radar, 318);
   const p = palette(options.theme);
   const labels = labelPack(options.uiLanguage);
-  const ratingClass = labels.locale === "en" ? "rating-latin" : "rating";
-  const overall = ratings.overall;
-  const overallText = overall !== null ? OVERALL_LABELS[labels.locale][overall] : "?";
-  const overallColor = overall !== null ? OVERALL_COLORS[overall] : "#4a6080";
-  const scoreText = ratings.overallScore !== null && ratings.overallScore !== undefined ? Number(ratings.overallScore).toFixed(1) : "--";
   const summary = compactSummary(student, labels, options.uiLanguage);
   const icon = `https://schaledb.com/images/student/icon/${student.id}.webp`;
   const displayName = studentDisplayName(student, options.uiLanguage);
+  const titleSize = Math.min(32, exportTitleFontSize(student, options.uiLanguage, 34, 18));
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -497,38 +533,39 @@ ${commonStyles(p, options.fontCss)}
 <rect width="${width}" height="${height}" fill="url(#bg)"/>
 <rect x="22" y="22" width="${width - 44}" height="${height - 44}" rx="8" fill="${p.panel}" stroke="${p.stroke}"/>
 <g class="ui">
-  <image href="${icon}" x="48" y="54" width="${avatar}" height="${avatar}" preserveAspectRatio="xMidYMid slice"/>
-  <rect x="48" y="54" width="${avatar}" height="${avatar}" rx="8" fill="none" stroke="#2a3f5a" stroke-width="2"/>
-  <text x="224" y="80" class="title" xml:space="preserve">${esc(options.arenaSeason || "")} · ${esc(displayName)}</text>
-  <text x="226" y="110" class="sub mono">${esc(student.devName)} · #${student.id}</text>
-  ${schoolMetaSvg(student, options.uiLanguage, 224, 140, p, { fontSize: 25, iconSize: 31, maxChars: labels.locale === "en" ? 16 : 12 })}
-  <text x="224" y="174" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 46 : 56}">${esc(overallText)}</text>
-  <text x="224" y="204" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 18 : 25}">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
-  ${typeChips(student, labels, 224, 214, p)}
-  ${coverMark(student, 48, 214, options.uiLanguage, p)}
-  ${terrainStrip(student, options.season, 48, 262, p)}
-  <text x="48" y="344" class="value">${esc(trimText(summary.role, 30))}</text>
-  <text x="48" y="376" class="value">${esc(trimText(summary.weapon, 38))}</text>
-  ${noteBlock(ratings.notes, 48, 398, 510, 86, options.uiLanguage, p, { maxChars: 42, maxLines: 3, fontSize: 18, lineGap: 21, hideLabel: true, textY: 424 })}
-  ${buildRadarSVG(ratings, { x: 594, y: 92, size: radar, uiLanguage: options.uiLanguage, theme: options.theme })}
-  ${weightSummarySvg(ratings, options.uiLanguage, p, 604, 442, 13)}
-  <text x="${width - 44}" y="${height - 34}" text-anchor="end" class="watermark">BAART</text>
+  ${panelRect(42, 42, 514, 158, p, { fill: p.card, opacity: "0.72" })}
+  <image href="${icon}" x="60" y="58" width="${avatar}" height="${avatar}" preserveAspectRatio="xMidYMid slice"/>
+  <rect x="60" y="58" width="${avatar}" height="${avatar}" rx="8" fill="none" stroke="${p.stroke}" stroke-width="2"/>
+  <text x="226" y="78" fill="#f0b429" font-size="19" font-weight="900" letter-spacing=".06em">${esc(options.arenaSeason || "")} · ARENA</text>
+  <text x="226" y="114" fill="${p.text}" font-size="${titleSize}" font-weight="900" xml:space="preserve">${esc(displayName)}</text>
+  <text x="228" y="144" class="sub mono">${esc(student.devName)} · #${student.id}</text>
+  ${schoolMetaSvg(student, options.uiLanguage, 226, 176, p, { fontSize: 22, iconSize: 42, maxChars: labels.locale === "en" ? 15 : 11 })}
+
+  ${overallPanelSvg(ratings, options.uiLanguage, 594, 42, 330, 112, p, { titleWidth: 98, ratingSize: labels.locale === "en" ? 42 : 58, scoreSize: labels.locale === "en" ? 42 : 48, titleSize: 18 })}
+  ${buildRadarSVG(ratings, { x: 600, y: 164, size: radarSize, uiLanguage: options.uiLanguage, theme: options.theme, labelFontScale: 1.08 })}
+
+  <text x="48" y="244" class="value" font-size="25">${esc(trimText(summary.role, labels.locale === "en" ? 32 : 26))}</text>
+  <text x="48" y="276" class="value" font-size="22">${esc(trimText(summary.weapon, labels.locale === "en" ? 42 : 32))}</text>
+  ${typeChips(student, labels, 48, 298, p, { width: 132, height: 42, fontSize: 18, iconSize: 25, labelMax: labels.locale === "en" ? 8 : 5 })}
+  ${coverMark(student, 336, 298, options.uiLanguage, p, { width: 146, height: 42, fontSize: 18, iconSize: 25 })}
+  ${terrainStrip(student, options.season, 48, 352, p, { compactWidth: 104, upgradeWidth: 174, height: 50, iconSize: 32, rankWidth: 48, rankHeight: 27, gap: 8 })}
+  ${noteBlock(ratings.notes, 48, 416, 508, 82, options.uiLanguage, p, { maxFont: 19, minFont: 11, paddingTop: 18, paddingBottom: 10, hideLabel: true, opacity: "0.68" })}
+  ${weightSummarySvg(ratings, options.uiLanguage, p, width - 44, height - 34, 12, { anchor: "end" })}
+  <text x="48" y="${height - 34}" class="watermark">BAART</text>
 </g>
 </svg>`;
 }
 
 function buildFullSVG(student, ratings, options) {
-  const { width, height, portrait, radar } = CARD.full;
+  const { width, height, radar } = CARD.full;
   const p = palette(options.theme);
   const labels = labelPack(options.uiLanguage);
-  const ratingClass = labels.locale === "en" ? "rating-latin" : "rating";
-  const overall = ratings.overall;
-  const overallText = overall !== null ? OVERALL_LABELS[labels.locale][overall] : "?";
-  const overallColor = overall !== null ? OVERALL_COLORS[overall] : "#4a6080";
-  const scoreText = ratings.overallScore !== null && ratings.overallScore !== undefined ? Number(ratings.overallScore).toFixed(1) : "--";
-  const rows = studentMetaRows(student, ratings, options.season, options.uiLanguage);
+  const summary = compactSummary(student, labels, options.uiLanguage);
   const portraitUrl = `https://schaledb.com/images/student/portrait/${student.id}.webp`;
   const displayName = studentDisplayName(student, options.uiLanguage);
+  const titleSize = labels.locale === "en"
+    ? exportTitleFontSize(student, options.uiLanguage, 58, 30)
+    : exportTitleFontSize(student, options.uiLanguage, 66, 38);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -536,60 +573,69 @@ ${defs(p)}
 ${commonStyles(p, options.fontCss)}
 <rect width="${width}" height="${height}" fill="url(#bg)"/>
 <g class="ui">
-  <rect x="26" y="26" width="${portrait}" height="${height - 52}" rx="8" fill="${p.panel}" stroke="${p.stroke}"/>
-  <image href="${portraitUrl}" x="-36" y="28" width="430" height="${height - 56}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>
-  <rect x="26" y="26" width="${portrait}" height="${height - 52}" rx="8" fill="none" stroke="${p.stroke}"/>
-  <rect x="28" y="${height - 160}" width="${portrait - 4}" height="132" fill="#06080fcc"/>
-  <text x="50" y="${height - 108}" class="title" xml:space="preserve">${esc(displayName)}</text>
-  <text x="52" y="${height - 74}" class="sub mono">${esc(student.devName)} · #${student.id}</text>
-  <text x="376" y="78" class="title">${esc(options.arenaSeason || "")} Arena PvP Card</text>
-  <text x="376" y="112" class="sub mono">${esc(student.devName)} · #${student.id}</text>
-  ${schoolMetaSvg(student, options.uiLanguage, 376, 136, p, { fontSize: 25, iconSize: 31, maxChars: labels.locale === "en" ? 18 : 14 })}
-  <rect x="842" y="42" width="398" height="168" rx="8" fill="${p.radarBg}" stroke="${overallColor}" stroke-width="2"/>
-  <text x="866" y="76" class="label">${esc(t(options.uiLanguage, "overall"))}</text>
-  <text x="866" y="158" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 58 : 76}">${esc(overallText)}</text>
-  <text x="872" y="190" class="${ratingClass}" fill="${overallColor}" font-size="${labels.locale === "en" ? 22 : 30}">${esc(t(options.uiLanguage, "overallScore"))}: ${scoreText}/5.0</text>
-  ${typeChips(student, labels, 376, 146, p)}
-  ${coverMark(student, 376, 196, options.uiLanguage, p)}
-  ${terrainStrip(student, options.season, 376, 240, p)}
-  ${rows.map(([k, v], i) => `
-    <text x="376" y="${342 + i * 34}" class="label">${esc(k)}</text>
-    <text x="502" y="${342 + i * 34}" class="value" font-size="23">${esc(trimText(v, labels.locale === "en" ? 24 : 28))}</text>`).join("")}
-  ${weightSummarySvg(ratings, options.uiLanguage, p, 376, 506, 14)}
-  ${noteBlock(ratings.notes, 376, 560, 410, 100, options.uiLanguage, p, { maxChars: 34, maxLines: 3, fontSize: 20, lineGap: 23 })}
-  ${buildRadarSVG(ratings, { x: 806, y: 238, size: radar, uiLanguage: options.uiLanguage, theme: options.theme })}
-  <text x="${width - 40}" y="${height - 34}" text-anchor="end" class="watermark">BAART</text>
+  <image href="${portraitUrl}" x="320" y="28" width="640" height="${height - 56}" preserveAspectRatio="xMidYMid meet" opacity="0.38"/>
+  <rect width="${width}" height="${height}" fill="${p.portraitShade}" opacity="0.18"/>
+  <rect width="${width}" height="${height}" fill="url(#portraitShade)"/>
+
+  <text x="48" y="58" fill="#f0b429" font-size="23" font-weight="900" letter-spacing=".07em">${esc(options.arenaSeason || "")} · ARENA GUIDE</text>
+  <text x="48" y="122" fill="${p.text}" font-size="${titleSize}" font-weight="900" xml:space="preserve">${esc(displayName)}</text>
+  <text x="50" y="160" class="sub mono">${esc(student.devName)} · #${student.id}</text>
+  ${schoolMetaSvg(student, options.uiLanguage, 48, 202, p, { fontSize: 34, iconSize: 58, maxChars: labels.locale === "en" ? 18 : 12 })}
+
+  ${panelRect(48, 228, 514, 148, p, { fill: p.card, opacity: "0.70" })}
+  <text x="66" y="265" class="value" font-size="30">${esc(trimText(summary.role, labels.locale === "en" ? 34 : 28))}</text>
+  <text x="66" y="304" class="value" font-size="25">${esc(trimText(summary.weapon, labels.locale === "en" ? 44 : 34))}</text>
+  ${typeChips(student, labels, 66, 324, p, { width: 142, height: 42, fontSize: 19, iconSize: 26, labelMax: labels.locale === "en" ? 8 : 5 })}
+  ${coverMark(student, 370, 324, options.uiLanguage, p, { width: 154, height: 42, fontSize: 19, iconSize: 26 })}
+  ${terrainStrip(student, options.season, 48, 394, p, { compactWidth: 124, upgradeWidth: 170, height: 58, iconSize: 38, rankWidth: 58, rankHeight: 31, gap: 10 })}
+  ${noteBlock(ratings.notes, 48, 470, 522, 178, options.uiLanguage, p, { maxFont: 26, minFont: 12, paddingTop: 48, paddingBottom: 16, labelY: 502, opacity: "0.70" })}
+
+  ${overallPanelSvg(ratings, options.uiLanguage, 600, 42, 620, 138, p, { titleWidth: 150, ratingSize: labels.locale === "en" ? 62 : 86, scoreSize: labels.locale === "en" ? 62 : 68, titleSize: 25 })}
+  ${buildRadarSVG(ratings, { x: 700, y: 206, size: radar, uiLanguage: options.uiLanguage, theme: options.theme, labelFontScale: 1.18 })}
+  ${weightSummarySvg(ratings, options.uiLanguage, p, width - 40, height - 34, 15, { anchor: "end" })}
+  <text x="48" y="${height - 34}" class="watermark">BAART</text>
 </g>
 </svg>`;
 }
 
-function coverMark(student, x, y, uiLanguage, p = palette()) {
+function coverMark(student, x, y, uiLanguage, p = palette(), options = {}) {
   const active = Boolean(student.cover);
+  const width = options.width || 150;
+  const height = options.height || 42;
+  const iconSize = options.iconSize || 25;
+  const fontSize = options.fontSize || 20;
+  const color = active ? "#38bdf8" : p.muted;
   return `
-  <g opacity="${active ? "1" : "0.45"}">
-    <rect x="${x}" y="${y}" width="160" height="34" rx="6" fill="${p.card}" stroke="${p.stroke}"/>
-    <image href="${COVER_ICON}" x="${x + 10}" y="${y + 8}" width="18" height="18" opacity="${p.iconChipOpacity}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
-    <text x="${x + 38}" y="${y + 23}" fill="${active ? p.text : p.sub}" font-size="16" font-weight="800">${esc(active ? t(uiLanguage, "coverYes") : t(uiLanguage, "coverNo"))}</text>
+  <g opacity="${active ? "1" : "0.82"}">
+    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="6" fill="${color}24" stroke="${color}" stroke-width="1.4"/>
+    <image href="${COVER_ICON}" x="${x + 12}" y="${y + (height - iconSize) / 2}" width="${iconSize}" height="${iconSize}" opacity="${p.iconChipOpacity}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
+    <text x="${x + iconSize + 24}" y="${y + height / 2 + fontSize * 0.35}" fill="${active ? p.text : p.sub}" font-size="${fontSize}" font-weight="900">${esc(active ? t(uiLanguage, "coverYes") : t(uiLanguage, "coverNo"))}</text>
   </g>`;
 }
 
-function typeChips(student, labels, x, y, p = palette()) {
+function typeChips(student, labels, x, y, p = palette(), options = {}) {
   const attackColor = TYPE_COLORS[student.bulletType] || "#8da4be";
   const defenseColor = TYPE_COLORS[student.armorType] || "#8da4be";
   const attackLabel = labels.type[student.bulletType] || student.bulletType;
   const defenseLabel = labels.type[student.armorType] || student.armorType;
+  const width = options.width || 142;
+  const height = options.height || 42;
+  const gap = options.gap || 12;
+  const iconSize = options.iconSize || 25;
+  const fontSize = options.fontSize || 19;
+  const labelMax = options.labelMax || 5;
+  const chip = (offset, color, icon, label) => `
+    <rect x="${x + offset}" y="${y}" width="${width}" height="${height}" rx="6" fill="${color}30" stroke="${color}" stroke-width="1.4"/>
+    <image href="${icon}" x="${x + offset + 12}" y="${y + (height - iconSize) / 2}" width="${iconSize}" height="${iconSize}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
+    <text x="${x + offset + iconSize + 24}" y="${y + height / 2 + fontSize * 0.35}" fill="${color}" font-size="${fontSize}" font-weight="900">${esc(trimText(label, labelMax))}</text>`;
   return `
   <g>
-    <rect x="${x}" y="${y}" width="138" height="34" rx="6" fill="${attackColor}22" stroke="${attackColor}"/>
-    <image href="${ATTACK_ICON}" x="${x + 10}" y="${y + 8}" width="18" height="18" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
-    <text x="${x + 36}" y="${y + 23}" fill="${attackColor}" font-size="17" font-weight="800">${esc(attackLabel)}</text>
-    <rect x="${x + 150}" y="${y}" width="138" height="34" rx="6" fill="${defenseColor}22" stroke="${defenseColor}"/>
-    <image href="${DEFENSE_ICON}" x="${x + 160}" y="${y + 8}" width="18" height="18" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
-    <text x="${x + 186}" y="${y + 23}" fill="${defenseColor}" font-size="17" font-weight="800">${esc(defenseLabel)}</text>
+    ${chip(0, attackColor, ATTACK_ICON, attackLabel)}
+    ${chip(width + gap, defenseColor, DEFENSE_ICON, defenseLabel)}
   </g>`;
 }
 
-function terrainStrip(student, activeSeason, x, y, p = palette()) {
+function terrainStrip(student, activeSeason, x, y, p = palette(), options = {}) {
   const terrainMap = {
     Street: student.streetAdapt,
     Outdoor: student.outdoorAdapt,
@@ -601,19 +647,30 @@ function terrainStrip(student, activeSeason, x, y, p = palette()) {
     Indoor: student.ueIndoorAdapt,
   };
   let cursor = x;
+  const height = options.height || 52;
+  const iconSize = options.iconSize || 34;
+  const rankWidth = options.rankWidth || 54;
+  const rankHeight = options.rankHeight || 29;
+  const compactWidth = options.compactWidth || 108;
+  const upgradeWidth = options.upgradeWidth || 154;
+  const gap = options.gap || 10;
   const cells = SEASONS.map((s) => {
     const tx = cursor;
     const level = terrainMap[s.key] ?? 0;
     const ue = ueMap[s.key];
     const active = s.key === activeSeason;
     const hasUpgrade = ue !== undefined && ue !== level;
-    const width = hasUpgrade ? 126 : 88;
-    cursor += width + 10;
+    const width = hasUpgrade ? upgradeWidth : compactWidth;
+    const terrainX = tx + 10;
+    const rank1X = hasUpgrade ? tx + iconSize + 16 : tx + width - rankWidth - 8;
+    const rank2X = tx + width - rankWidth - 8;
+    const arrowX = rank1X + (rank2X - rank1X) / 2 + rankWidth / 2;
+    cursor += width + gap;
     return `
-    <rect x="${tx}" y="${y}" width="${width}" height="44" rx="6" fill="${active ? (p.bg === "#06080f" ? "#1a1404" : "#fff7dc") : p.card}" stroke="${active ? "#f0b429" : p.stroke}"/>
-    <image href="${s.icon}" x="${tx + 9}" y="${y + 8}" width="28" height="28" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
-    <image href="${ADAPT_ICON_URL(level)}" x="${tx + 43}" y="${y + 12}" height="20" width="40" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
-    ${hasUpgrade ? `<text x="${tx + 82}" y="${y + 27}" text-anchor="middle" fill="${active ? "#f0b429" : p.sub}" font-size="14" font-weight="900">→</text><image href="${ADAPT_ICON_URL(ue)}" x="${tx + 88}" y="${y + 12}" height="20" width="40" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>` : ""}`;
+    <rect x="${tx}" y="${y}" width="${width}" height="${height}" rx="6" fill="${active ? (p.bg === "#06080f" ? "#1a1404" : "#fff7dc") : p.card}" fill-opacity="${active ? "0.92" : p.cardOpacity}" stroke="${active ? "#f0b429" : p.stroke}"/>
+    <image href="${s.icon}" x="${terrainX}" y="${y + (height - iconSize) / 2}" width="${iconSize}" height="${iconSize}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
+    <image href="${ADAPT_ICON_URL(level)}" x="${rank1X}" y="${y + (height - rankHeight) / 2}" height="${rankHeight}" width="${rankWidth}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
+    ${hasUpgrade ? `<text x="${arrowX}" y="${y + height / 2 + 6}" text-anchor="middle" fill="${active ? "#f0b429" : p.sub}" font-size="17" font-weight="900">→</text><image href="${ADAPT_ICON_URL(ue)}" x="${rank2X}" y="${y + (height - rankHeight) / 2}" height="${rankHeight}" width="${rankWidth}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>` : ""}`;
   }).join("");
   return `<g>${cells}</g>`;
 }
@@ -622,6 +679,7 @@ function buildRadarSVG(ratings, options) {
   const { x, y, size, uiLanguage } = options;
   const p = palette(options.theme);
   const labels = DIMENSION_LABELS[localeFor(uiLanguage)] || DIMENSION_LABELS.zh;
+  const labelFontScale = options.labelFontScale || 1;
   const cx = x + size / 2;
   const cy = y + size / 2;
   const r = size * 0.255;
@@ -647,15 +705,21 @@ function buildRadarSVG(ratings, options) {
   const text = DIMENSIONS.map((d, i) => {
     const [px, py] = polar(angles[i], r + size * 0.118);
     const tier = ratings[d.key];
-    const color = tier ? TIER_COLORS[tier] : p.sub;
+    const scoreColor = tier ? TIER_COLORS[tier] : p.muted;
     const label = labels[d.key][0];
+    const labelSize = size * 0.039 * labelFontScale;
+    const scoreSize = size * 0.046 * labelFontScale;
     if (/进攻对策性|特防对策性/.test(label)) {
-      return `<text x="${px}" y="${py - size * 0.022}" text-anchor="middle" fill="${color}" font-size="${size * 0.036}" font-weight="900">
+      return `<text x="${px}" y="${py - size * 0.035}" text-anchor="middle" fill="${p.sub}" font-size="${labelSize * 0.94}" font-weight="900">
         <tspan x="${px}">${esc(label.slice(0, 2))}</tspan>
-        <tspan x="${px}" dy="${size * 0.041}">${esc(label.slice(2))}${tier ? ` ${tier}` : ""}</tspan>
+        <tspan x="${px}" dy="${size * 0.043}">${esc(label.slice(2))}</tspan>
+        ${tier ? `<tspan x="${px}" dy="${size * 0.050}" fill="${scoreColor}" font-size="${scoreSize}">${tier}</tspan>` : ""}
       </text>`;
     }
-    return `<text x="${px}" y="${py}" text-anchor="middle" fill="${color}" font-size="${size * 0.039}" font-weight="900">${esc(label)}${tier ? ` ${tier}` : ""}</text>`;
+    return `<text x="${px}" y="${py - size * 0.022}" text-anchor="middle" fill="${p.sub}" font-size="${labelSize}" font-weight="900">
+      <tspan x="${px}">${esc(label)}</tspan>
+      ${tier ? `<tspan x="${px}" dy="${size * 0.052}" fill="${scoreColor}" font-size="${scoreSize}">${tier}</tspan>` : ""}
+    </text>`;
   }).join("");
 
   return `

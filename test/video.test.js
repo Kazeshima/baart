@@ -36,6 +36,7 @@ import { createProfileCases, safeProfileName } from "../video/core/profile.js";
 import { benchmarkOutputIo, classifyRenderBottleneck, selectBenchmarkConcurrencyCandidates } from "../video/render-service.mjs";
 import { vt } from "../video/core/i18n.js";
 import { buildDimensionReportSvg, dimensionReportRows } from "../src/utils/dimensionReport.js";
+import { fitStaticExportText, wrapStaticExportText } from "../src/utils/exportText.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -270,9 +271,12 @@ test("radar reveal points fade in at final coordinates", () => {
 test("school names localize without changing canonical English keys", () => {
   assert.equal(schoolLabel("zh", "Millennium"), "千年科学学园");
   assert.equal(schoolLabel("zh", "WildHunt"), "狂猎艺术学院");
+  assert.equal(schoolLabel("zh", ""), "其他");
+  assert.equal(schoolLabel("en", ""), "Other");
   assert.equal(schoolLabel("en", "Trinity"), "Trinity");
   assert.equal(schoolIconPath("Millennium"), "/assets/schoolicon/Millennium.png");
-  assert.equal(schoolIconPath("Sakugawa"), "");
+  assert.equal(schoolIconPath("Sakugawa"), "/assets/schoolicon/ETC.png");
+  assert.equal(schoolIconPath(""), "/assets/schoolicon/ETC.png");
 });
 
 test("English overall top label uses compact GOAT wording", () => {
@@ -374,4 +378,43 @@ test("worker reports startup errors as structured sidecar events", async () => {
   assert.equal(result.ok, false);
   assert.equal(exitCode, 1);
   assert.deepEqual(events, [{ type: "error", error: "Usage: worker <project.json> <serve-url> <output> <binaries-directory>" }]);
+});
+
+test("static export comment fitting handles real Chinese and English outlier comments", async () => {
+  const zhOutlier = "勘解由小路  紫草（泳装）在竞技场里更像是针对环境的精密工具，而不是可以无脑塞进任何队伍的角色。S9常见的爆发窗口、掩体站位和地形适性都会改变她的实际价值，所以这段超长评价需要完整换行并留在静态卡片的评价框内。";
+  const enOutlier = "Kadenokouji Yukari (Swimsuit) is a matchup-sensitive Arena pick. Her value changes with cover usage, terrain, attack timing, and whether the team can survive the first burst cycle, so a long English note must wrap cleanly inside both static export card sizes.";
+  assert.match(zhOutlier, /紫草（泳装）/);
+  assert.match(enOutlier, /Yukari \(Swimsuit\)/);
+  const cases = [
+    { text: zhOutlier, locale: "zh", width: 472, height: 54, maxFont: 19, minFont: 11, unitFactor: 0.98 },
+    { text: enOutlier, locale: "en", width: 472, height: 54, maxFont: 19, minFont: 11, unitFactor: 0.88 },
+    { text: zhOutlier, locale: "zh", width: 486, height: 114, maxFont: 26, minFont: 12, unitFactor: 0.98 },
+    { text: enOutlier, locale: "en", width: 486, height: 114, maxFont: 26, minFont: 12, unitFactor: 0.88 },
+  ];
+  for (const item of cases) {
+    const wrapped = wrapStaticExportText(item.text, item.locale === "zh" ? 18 : 36);
+    assert.ok(wrapped.length > 2);
+    assert.ok(wrapped.every(line => line.length > 0));
+    const fit = fitStaticExportText(item.text, item);
+    assert.ok(fit.lines.length > 1);
+    assert.ok(fit.fontSize <= item.maxFont);
+    assert.ok(fit.lines.length * fit.lineGap <= item.height + fit.lineGap);
+  }
+});
+
+test("static export cards keep refreshed school, radar, terrain, and full-card layout constraints", async () => {
+  const source = await readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8");
+  assert.match(source, /schoolMetaSvg\(student, options\.uiLanguage/);
+  assert.match(source, /filter="\$\{p\.iconFilter\}"/);
+  assert.match(source, /overallPanelSvg\(ratings, options\.uiLanguage, 594, 42/);
+  assert.match(source, /upgradeWidth: 174/);
+  assert.match(source, /rank2X = tx \+ width - rankWidth - 8/);
+  assert.match(source, /setExportPreview\(\{/);
+  assert.match(source, /function ExportPreviewModal/);
+  assert.match(source, /fill="\$\{p\.sub\}" font-size="\$\{labelSize/);
+  assert.match(source, /fill="\$\{scoreColor\}" font-size="\$\{scoreSize\}">\$\{tier\}/);
+  assert.doesNotMatch(source, /items\.slice/);
+  assert.match(source, /function buildFullSVG[\s\S]*typeChips\(student, labels/);
+  assert.doesNotMatch(source.match(/function buildFullSVG[\s\S]*?function coverMark/)?.[0] || "", /studentMetaRows|>\$\{esc\(k\)\}/);
+  assert.doesNotMatch(source.match(/function buildFullSVG[\s\S]*?function coverMark/)?.[0] || "", /panelRect\(600, 198, 620, 450/);
 });

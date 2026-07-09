@@ -14,7 +14,7 @@ BAART combines localized SchaleDB student metadata with five custom arena rating
 - Five arena-focused rating dimensions with automatic or manual overall ratings.
 - Shared-by-default score weights, fine percentage mode, and preset zero/half/full mode.
 - Local autosave plus portable JSON import/export.
-- Compact/full SVG and PNG card exports, batch ZIP export, and dimension ranking report PNGs.
+- Compact/full SVG and PNG card exports with preview-before-save, batch ZIP export, and dimension ranking report PNGs.
 - English and Simplified Chinese UI with dark and light themes.
 - Configurable Remotion Video Studio for 16:9 arena guide previews, MP4 rendering, and PNG/JPEG frame sequences.
 - Standalone Windows x64 Tauri app with a bundled Node/Remotion sidecar renderer.

@@ -124,6 +124,7 @@ const vite = await createServer({
   server: { middlewareMode: true },
   appType: "custom",
   logLevel: "error",
+  optimizeDeps: { disabled: true },
 });
 
 try {
