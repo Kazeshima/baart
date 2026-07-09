@@ -44,7 +44,7 @@ npm run tauri dev
 npm run tauri build
 ```
 
-构建流程会准备本地学校图标、独立渲染器运行时、Remotion 模块、合成器二进制文件、预构建合成包和安装包。GitHub Releases 会同时发布安装包和更紧凑的 Windows x64 便携 ZIP；使用便携版时必须让 `baart.exe`、`baart-node.exe` 和 `renderer-runtime.zip` 保持在一起。视频工作室会在首次渲染时将渲染器压缩包解压到应用缓存并复用。
+构建流程会准备本地学校图标、独立渲染器运行时、Remotion 模块、合成器二进制文件、预构建合成包和安装包。GitHub Releases 会同时发布安装包和 Windows x64 便携 ZIP；使用便携版时必须让 `baart.exe`、`baart-node.exe` 和 `renderer/` 文件夹保持在一起。便携 ZIP 会包含较多渲染器文件，这是为了让程序直接从解压目录运行，而不是在隐藏缓存目录中解压运行时。
 
 ## 文档
 

@@ -205,7 +205,6 @@ fn renderer_work_dir(app_cache_dir: &Path) -> PathBuf {
 }
 
 struct RendererResourcePaths {
-    root: PathBuf,
     worker: PathBuf,
     serve_url: PathBuf,
     binaries: PathBuf,
@@ -213,7 +212,6 @@ struct RendererResourcePaths {
 
 fn renderer_resource_paths(root: &Path) -> RendererResourcePaths {
     RendererResourcePaths {
-        root: root.to_path_buf(),
         worker: root.join("renderer/app/video/sidecar/worker.mjs"),
         serve_url: root.join("renderer/composition"),
         binaries: root.join("renderer/app/node_modules/@remotion/compositor-win32-x64-msvc"),
@@ -224,59 +222,12 @@ fn renderer_resources_are_complete(paths: &RendererResourcePaths) -> bool {
     paths.worker.exists() && paths.serve_url.exists() && paths.binaries.exists()
 }
 
-fn powershell_literal(value: &Path) -> String {
-    value.to_string_lossy().replace('\'', "''")
-}
-
-fn extract_renderer_archive(archive: &Path, destination: &Path) -> Result<(), String> {
-    if destination.exists() {
-        std::fs::remove_dir_all(destination)
-            .map_err(|error| format!("failed to remove stale renderer runtime cache: {error}"))?;
-    }
-    std::fs::create_dir_all(destination)
-        .map_err(|error| format!("failed to create renderer runtime cache: {error}"))?;
-    let command = format!(
-        "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
-        powershell_literal(archive),
-        powershell_literal(destination),
-    );
-    let output = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &command])
-        .output()
-        .map_err(|error| format!("failed to extract packaged renderer runtime: {error}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let detail = if !stderr.is_empty() { stderr } else { stdout };
-        return Err(format!("failed to extract packaged renderer runtime: {detail}"));
-    }
-    Ok(())
-}
-
 fn packaged_renderer_resources(app: &tauri::AppHandle) -> Result<RendererResourcePaths, String> {
     let resource_dir = app.path().resource_dir().map_err(|error| format!("failed to resolve renderer resources: {error}"))?;
     let resource_paths = renderer_resource_paths(&resource_dir);
     if renderer_resources_are_complete(&resource_paths) {
         return Ok(resource_paths);
     }
-
-    let archive = resource_dir.join("renderer-runtime.zip");
-    if archive.exists() {
-        let app_cache_dir = app.path().app_cache_dir().map_err(|error| format!("failed to resolve render cache: {error}"))?;
-        let extracted_root = app_cache_dir
-            .join("renderer-runtime-unpacked")
-            .join(env!("CARGO_PKG_VERSION"));
-        let extracted_paths = renderer_resource_paths(&extracted_root);
-        if !renderer_resources_are_complete(&extracted_paths) {
-            extract_renderer_archive(&archive, &extracted_root)?;
-        }
-        let extracted_paths = renderer_resource_paths(&extracted_root);
-        if renderer_resources_are_complete(&extracted_paths) {
-            return Ok(extracted_paths);
-        }
-        return Err(format!("packaged renderer archive extracted but runtime is incomplete: {}", extracted_paths.root.display()));
-    }
-
     Err(format!("packaged renderer resource is missing: {}", resource_paths.worker.display()))
 }
 
@@ -762,11 +713,6 @@ mod tests {
         assert_eq!(paths.worker, PathBuf::from(r"C:\BAART\renderer\app\video\sidecar\worker.mjs"));
         assert_eq!(paths.serve_url, PathBuf::from(r"C:\BAART\renderer\composition"));
         assert_eq!(paths.binaries, PathBuf::from(r"C:\BAART\renderer\app\node_modules\@remotion\compositor-win32-x64-msvc"));
-    }
-
-    #[test]
-    fn powershell_literals_escape_single_quotes() {
-        assert_eq!(powershell_literal(Path::new(r"C:\BA'ART\renderer-runtime.zip")), r"C:\BA''ART\renderer-runtime.zip");
     }
 
     #[test]
