@@ -44,7 +44,7 @@ Build the Windows app, portable ZIP bundle, and installers:
 npm run tauri build
 ```
 
-The build prepares local school icons, the standalone renderer runtime, Remotion modules, compositor binaries, the prebuilt composition bundle, and installers. GitHub Releases publish installer packages plus a portable Windows x64 ZIP bundle; keep `baart.exe`, `baart-node.exe`, and the `renderer/` folder together when using the portable build.
+The build prepares local school icons, the standalone renderer runtime, Remotion modules, compositor binaries, the prebuilt composition bundle, and installers. GitHub Releases publish installer packages plus a compact portable Windows x64 ZIP bundle; keep `baart.exe`, `baart-node.exe`, and `renderer-runtime.zip` together when using the portable build. Video Studio extracts the renderer archive to the app cache on first render.
 
 ## Documentation
 

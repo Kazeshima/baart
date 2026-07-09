@@ -204,6 +204,82 @@ fn renderer_work_dir(app_cache_dir: &Path) -> PathBuf {
     app_cache_dir.join("renderer-runtime")
 }
 
+struct RendererResourcePaths {
+    root: PathBuf,
+    worker: PathBuf,
+    serve_url: PathBuf,
+    binaries: PathBuf,
+}
+
+fn renderer_resource_paths(root: &Path) -> RendererResourcePaths {
+    RendererResourcePaths {
+        root: root.to_path_buf(),
+        worker: root.join("renderer/app/video/sidecar/worker.mjs"),
+        serve_url: root.join("renderer/composition"),
+        binaries: root.join("renderer/app/node_modules/@remotion/compositor-win32-x64-msvc"),
+    }
+}
+
+fn renderer_resources_are_complete(paths: &RendererResourcePaths) -> bool {
+    paths.worker.exists() && paths.serve_url.exists() && paths.binaries.exists()
+}
+
+fn powershell_literal(value: &Path) -> String {
+    value.to_string_lossy().replace('\'', "''")
+}
+
+fn extract_renderer_archive(archive: &Path, destination: &Path) -> Result<(), String> {
+    if destination.exists() {
+        std::fs::remove_dir_all(destination)
+            .map_err(|error| format!("failed to remove stale renderer runtime cache: {error}"))?;
+    }
+    std::fs::create_dir_all(destination)
+        .map_err(|error| format!("failed to create renderer runtime cache: {error}"))?;
+    let command = format!(
+        "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
+        powershell_literal(archive),
+        powershell_literal(destination),
+    );
+    let output = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &command])
+        .output()
+        .map_err(|error| format!("failed to extract packaged renderer runtime: {error}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!("failed to extract packaged renderer runtime: {detail}"));
+    }
+    Ok(())
+}
+
+fn packaged_renderer_resources(app: &tauri::AppHandle) -> Result<RendererResourcePaths, String> {
+    let resource_dir = app.path().resource_dir().map_err(|error| format!("failed to resolve renderer resources: {error}"))?;
+    let resource_paths = renderer_resource_paths(&resource_dir);
+    if renderer_resources_are_complete(&resource_paths) {
+        return Ok(resource_paths);
+    }
+
+    let archive = resource_dir.join("renderer-runtime.zip");
+    if archive.exists() {
+        let app_cache_dir = app.path().app_cache_dir().map_err(|error| format!("failed to resolve render cache: {error}"))?;
+        let extracted_root = app_cache_dir
+            .join("renderer-runtime-unpacked")
+            .join(env!("CARGO_PKG_VERSION"));
+        let extracted_paths = renderer_resource_paths(&extracted_root);
+        if !renderer_resources_are_complete(&extracted_paths) {
+            extract_renderer_archive(&archive, &extracted_root)?;
+        }
+        let extracted_paths = renderer_resource_paths(&extracted_root);
+        if renderer_resources_are_complete(&extracted_paths) {
+            return Ok(extracted_paths);
+        }
+        return Err(format!("packaged renderer archive extracted but runtime is incomplete: {}", extracted_paths.root.display()));
+    }
+
+    Err(format!("packaged renderer resource is missing: {}", resource_paths.worker.display()))
+}
+
 fn node_cli_path(path: &Path) -> String {
     let value = path.to_string_lossy();
     if value.get(..8).is_some_and(|prefix| prefix.eq_ignore_ascii_case(r"\\?\UNC\")) {
@@ -416,15 +492,7 @@ fn start_video_render(
         std::fs::create_dir_all(parent).map_err(|error| format!("failed to create output directory: {error}"))?;
     }
 
-    let resource_dir = app.path().resource_dir().map_err(|error| format!("failed to resolve renderer resources: {error}"))?;
-    let worker = resource_dir.join("renderer/app/video/sidecar/worker.mjs");
-    let serve_url = resource_dir.join("renderer/composition");
-    let binaries = resource_dir.join("renderer/app/node_modules/@remotion/compositor-win32-x64-msvc");
-    for required in [&worker, &serve_url, &binaries] {
-        if !required.exists() {
-            return Err(format!("packaged renderer resource is missing: {}", required.display()));
-        }
-    }
+    let renderer = packaged_renderer_resources(&app)?;
 
     let app_cache_dir = app.path().app_cache_dir().map_err(|error| format!("failed to resolve render cache: {error}"))?;
     let renderer_work_dir = renderer_work_dir(&app_cache_dir);
@@ -440,11 +508,11 @@ fn start_video_render(
         .map_err(|error| format!("failed to write render manifest: {error}"))?;
 
     let arguments = vec![
-        node_cli_path(&worker),
+        node_cli_path(&renderer.worker),
         node_cli_path(&manifest),
-        node_cli_path(&serve_url),
+        node_cli_path(&renderer.serve_url),
         node_cli_path(&output),
-        node_cli_path(&binaries),
+        node_cli_path(&renderer.binaries),
     ];
     let node_work_dir = PathBuf::from(node_cli_path(&renderer_work_dir));
     let command = match app.shell().sidecar("baart-node") {
@@ -547,15 +615,7 @@ async fn benchmark_video_render(
             return Err("another render is already active".to_string());
         }
     }
-    let resource_dir = app.path().resource_dir().map_err(|error| format!("failed to resolve renderer resources: {error}"))?;
-    let worker = resource_dir.join("renderer/app/video/sidecar/worker.mjs");
-    let serve_url = resource_dir.join("renderer/composition");
-    let binaries = resource_dir.join("renderer/app/node_modules/@remotion/compositor-win32-x64-msvc");
-    for required in [&worker, &serve_url, &binaries] {
-        if !required.exists() {
-            return Err(format!("packaged renderer resource is missing: {}", required.display()));
-        }
-    }
+    let renderer = packaged_renderer_resources(&app)?;
 
     let app_cache_dir = app.path().app_cache_dir().map_err(|error| format!("failed to resolve render cache: {error}"))?;
     let renderer_work_dir = renderer_work_dir(&app_cache_dir);
@@ -572,7 +632,7 @@ async fn benchmark_video_render(
     std::fs::write(&manifest, serde_json::to_vec(&project).map_err(|error| error.to_string())?)
         .map_err(|error| format!("failed to write benchmark manifest: {error}"))?;
 
-    let arguments = benchmark_sidecar_arguments(&worker, &manifest, &serve_url, &output_root, &binaries);
+    let arguments = benchmark_sidecar_arguments(&renderer.worker, &manifest, &renderer.serve_url, &output_root, &renderer.binaries);
     let node_work_dir = PathBuf::from(node_cli_path(&renderer_work_dir));
     let command = app.shell()
         .sidecar("baart-node")
@@ -694,6 +754,19 @@ mod tests {
     #[test]
     fn renderer_cache_is_derived_from_the_writable_app_cache() {
         assert_eq!(renderer_work_dir(Path::new(r"C:\Users\Test\AppData\Local\baart")), PathBuf::from(r"C:\Users\Test\AppData\Local\baart\renderer-runtime"));
+    }
+
+    #[test]
+    fn renderer_resource_paths_point_to_required_runtime_files() {
+        let paths = renderer_resource_paths(Path::new(r"C:\BAART"));
+        assert_eq!(paths.worker, PathBuf::from(r"C:\BAART\renderer\app\video\sidecar\worker.mjs"));
+        assert_eq!(paths.serve_url, PathBuf::from(r"C:\BAART\renderer\composition"));
+        assert_eq!(paths.binaries, PathBuf::from(r"C:\BAART\renderer\app\node_modules\@remotion\compositor-win32-x64-msvc"));
+    }
+
+    #[test]
+    fn powershell_literals_escape_single_quotes() {
+        assert_eq!(powershell_literal(Path::new(r"C:\BA'ART\renderer-runtime.zip")), r"C:\BA''ART\renderer-runtime.zip");
     }
 
     #[test]

@@ -30,7 +30,7 @@ Visual checks before tagging:
 
 The release workflow runs on `v*` tags and manual dispatch. It builds Windows x64 Tauri artifacts and uploads them to GitHub Releases.
 
-Portable downloads must be ZIP bundles, not a raw copied `baart.exe`. Video Studio rendering depends on sibling runtime resources (`baart-node.exe` and `renderer/`) that are not embedded in the executable.
+Portable downloads must be ZIP bundles, not a raw copied `baart.exe`. The compact portable ZIP should expose `baart.exe`, `baart-node.exe`, and `renderer-runtime.zip`; Video Studio extracts the renderer archive to the app cache on first render. Do not expose the full `renderer/` tree in the portable download unless debugging a packaging failure.
 
 For a new patch release:
 

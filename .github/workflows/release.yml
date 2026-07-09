@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag, for example v1.1.2"
+        description: "Release tag, for example v1.1.3"
         required: true
-        default: "v1.1.2"
+        default: "v1.1.3"
       draft:
         description: "Create a draft release"
         required: true
@@ -60,7 +60,7 @@ jobs:
           releaseBody: |
             BAART Windows x64 release.
 
-            This build includes the standalone Remotion renderer runtime, generated local school icons, Windows installers, and a portable ZIP bundle with the executable plus required renderer resources.
+            This build includes the standalone Remotion renderer runtime, generated local school icons, Windows installers, and a compact portable ZIP bundle with the renderer runtime archived inside.
           releaseDraft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft == 'true' || false }}
           prerelease: false
           args: --target x86_64-pc-windows-msvc
@@ -97,15 +97,15 @@ jobs:
           New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
           Copy-Item -LiteralPath (Join-Path $releaseRoot "baart.exe") -Destination $portableRoot
           Copy-Item -LiteralPath (Join-Path $releaseRoot "baart-node.exe") -Destination $portableRoot
-          Copy-Item -LiteralPath (Join-Path $releaseRoot "renderer") -Destination $portableRoot -Recurse
+          Compress-Archive -Path (Join-Path $releaseRoot "renderer") -DestinationPath (Join-Path $portableRoot "renderer-runtime.zip") -Force
           if (Test-Path (Join-Path $releaseRoot "resources")) {
             Copy-Item -LiteralPath (Join-Path $releaseRoot "resources") -Destination $portableRoot -Recurse
           }
           @"
           BAART portable bundle
 
-          Keep baart.exe, baart-node.exe, and the renderer folder together.
-          Video Studio rendering and benchmarking will fail if baart.exe is copied out by itself.
+          Keep baart.exe, baart-node.exe, and renderer-runtime.zip together.
+          Video Studio extracts renderer-runtime.zip to the app cache on first render and reuses it afterward.
           "@ | Set-Content -Path (Join-Path $portableRoot "README-portable.txt") -Encoding UTF8
           Compress-Archive -Path "$portableRoot/*" -DestinationPath "release-assets/BAART-$tag-windows-x64-portable.zip" -Force
 
