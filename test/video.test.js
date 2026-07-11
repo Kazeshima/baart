@@ -174,6 +174,8 @@ test("dimension ranking report sorts by selected tier and omits missing dimensio
     language: "en",
   });
   assert.deepEqual(rows.map(row => row.student.id), [10003, 10001, 10002]);
+  assert.equal(rows[0].name, rows[0].presentation.identity.displayName);
+  assert.equal(rows[0].presentation.dimensions.find(item => item.key === "blindshot").tier, rows[0].tier);
   assert.deepEqual(dimensionReportRows({
     students: parsed.map(record => record.student),
     ratingsById: { [parsed[0].student.id]: { ...parsed[0].ratings, blindshot: null } },
@@ -388,8 +390,8 @@ test("static export comment fitting handles real Chinese and English outlier com
   const cases = [
     { text: zhOutlier, locale: "zh", width: 472, height: 54, maxFont: 19, minFont: 11, unitFactor: 0.98 },
     { text: enOutlier, locale: "en", width: 472, height: 54, maxFont: 19, minFont: 11, unitFactor: 0.88 },
-    { text: zhOutlier, locale: "zh", width: 486, height: 114, maxFont: 26, minFont: 12, unitFactor: 0.98 },
-    { text: enOutlier, locale: "en", width: 486, height: 114, maxFont: 26, minFont: 12, unitFactor: 0.88 },
+    { text: zhOutlier, locale: "zh", width: 431, height: 151, maxFont: 28, minFont: 12, unitFactor: 0.98 },
+    { text: enOutlier, locale: "en", width: 431, height: 151, maxFont: 28, minFont: 12, unitFactor: 0.88 },
   ];
   for (const item of cases) {
     const wrapped = wrapStaticExportText(item.text, item.locale === "zh" ? 18 : 36);
@@ -402,19 +404,71 @@ test("static export comment fitting handles real Chinese and English outlier com
   }
 });
 
-test("static export cards keep refreshed school, radar, terrain, and full-card layout constraints", async () => {
+test("static export cards consume the shared presentation model without changing the baseline layout", async () => {
   const source = await readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8");
-  assert.match(source, /schoolMetaSvg\(student, options\.uiLanguage/);
+  assert.match(source, /createStudentRatingPresentation\(\{ student, ratings, language: options\.uiLanguage/);
+  assert.match(source, /schoolMetaSvg\(presentation/);
   assert.match(source, /filter="\$\{p\.iconFilter\}"/);
-  assert.match(source, /overallPanelSvg\(ratings, options\.uiLanguage, 594, 42/);
-  assert.match(source, /upgradeWidth: 174/);
-  assert.match(source, /rank2X = tx \+ width - rankWidth - 8/);
+  assert.match(source, /overallPanelSvg\(presentation, 594, 42/);
   assert.match(source, /setExportPreview\(\{/);
   assert.match(source, /function ExportPreviewModal/);
   assert.match(source, /fill="\$\{p\.sub\}" font-size="\$\{labelSize/);
   assert.match(source, /fill="\$\{scoreColor\}" font-size="\$\{scoreSize\}">\$\{tier\}/);
+  assert.match(source, /upgradeWidth: 174/);
   assert.doesNotMatch(source, /items\.slice/);
-  assert.match(source, /function buildFullSVG[\s\S]*typeChips\(student, labels/);
+  assert.match(source, /function buildFullSVG[\s\S]*typeChips\(presentation/);
   assert.doesNotMatch(source.match(/function buildFullSVG[\s\S]*?function coverMark/)?.[0] || "", /studentMetaRows|>\$\{esc\(k\)\}/);
   assert.doesNotMatch(source.match(/function buildFullSVG[\s\S]*?function coverMark/)?.[0] || "", /panelRect\(600, 198, 620, 450/);
+});
+
+test("static export visual QA covers both card sizes, languages, themes, and meaningful comments", async () => {
+  const [generatorSource, entrySource, packageSource] = await Promise.all([
+    readFile(new URL("../scripts/generate-readme-examples.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/card-example-entry.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(generatorSource, /process\.argv\.includes\("--compare"\)/);
+  assert.match(generatorSource, /const yukariSwimsuitId = 10121/);
+  assert.match(generatorSource, /\["zh", "en"\]/);
+  assert.match(generatorSource, /\["light", "dark"\]/);
+  assert.match(generatorSource, /\["compact", "full"\]/);
+  assert.match(generatorSource, /\[2, 4\]/);
+  assert.match(generatorSource, /COMPARISON_COMMENTS/);
+  assert.match(generatorSource, /README_COMMENTS/);
+  assert.match(entrySource, /calculateMetadata=.*width: props\.width, height: props\.height/);
+  assert.match(packageSource, /"static:compare"/);
+});
+
+test("video and static adapters consume the shared semantic presentation model", async () => {
+  const [videoSource, exportSource] = await Promise.all([
+    readFile(new URL("../video/remotion/StudentScene.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(videoSource, /createStudentRatingPresentation/);
+  assert.match(exportSource, /createStudentRatingPresentation/);
+  assert.match(videoSource, /presentation\.identity\.portraitUrl/);
+  assert.match(exportSource, /presentation\.radar\.dimensions/);
+  assert.doesNotMatch(`${videoSource}\n${exportSource}`, /arenaVisualSystem/);
+});
+
+test("production surfaces load prepared local fonts without runtime Google Fonts calls", async () => {
+  const [exportSource, themeSource, remotionSource, packageSource] = await Promise.all([
+    readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/styles/theme.css", import.meta.url), "utf8"),
+    readFile(new URL("../video/remotion/index.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(exportSource, /\/assets\/fonts\/fonts\.css/);
+  assert.match(themeSource, /@import url\("\.\.\/\.\.\/public\/assets\/fonts\/fonts\.css"\)/);
+  assert.doesNotMatch(`${exportSource}\n${themeSource}\n${remotionSource}`, /fonts\.googleapis|@remotion\/google-fonts/);
+  assert.match(packageSource, /prepare-fonts\.mjs/);
+});
+
+test("video comparison QA renders both languages and themes with cached assets", async () => {
+  const source = await readFile(new URL("../scripts/render-video-comparisons.mjs", import.meta.url), "utf8");
+  assert.match(source, /for \(const language of \["zh", "en"\]\)/);
+  assert.match(source, /for \(const theme of \["light", "dark"\]\)/);
+  assert.match(source, /for \(const overallLevel of \[2, 4\]\)/);
+  assert.match(source, /prepareRenderAssetMap/);
+  assert.match(source, /renderStill/);
 });

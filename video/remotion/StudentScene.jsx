@@ -1,17 +1,14 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img, spring, useCurrentFrame, useCurrentScale, useVideoConfig } from "remotion";
-import { DIMENSIONS, OVERALL_COLORS } from "../../src/utils/constants.js";
-import { DIMENSION_LABELS, localeFor, t } from "../../src/utils/i18n.js";
-import { formatWeightShare } from "../../src/utils/scoring.js";
-import { studentDisplayName } from "../../src/utils/studentDisplay.js";
+import { createStudentRatingPresentation } from "../../src/utils/presentationModel.js";
 import OverallBadge from "../../src/components/presentation/OverallBadge.jsx";
-import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators, studentPresentation } from "../../src/components/presentation/StudentPresentation.jsx";
+import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators } from "../../src/components/presentation/StudentPresentation.jsx";
 import { COMMENT_SCROLL_BOTTOM_CLEARANCE, COMMENT_SCROLL_TOP_GAP, commentScrollDistanceFromHeights, commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll, sceneFadeOpacity } from "../core/config.js";
 import AnimatedRadar from "./AnimatedRadar.jsx";
 
 const palettes = {
-  dark: { bg: "#06080f", panel: "#0d1120", card: "#111827", stroke: "#1e2d42", text: "#e8f0fe", sub: "#8da4be", muted: "#4a6080" },
-  light: { bg: "#e4edf5", panel: "#f8fbff", card: "#e7eef6", stroke: "#b9c8d8", text: "#1b2b3d", sub: "#53677e", muted: "#71839a" },
+  dark: { bg: "#06080f", text: "#e8f0fe", muted: "#4a6080" },
+  light: { bg: "#e4edf5", text: "#1b2b3d", muted: "#71839a" },
 };
 
 function enterStyle(frame, start, duration = 16, distance = 28) {
@@ -19,8 +16,7 @@ function enterStyle(frame, start, duration = 16, distance = 28) {
   return { opacity: progress, transform: `translateY(${(1 - progress) * distance}px)` };
 }
 
-function videoTitleFontSize(student, language) {
-  const displayName = studentDisplayName(student, language);
+function videoTitleFontSize(displayName) {
   const weightedLength = Array.from(displayName).reduce((sum, character) => sum + (/[\u3000-\u30ff\u3400-\u9fff\uff00-\uffef]/.test(character) ? 1.9 : 1), 0);
   if (weightedLength > 18) return 70;
   if (weightedLength > 15) return 78;
@@ -32,18 +28,21 @@ export default function StudentScene({ record, settings }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const scale = useCurrentScale();
-  const timeline = getTimeline({ ...settings, fps });
+  const timeline = useMemo(() => getTimeline({ ...settings, fps }), [settings, fps]);
   const { student, ratings } = record;
   const profile = settings.renderProfile || {};
   const qualityMode = settings.renderQualityMode || "balanced";
   const fastRender = qualityMode === "fast" || profile.disableShadows;
-  const assetSrc = src => settings.assetMap?.[src] || src;
-  const AssetImg = props => <Img {...props} src={assetSrc(props.src)} />;
+  const AssetImg = useCallback(({ src, ...props }) => <Img {...props} src={settings.assetMap?.[src] || src} />, [settings.assetMap]);
   const palette = palettes[settings.theme] || palettes.dark;
-  const presentation = useMemo(() => studentPresentation(student, settings.uiLanguage), [student, settings.uiLanguage]);
-  const titleFontSize = useMemo(() => videoTitleFontSize(student, settings.uiLanguage), [student, settings.uiLanguage]);
-  const dimensionLabels = useMemo(() => DIMENSION_LABELS[localeFor(settings.uiLanguage)] || DIMENSION_LABELS.zh, [settings.uiLanguage]);
-  const overallColor = ratings.overall !== null ? OVERALL_COLORS[ratings.overall] : palette.muted;
+  const presentation = useMemo(() => createStudentRatingPresentation({
+    student,
+    ratings,
+    language: settings.uiLanguage,
+    activeSeason: settings.season,
+  }), [student, ratings, settings.uiLanguage, settings.season]);
+  const titleFontSize = useMemo(() => videoTitleFontSize(presentation.identity.displayName), [presentation.identity.displayName]);
+  const overallColor = presentation.overall.level !== null ? presentation.overall.color : palette.muted;
   const overallSpring = spring({ frame: frame - timeline.overallStart, fps, config: { damping: 14, stiffness: 115, mass: 0.8 } });
   const infoEnterFrames = Math.max(1, Math.round(settings.infoEnterDuration * fps));
   const cardOpacity = sceneFadeOpacity(frame, timeline);
@@ -80,28 +79,28 @@ export default function StudentScene({ record, settings }) {
     <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text }}>
       {!profile.disableGrid ? <div className="video-scene__grid" /> : null}
       {!profile.disablePortrait ? <div className="video-portrait" style={{ opacity: settings.portraitOpacity }}>
-        <AssetImg src={`https://schaledb.com/images/student/portrait/${student.id}.webp`} />
+        <AssetImg src={presentation.identity.portraitUrl} />
       </div> : null}
       <div className="video-portrait-shade" />
 
       <header className="video-title" style={enterStyle(frame, timeline.infoStart, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-title__season">{settings.arenaSeason} · ARENA GUIDE</div>
-        <StudentIdentity student={student} language={settings.uiLanguage} nameClassName="video-title__name" metaClassName="video-title__meta" nameStyle={{ fontSize: titleFontSize }} ImageComponent={AssetImg} />
+        <StudentIdentity student={student} language={settings.uiLanguage} presentation={presentation} nameClassName="video-title__name" metaClassName="video-title__meta" nameStyle={{ fontSize: titleFontSize }} ImageComponent={AssetImg} />
       </header>
 
       <section className="video-info" style={enterStyle(frame, timeline.infoStart + timeline.infoStep, infoEnterFrames, settings.infoEnterDistance)}>
-        <div className="video-info__role">{presentation.squadLabel} / {presentation.roleLabel}</div>
+        <div className="video-info__role">{presentation.role.squadLabel} / {presentation.role.tacticLabel}</div>
         {!profile.disableTypeIndicators ? <div className="video-facts">
-          <StudentTypeIndicators student={student} language={settings.uiLanguage} ImageComponent={AssetImg} variant="video" mutedColor={palette.muted} />
+        <StudentTypeIndicators student={student} language={settings.uiLanguage} presentation={presentation} ImageComponent={AssetImg} variant="video" mutedColor={palette.muted} />
         </div> : null}
-        <div className="video-weapon">{student.weaponType} {presentation.weaponLabel} · {t(settings.uiLanguage, "range")} {student.range}</div>
-        <StudentTerrainIndicators student={student} activeSeason={settings.season} language={settings.uiLanguage} ImageComponent={AssetImg} variant="video" />
+        <div className="video-weapon">{presentation.weapon.key} {presentation.weapon.label} · {presentation.labels.range} {presentation.weapon.range}</div>
+        <StudentTerrainIndicators student={student} activeSeason={settings.season} language={settings.uiLanguage} presentation={presentation} ImageComponent={AssetImg} variant="video" />
       </section>
 
       {!profile.disableComments ? <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2, infoEnterFrames, settings.infoEnterDistance)}>
-        <div className="video-section-label">{t(settings.uiLanguage, "comments")}</div>
+        <div className="video-section-label">{presentation.labels.comments}</div>
         <div ref={commentViewportRef} className={`video-comments__viewport ${commentMaskClass}`} style={{ "--comment-scroll-top-gap": `${commentTopGap}px` }}>
-          <div ref={commentTextRef} className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{ratings.notes || "—"}</div>
+          <div ref={commentTextRef} className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{presentation.notes || "—"}</div>
         </div>
       </section> : null}
 
@@ -109,12 +108,17 @@ export default function StudentScene({ record, settings }) {
         <AnimatedRadar ratings={ratings} language={settings.uiLanguage} settings={settings} size={640} />
       </section>
       <div className="video-weights" style={enterStyle(frame, timeline.radarStart, Math.max(1, Math.round(settings.infoEnterDuration * fps)), 12)}>
-        <span className="video-weights__label">{t(settings.uiLanguage, "weightsUsed")}</span>
-        {DIMENSIONS.map(({ key }) => <span key={key}>{dimensionLabels[key][0]} <strong>{formatWeightShare(ratings.dimensionWeightShares?.[key])}</strong></span>)}
+        <span className="video-weights__label">{presentation.labels.weightsUsed}</span>
+        {presentation.dimensions.map(dimension => <span key={dimension.key}>{dimension.label} <strong>{dimension.weightLabel}</strong></span>)}
       </div>
 
-      <section className="video-overall" style={{ opacity: overallSpring, transform: `scale(${0.82 + overallSpring * 0.18})`, borderColor: overallColor, boxShadow: `0 0 ${settings.overallGlowStrength * overallSpring}px ${overallColor}35` }}>
-        <div className="video-section-label">{t(settings.uiLanguage, "overall")}</div>
+      <section className="video-overall" style={{
+        opacity: overallSpring,
+        transform: `scale(${0.82 + overallSpring * 0.18})`,
+        borderColor: overallColor,
+        boxShadow: `0 0 ${settings.overallGlowStrength * overallSpring}px ${overallColor}35`,
+      }}>
+        <div className="video-section-label">{presentation.labels.overall}</div>
         <OverallBadge overall={ratings.overall} overallScore={ratings.overallScore} language={settings.uiLanguage} className="video-overall__badge" />
       </section>
     </div>

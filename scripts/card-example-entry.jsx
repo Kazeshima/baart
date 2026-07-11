@@ -1,9 +1,9 @@
 import React from "react";
 import { Composition, registerRoot } from "remotion";
 
-function CardExample({ svg }) {
+function CardExample({ svg, width, height }) {
   return <div
-    style={{ width: 960, height: 540, background: "#000" }}
+    style={{ width, height, background: "#000" }}
     dangerouslySetInnerHTML={{ __html: svg }}
   />;
 }
@@ -16,7 +16,8 @@ function Root() {
     fps={30}
     width={960}
     height={540}
-    defaultProps={{ svg: "" }}
+    defaultProps={{ svg: "", width: 960, height: 540 }}
+    calculateMetadata={({ props }) => ({ width: props.width, height: props.height })}
   />;
 }
 

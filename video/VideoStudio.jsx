@@ -11,9 +11,17 @@ import {
   formatWeightShare,
   normalizeDimensionWeights,
   normalizeFineWeightState,
-  normalizeWeightEditorMode,
-  normalizeWeightMode,
 } from "../src/utils/scoring.js";
+import {
+  RATING_ORDER_STORAGE_KEYS,
+  WEIGHT_STORAGE_KEYS,
+  persistRatingOrder,
+  persistSharedWeightSettings,
+  readRatingOrder,
+  readRatingsPayload,
+  readSharedWeightSettings,
+  readStoredJson,
+} from "../src/store/ratingPersistence.js";
 import { parseStudents } from "../src/utils/students.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import { schoolIconPath } from "../src/utils/schoolIcons.js";
@@ -26,7 +34,7 @@ import {
   ratingsFromProjectRecords,
   safeCreateVideoProject,
 } from "./core/manifest.js";
-import { DEFAULT_ORDER, RATING_ORDER_STORAGE_KEY, normalizeRatingOrder } from "./core/sorting.js";
+import { normalizeRatingOrder } from "./core/sorting.js";
 import { vt } from "./core/i18n.js";
 import { isActiveRenderStatus } from "./core/renderJob.js";
 import {
@@ -38,11 +46,6 @@ import {
   usesTauriRenderTransport,
 } from "./render-client.js";
 
-const RATINGS_KEY = "ba_pvp_ratings";
-const WEIGHT_MODE_KEY = "ba_rating_weight_mode";
-const WEIGHT_EDITOR_MODE_KEY = "ba_rating_weight_editor_mode";
-const SHARED_WEIGHTS_KEY = "ba_rating_shared_dimension_weight_shares";
-const SHARED_PRESET_WEIGHTS_KEY = "ba_rating_shared_dimension_weights";
 const PROJECT_KEY = "baart_video_project_settings";
 const BENCHMARK_KEY = "baart_video_render_benchmarks";
 
@@ -84,53 +87,6 @@ function downloadJson(filename, value) {
   URL.revokeObjectURL(url);
 }
 
-function readStoredJson(key) {
-  try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; }
-}
-
-function readRatingsPayload() {
-  const payload = readStoredJson(RATINGS_KEY);
-  if (payload?.ratings && typeof payload.ratings === "object") return payload;
-  return { ratings: payload || {} };
-}
-
-function hasDimensionMap(value) {
-  return Boolean(value && typeof value === "object" && DIMENSIONS.every(({ key }) => Object.hasOwn(value, key)));
-}
-
-function readSharedWeightSettings(fallback = {}) {
-  const ratingsPayload = readRatingsPayload();
-  const storedSharedWeights = readStoredJson(SHARED_WEIGHTS_KEY);
-  const storedPresetWeights = readStoredJson(SHARED_PRESET_WEIGHTS_KEY);
-  return {
-    weightMode: normalizeWeightMode(localStorage.getItem(WEIGHT_MODE_KEY) || ratingsPayload.weightMode || fallback.weightMode || DEFAULT_VIDEO_SETTINGS.weightMode),
-    weightEditorMode: normalizeWeightEditorMode(localStorage.getItem(WEIGHT_EDITOR_MODE_KEY) || ratingsPayload.weightEditorMode || fallback.weightEditorMode || DEFAULT_VIDEO_SETTINGS.weightEditorMode),
-    sharedDimensionWeightShares: hasDimensionMap(storedSharedWeights)
-      ? normalizeFineWeightState({ dimensionWeightShares: storedSharedWeights }).dimensionWeightShares
-      : ratingsPayload.sharedDimensionWeightShares || fallback.sharedDimensionWeightShares || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeightShares,
-    sharedDimensionWeights: hasDimensionMap(storedPresetWeights)
-      ? normalizeDimensionWeights({ dimensionWeights: storedPresetWeights })
-      : ratingsPayload.sharedDimensionWeights || fallback.sharedDimensionWeights || DEFAULT_VIDEO_SETTINGS.sharedDimensionWeights,
-  };
-}
-
-function readSharedRatingOrder(fallback = DEFAULT_ORDER) {
-  return localStorage.getItem(RATING_ORDER_STORAGE_KEY)
-    ? normalizeRatingOrder(readStoredJson(RATING_ORDER_STORAGE_KEY))
-    : normalizeRatingOrder(fallback);
-}
-
-function persistSharedRatingOrder(order) {
-  localStorage.setItem(RATING_ORDER_STORAGE_KEY, JSON.stringify(normalizeRatingOrder(order)));
-}
-
-function persistSharedWeightSettings(settings) {
-  if (settings.weightMode) localStorage.setItem(WEIGHT_MODE_KEY, settings.weightMode);
-  if (settings.weightEditorMode) localStorage.setItem(WEIGHT_EDITOR_MODE_KEY, settings.weightEditorMode);
-  if (settings.sharedDimensionWeightShares) localStorage.setItem(SHARED_WEIGHTS_KEY, JSON.stringify(normalizeFineWeightState({ dimensionWeightShares: settings.sharedDimensionWeightShares }).dimensionWeightShares));
-  if (settings.sharedDimensionWeights) localStorage.setItem(SHARED_PRESET_WEIGHTS_KEY, JSON.stringify(normalizeDimensionWeights({ dimensionWeights: settings.sharedDimensionWeights })));
-}
-
 function initialVideoSettings(saved) {
   const savedSettings = saved.settings || {};
   const sharedWeightSettings = readSharedWeightSettings(savedSettings);
@@ -158,7 +114,7 @@ function benchmarkBottleneckLabel(language, value) {
 export default function VideoStudio() {
   const saved = useMemo(() => readStoredJson(PROJECT_KEY), []);
   const [settings, setSettings] = useState(() => initialVideoSettings(saved));
-  const [order, setOrder] = useState(() => readSharedRatingOrder(saved.order));
+  const [order, setOrder] = useState(() => readRatingOrder(saved.order));
   const [ratingsSource, setRatingsSource] = useState(() => readRatingsPayload().ratings);
   const [fetchedRecords, setFetchedRecords] = useState([]);
   const [snapshotRecords, setSnapshotRecords] = useState(null);
@@ -197,16 +153,16 @@ export default function VideoStudio() {
   }, [settings, order]);
 
   useEffect(() => {
-    persistSharedRatingOrder(order);
+    persistRatingOrder(order);
   }, [order]);
 
   useEffect(() => {
     const listener = event => {
-      if ([WEIGHT_MODE_KEY, WEIGHT_EDITOR_MODE_KEY, SHARED_WEIGHTS_KEY, SHARED_PRESET_WEIGHTS_KEY].includes(event.key)) {
+      if (WEIGHT_STORAGE_KEYS.includes(event.key)) {
         setSettings(current => ({ ...current, ...readSharedWeightSettings(current) }));
       }
-      if (event.key === RATING_ORDER_STORAGE_KEY) {
-        setOrder(readSharedRatingOrder(order));
+      if (RATING_ORDER_STORAGE_KEYS.includes(event.key)) {
+        setOrder(readRatingOrder(order));
       }
     };
     window.addEventListener("storage", listener);
@@ -309,7 +265,7 @@ export default function VideoStudio() {
         setSnapshotRecords(imported.records);
         persistSharedWeightSettings(imported.settings);
         setSettings({ ...imported.settings, ...readSharedWeightSettings(imported.settings) });
-        persistSharedRatingOrder(imported.order);
+        persistRatingOrder(imported.order);
         setOrder(normalizeRatingOrder(imported.order));
         setOutputLocation("");
       } else {

@@ -1,10 +1,8 @@
 import { useMemo, useState } from "react";
-import { DIMENSIONS, OVERALL_COLORS, TIER_COLORS } from "../utils/constants.js";
-import { DIMENSION_LABELS, OVERALL_LABELS, localeFor, schoolLabel, t } from "../utils/i18n.js";
+import { DIMENSIONS } from "../utils/constants.js";
+import { DIMENSION_LABELS, localeFor, t } from "../utils/i18n.js";
 import { buildDimensionReportSvg, dimensionReportRows } from "../utils/dimensionReport.js";
 import { useRatingStore } from "../store/ratingStore.js";
-import { studentDisplayName } from "../utils/studentDisplay.js";
-import { schoolIconPath } from "../utils/schoolIcons.js";
 
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -114,19 +112,18 @@ export default function DimensionReport({ open, onClose }) {
         {status ? <div className="report-status">{status}</div> : null}
         <div className="report-list">
           {rows.length === 0 ? <div className="report-empty">{t(uiLanguage, "rankReportEmpty")}</div> : rows.map(row => {
-            const overall = row.ratings.overall;
-            const overallColor = overall !== null && overall !== undefined ? OVERALL_COLORS[overall] : "var(--text-muted)";
-            const schoolIcon = schoolIconPath(row.student.school);
+            const { identity, overall } = row.presentation;
+            const rankedDimension = row.presentation.dimensions.find(item => item.key === dimension);
             return (
               <div className="report-row" key={row.student.id}>
                 <span className="report-rank">#{row.rank}</span>
-                <img src={`https://schaledb.com/images/student/icon/${row.student.id}.webp`} alt={row.student.name} />
+                <img src={identity.avatarUrl} alt={identity.displayName} />
                 <div className="report-student">
-                  <strong>{studentDisplayName(row.student, uiLanguage)}</strong>
-                  <small>#{row.student.id} · {schoolIcon ? <img className="report-school-icon" src={schoolIcon} alt="" /> : null}{schoolLabel(uiLanguage, row.student.school)}</small>
+                  <strong>{identity.displayName}</strong>
+                  <small>#{identity.id} · {identity.schoolIcon ? <img className="report-school-icon" src={identity.schoolIcon} alt="" /> : null}{identity.schoolLabel}</small>
                 </div>
-                <span className="report-tier" style={{ color: TIER_COLORS[row.tier], borderColor: TIER_COLORS[row.tier], background: `${TIER_COLORS[row.tier]}22` }}>{row.tier}</span>
-                <span className="report-overall" style={{ color: overallColor }}>{overall !== null && overall !== undefined ? `${OVERALL_LABELS[locale][overall]} ${Number(row.ratings.overallScore ?? 0).toFixed(1)}` : "--"}</span>
+                <span className="report-tier" style={{ color: rankedDimension.tierColor, borderColor: rankedDimension.tierColor, background: `${rankedDimension.tierColor}22` }}>{row.tier}</span>
+                <span className="report-overall" style={{ color: overall.color }}>{overall.level !== null ? `${overall.label} ${Number(overall.score ?? 0).toFixed(1)}` : "--"}</span>
               </div>
             );
           })}

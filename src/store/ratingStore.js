@@ -1,146 +1,36 @@
 import { create } from "zustand";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { DEFAULT_DIMENSION_WEIGHT_SHARES, DEFAULT_RATINGS } from "../utils/constants.js";
+import { DEFAULT_RATINGS } from "../utils/constants.js";
 import {
-  DEFAULT_DIMENSION_WEIGHTS,
   WEIGHT_EDITOR_MODES,
   WEIGHT_MODES,
   adjustFineWeightShare,
   normalizeDimensionWeights,
-  normalizeFineWeightState,
   normalizeWeightEditorMode,
   normalizeWeightMode,
   recalculateRatings,
 } from "../utils/scoring.js";
 import { timestampRating } from "../utils/ratingTimestamps.js";
-import { DEFAULT_ORDER, RATING_ORDER_STORAGE_KEY, normalizeRatingOrder } from "../utils/ratingSorting.js";
+import {
+  RATING_ORDER_STORAGE_KEYS,
+  RATING_STORAGE_KEYS,
+  WEIGHT_STORAGE_KEYS,
+  createRatingsExportPayload,
+  normalizeRatingCollection,
+  normalizeStoredRating,
+  parseRatingsPayload,
+  persistImportedRatingPayload,
+  persistRatingOrder,
+  persistRatings,
+  persistSharedWeightSettings,
+  readRatingOrder,
+  readRatings,
+  readSharedWeightSettings,
+  readStoredValue,
+  writeStoredValue,
+} from "./ratingPersistence.js";
 
-const LS_LANG = "ba_rating_lang";
-const LS_UI_LANG = "ba_rating_ui_lang";
-const LS_SEASON = "ba_rating_season";
-const LS_ARENA_SEASON = "ba_rating_arena_season";
-const LS_THEME = "ba_rating_theme";
-const LS_WEIGHT_MODE = "ba_rating_weight_mode";
-const LS_WEIGHT_EDITOR_MODE = "ba_rating_weight_editor_mode";
-const LS_SHARED_WEIGHTS = "ba_rating_shared_dimension_weight_shares";
-const LS_SHARED_PRESET_WEIGHTS = "ba_rating_shared_dimension_weights";
-const LS_RATING_ORDER = RATING_ORDER_STORAGE_KEY;
-const RATINGS_KEY = "ba_pvp_ratings";  // localStorage key for all saved ratings
-const RATINGS_FILE = "ratings/ba_pvp_ratings.json";
-
-export const WEIGHT_STORAGE_KEYS = Object.freeze([
-  LS_WEIGHT_MODE,
-  LS_WEIGHT_EDITOR_MODE,
-  LS_SHARED_WEIGHTS,
-  LS_SHARED_PRESET_WEIGHTS,
-]);
-export const RATING_ORDER_STORAGE_KEYS = Object.freeze([LS_RATING_ORDER]);
-
-function loadRatings() {
-  try {
-    const payload = JSON.parse(localStorage.getItem(RATINGS_KEY) || "{}");
-    const parsed = parseRatingsPayload(payload);
-    return normalizeRatingCollection(parsed.ratings);
-  }
-  catch { return {}; }
-}
-function saveRatings(r) {
-  localStorage.setItem(RATINGS_KEY, JSON.stringify(r));
-}
-
-function loadRatingOrder() {
-  try {
-    return normalizeRatingOrder(JSON.parse(localStorage.getItem(LS_RATING_ORDER) || "null") || DEFAULT_ORDER);
-  } catch {
-    return { ...DEFAULT_ORDER };
-  }
-}
-
-function saveRatingOrder(order) {
-  localStorage.setItem(LS_RATING_ORDER, JSON.stringify(normalizeRatingOrder(order)));
-}
-
-function loadSharedDimensionWeightShares() {
-  try {
-    return normalizeFineWeightState({
-      dimensionWeightShares: JSON.parse(localStorage.getItem(LS_SHARED_WEIGHTS) || "null") || DEFAULT_DIMENSION_WEIGHT_SHARES,
-    }).dimensionWeightShares;
-  } catch {
-    return normalizeFineWeightState({ dimensionWeightShares: DEFAULT_DIMENSION_WEIGHT_SHARES }).dimensionWeightShares;
-  }
-}
-
-function saveSharedDimensionWeightShares(shares) {
-  localStorage.setItem(LS_SHARED_WEIGHTS, JSON.stringify(normalizeFineWeightState({ dimensionWeightShares: shares }).dimensionWeightShares));
-}
-
-function loadSharedDimensionWeights() {
-  try {
-    return normalizeDimensionWeights({ dimensionWeights: JSON.parse(localStorage.getItem(LS_SHARED_PRESET_WEIGHTS) || "null") || DEFAULT_DIMENSION_WEIGHTS });
-  } catch {
-    return { ...DEFAULT_DIMENSION_WEIGHTS };
-  }
-}
-
-function saveSharedDimensionWeights(weights) {
-  localStorage.setItem(LS_SHARED_PRESET_WEIGHTS, JSON.stringify(normalizeDimensionWeights({ dimensionWeights: weights })));
-}
-
-function parseRatingsPayload(payload) {
-  if (payload && typeof payload === "object" && !Array.isArray(payload) && payload.ratings && typeof payload.ratings === "object") {
-    const hasSharedFine = Boolean(payload.sharedDimensionWeightShares);
-    const hasSharedPreset = Boolean(payload.sharedDimensionWeights);
-    return {
-      ratings: payload.ratings,
-      weightMode: normalizeWeightMode(payload.weightMode),
-      weightEditorMode: payload.weightEditorMode
-        ? normalizeWeightEditorMode(payload.weightEditorMode)
-        : (hasSharedPreset && !hasSharedFine ? WEIGHT_EDITOR_MODES.preset : null),
-      sharedDimensionWeightShares: payload.sharedDimensionWeightShares
-        ? normalizeFineWeightState({ dimensionWeightShares: payload.sharedDimensionWeightShares }).dimensionWeightShares
-        : null,
-      sharedDimensionWeights: payload.sharedDimensionWeights
-        ? normalizeDimensionWeights({ dimensionWeights: payload.sharedDimensionWeights })
-        : null,
-      ratingOrder: payload.ratingOrder ? normalizeRatingOrder(payload.ratingOrder) : null,
-    };
-  }
-  const ratings = payload || {};
-  const values = ratings && typeof ratings === "object" && !Array.isArray(ratings) ? Object.values(ratings) : [];
-  const hasFine = values.some(item => item && typeof item === "object" && Object.hasOwn(item, "dimensionWeightShares"));
-  const hasPreset = values.some(item => item && typeof item === "object" && (Object.hasOwn(item, "dimensionWeights") || Object.hasOwn(item, "costWeight")));
-  return {
-    ratings,
-    weightMode: null,
-    weightEditorMode: hasFine ? WEIGHT_EDITOR_MODES.fine : hasPreset ? WEIGHT_EDITOR_MODES.preset : null,
-    sharedDimensionWeightShares: null,
-    sharedDimensionWeights: null,
-    ratingOrder: null,
-  };
-}
-
-function normalizeRatings(ratings) {
-  const normalized = { ...DEFAULT_RATINGS(), ...ratings };
-  if (!ratings || !Object.hasOwn(ratings, "dimensionWeightShares")) {
-    delete normalized.dimensionWeightShares;
-  }
-  if (typeof normalized.overall === "string") {
-    const legacy = { E: 0, D: 0, C: 1, B: 2, A: 3, S: 4 };
-    normalized.overall = legacy[normalized.overall] ?? null;
-  }
-  const legacyEditorMode = ratings && Object.hasOwn(ratings, "dimensionWeightShares")
-    ? WEIGHT_EDITOR_MODES.fine
-    : WEIGHT_EDITOR_MODES.preset;
-  return recalculateRatings(normalized, { weightMode: WEIGHT_MODES.individual, weightEditorMode: legacyEditorMode });
-}
-
-function normalizeRatingCollection(data) {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return {};
-  return Object.fromEntries(Object.entries(data).map(([studentId, ratings]) => [
-    studentId,
-    normalizeRatings(ratings || {}),
-  ]));
-}
+export { RATING_ORDER_STORAGE_KEYS, WEIGHT_STORAGE_KEYS };
 
 function effectiveOptions(state) {
   return {
@@ -152,7 +42,7 @@ function effectiveOptions(state) {
 }
 
 function effectiveRatings(rawRatings, state) {
-  return recalculateRatings(normalizeRatings(rawRatings || {}), effectiveOptions(state));
+  return recalculateRatings(normalizeStoredRating(rawRatings || {}), effectiveOptions(state));
 }
 
 function effectiveRatingCollection(allRatings, state) {
@@ -166,20 +56,6 @@ function prepareStoredRating(rating, state) {
   if (state.weightMode !== WEIGHT_MODES.shared) return rating;
   const { dimensionWeightShares, dimensionWeights, costWeight, unassignedWeightShare, weightEditorMode, ...rest } = rating;
   return rest;
-}
-
-function ratingsExportPayload(state) {
-  const fineState = normalizeFineWeightState({ dimensionWeightShares: state.sharedDimensionWeightShares });
-  return {
-    version: 2,
-    weightMode: state.weightMode,
-    weightEditorMode: state.weightEditorMode,
-    sharedDimensionWeightShares: fineState.dimensionWeightShares,
-    sharedUnassignedWeightShare: fineState.unassignedWeightShare,
-    sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: state.sharedDimensionWeights }),
-    ratingOrder: normalizeRatingOrder(state.ratingOrder),
-    ratings: state.allRatings,
-  };
 }
 
 function downloadTextFile(filename, contents) {
@@ -206,30 +82,31 @@ function downloadBinaryFile(filename, bytes, type = "application/octet-stream") 
 }
 
 const JSON_FILTER = [{ name: "JSON", extensions: ["json"] }];
+const initialSharedWeightSettings = readSharedWeightSettings();
 
 export const useRatingStore = create((set, get) => ({
   // Student data
   students: [],
   loading: true,
   error: null,
-  language: localStorage.getItem(LS_LANG) || "zh",
-  uiLanguage: localStorage.getItem(LS_UI_LANG) || "zh",
-  theme: localStorage.getItem(LS_THEME) || "dark",
+  language: readStoredValue(RATING_STORAGE_KEYS.dataLanguage, "zh"),
+  uiLanguage: readStoredValue(RATING_STORAGE_KEYS.uiLanguage, "zh"),
+  theme: readStoredValue(RATING_STORAGE_KEYS.theme, "dark"),
 
   // Selected student
   selectedStudent: null,
 
   // Season selector
-  season: localStorage.getItem(LS_SEASON) || "Street",
-  arenaSeason: localStorage.getItem(LS_ARENA_SEASON) || "S9",
+  season: readStoredValue(RATING_STORAGE_KEYS.season, "Street"),
+  arenaSeason: readStoredValue(RATING_STORAGE_KEYS.arenaSeason, "S9"),
 
   // All saved ratings: { [studentId]: RatingObject }
-  allRatings: loadRatings(),
-  weightMode: normalizeWeightMode(localStorage.getItem(LS_WEIGHT_MODE)),
-  weightEditorMode: normalizeWeightEditorMode(localStorage.getItem(LS_WEIGHT_EDITOR_MODE)),
-  sharedDimensionWeightShares: loadSharedDimensionWeightShares(),
-  sharedDimensionWeights: loadSharedDimensionWeights(),
-  ratingOrder: loadRatingOrder(),
+  allRatings: readRatings(),
+  weightMode: initialSharedWeightSettings.weightMode,
+  weightEditorMode: initialSharedWeightSettings.weightEditorMode,
+  sharedDimensionWeightShares: initialSharedWeightSettings.sharedDimensionWeightShares,
+  sharedDimensionWeights: initialSharedWeightSettings.sharedDimensionWeights,
+  ratingOrder: readRatingOrder(),
   lastFilePath: "",
   fileStatus: "",
 
@@ -239,63 +116,57 @@ export const useRatingStore = create((set, get) => ({
 
   // Actions
   setLanguage: (lang) => {
-    localStorage.setItem(LS_LANG, lang);
+    writeStoredValue(RATING_STORAGE_KEYS.dataLanguage, lang);
     set({ language: lang, students: [], loading: true, error: null, selectedStudent: null });
   },
   setUiLanguage: (lang) => {
-    localStorage.setItem(LS_UI_LANG, lang);
+    writeStoredValue(RATING_STORAGE_KEYS.uiLanguage, lang);
     set({ uiLanguage: lang });
   },
   setTheme: (theme) => {
-    localStorage.setItem(LS_THEME, theme);
+    writeStoredValue(RATING_STORAGE_KEYS.theme, theme);
     set({ theme });
   },
   setSeason: (season) => {
-    localStorage.setItem(LS_SEASON, season);
+    writeStoredValue(RATING_STORAGE_KEYS.season, season);
     set({ season });
   },
   setArenaSeason: (arenaSeason) => {
-    localStorage.setItem(LS_ARENA_SEASON, arenaSeason);
+    writeStoredValue(RATING_STORAGE_KEYS.arenaSeason, arenaSeason);
     set({ arenaSeason });
   },
   setWeightMode: (weightMode) => {
     const mode = normalizeWeightMode(weightMode);
-    localStorage.setItem(LS_WEIGHT_MODE, mode);
+    persistSharedWeightSettings({ weightMode: mode });
     set({ weightMode: mode });
   },
   setWeightEditorMode: (weightEditorMode) => {
     const mode = normalizeWeightEditorMode(weightEditorMode);
-    localStorage.setItem(LS_WEIGHT_EDITOR_MODE, mode);
+    persistSharedWeightSettings({ weightEditorMode: mode });
     set({ weightEditorMode: mode });
   },
   setSharedDimensionWeightShare: (dimension, share) => {
     const current = get().sharedDimensionWeightShares;
     const sharedDimensionWeightShares = adjustFineWeightShare(current, dimension, share).dimensionWeightShares;
-    saveSharedDimensionWeightShares(sharedDimensionWeightShares);
+    persistSharedWeightSettings({ sharedDimensionWeightShares });
     set({ sharedDimensionWeightShares });
   },
   setSharedDimensionWeight: (dimension, weight) => {
     const sharedDimensionWeights = normalizeDimensionWeights({
       dimensionWeights: { ...get().sharedDimensionWeights, [dimension]: weight },
     });
-    saveSharedDimensionWeights(sharedDimensionWeights);
+    persistSharedWeightSettings({ sharedDimensionWeights });
     set({ sharedDimensionWeights });
   },
   syncSharedWeightSettingsFromStorage: () => {
-    set({
-      weightMode: normalizeWeightMode(localStorage.getItem(LS_WEIGHT_MODE)),
-      weightEditorMode: normalizeWeightEditorMode(localStorage.getItem(LS_WEIGHT_EDITOR_MODE)),
-      sharedDimensionWeightShares: loadSharedDimensionWeightShares(),
-      sharedDimensionWeights: loadSharedDimensionWeights(),
-    });
+    set(readSharedWeightSettings(get()));
   },
   setRatingOrder: (order) => {
-    const ratingOrder = normalizeRatingOrder(order);
-    saveRatingOrder(ratingOrder);
+    const ratingOrder = persistRatingOrder(order);
     set({ ratingOrder });
   },
   syncRatingOrderFromStorage: () => {
-    set({ ratingOrder: loadRatingOrder() });
+    set({ ratingOrder: readRatingOrder() });
   },
   setStudents: (students) => set({ students, loading: false }),
   setError: (error) => set({ error, loading: false }),
@@ -335,7 +206,7 @@ export const useRatingStore = create((set, get) => ({
     const allRatings = { ...s.allRatings, [id]: prepareStoredRating(updated, s) };
     set({ allRatings });
     // Auto-save on every change
-    saveRatings(allRatings);
+    persistRatings(allRatings);
   },
 
   setOverallRating: (tier) => {
@@ -347,7 +218,7 @@ export const useRatingStore = create((set, get) => ({
     const updated = timestampRating(recalculateRatings({ ...existing, overall: tier, overallAuto: false }, effectiveOptions(s)), isNew);
     const allRatings = { ...s.allRatings, [id]: prepareStoredRating(updated, s) };
     set({ allRatings });
-    saveRatings(allRatings);
+    persistRatings(allRatings);
   },
 
   setOverallAuto: (auto) => {
@@ -359,7 +230,7 @@ export const useRatingStore = create((set, get) => ({
     const updated = timestampRating(recalculateRatings({ ...existing, overallAuto: auto }, effectiveOptions(s)), isNew);
     const allRatings = { ...s.allRatings, [id]: prepareStoredRating(updated, s) };
     set({ allRatings });
-    saveRatings(allRatings);
+    persistRatings(allRatings);
   },
 
   setDimensionWeight: (dimension, weight) => {
@@ -379,7 +250,7 @@ export const useRatingStore = create((set, get) => ({
     }, { ...effectiveOptions(s), weightEditorMode: WEIGHT_EDITOR_MODES.preset }), isNew);
     const allRatings = { ...s.allRatings, [id]: prepareStoredRating(updated, s) };
     set({ allRatings });
-    saveRatings(allRatings);
+    persistRatings(allRatings);
   },
 
   setCostWeight: (costWeight) => get().setDimensionWeight("cost", costWeight),
@@ -400,7 +271,7 @@ export const useRatingStore = create((set, get) => ({
     }, { weightMode: WEIGHT_MODES.individual, weightEditorMode: WEIGHT_EDITOR_MODES.fine }), isNew);
     const allRatings = { ...s.allRatings, [id]: prepareStoredRating(updated, s) };
     set({ allRatings });
-    saveRatings(allRatings);
+    persistRatings(allRatings);
   },
 
   setNotes: (notes) => {
@@ -412,13 +283,13 @@ export const useRatingStore = create((set, get) => ({
     const updated = timestampRating({ ...existing, notes }, isNew);
     const allRatings = { ...s.allRatings, [id]: prepareStoredRating(updated, s) };
     set({ allRatings });
-    saveRatings(allRatings);
+    persistRatings(allRatings);
   },
 
   // Manual save (also done automatically, but useful for export)
   saveAllRatings: async () => {
-    saveRatings(get().allRatings);
-    const contents = JSON.stringify(ratingsExportPayload(get()), null, 2);
+    persistRatings(get().allRatings);
+    const contents = JSON.stringify(createRatingsExportPayload(get()), null, 2);
     if (isTauri()) {
       const path = await invoke("save_text_as", {
         defaultName: "ba_pvp_ratings.json",
@@ -441,29 +312,7 @@ export const useRatingStore = create((set, get) => ({
     try {
       const parsed = parseRatingsPayload(JSON.parse(jsonText));
       const data = normalizeRatingCollection(parsed.ratings);
-      const nextState = { allRatings: data };
-      if (parsed.weightMode) {
-        localStorage.setItem(LS_WEIGHT_MODE, parsed.weightMode);
-        nextState.weightMode = parsed.weightMode;
-      }
-      if (parsed.weightEditorMode) {
-        localStorage.setItem(LS_WEIGHT_EDITOR_MODE, parsed.weightEditorMode);
-        nextState.weightEditorMode = parsed.weightEditorMode;
-      }
-      if (parsed.sharedDimensionWeightShares) {
-        saveSharedDimensionWeightShares(parsed.sharedDimensionWeightShares);
-        nextState.sharedDimensionWeightShares = parsed.sharedDimensionWeightShares;
-      }
-      if (parsed.sharedDimensionWeights) {
-        saveSharedDimensionWeights(parsed.sharedDimensionWeights);
-        nextState.sharedDimensionWeights = parsed.sharedDimensionWeights;
-      }
-      if (parsed.ratingOrder) {
-        saveRatingOrder(parsed.ratingOrder);
-        nextState.ratingOrder = parsed.ratingOrder;
-      }
-      saveRatings(data);
-      set(nextState);
+      set({ allRatings: data, ...persistImportedRatingPayload(parsed, data) });
       return true;
     } catch { return false; }
   },
@@ -474,29 +323,7 @@ export const useRatingStore = create((set, get) => ({
     if (!text) return null;
     const parsed = parseRatingsPayload(JSON.parse(text));
     const data = normalizeRatingCollection(parsed.ratings);
-    const nextState = { allRatings: data, fileStatus: "loaded JSON" };
-    if (parsed.weightMode) {
-      localStorage.setItem(LS_WEIGHT_MODE, parsed.weightMode);
-      nextState.weightMode = parsed.weightMode;
-    }
-    if (parsed.weightEditorMode) {
-      localStorage.setItem(LS_WEIGHT_EDITOR_MODE, parsed.weightEditorMode);
-      nextState.weightEditorMode = parsed.weightEditorMode;
-    }
-    if (parsed.sharedDimensionWeightShares) {
-      saveSharedDimensionWeightShares(parsed.sharedDimensionWeightShares);
-      nextState.sharedDimensionWeightShares = parsed.sharedDimensionWeightShares;
-    }
-    if (parsed.sharedDimensionWeights) {
-      saveSharedDimensionWeights(parsed.sharedDimensionWeights);
-      nextState.sharedDimensionWeights = parsed.sharedDimensionWeights;
-    }
-    if (parsed.ratingOrder) {
-      saveRatingOrder(parsed.ratingOrder);
-      nextState.ratingOrder = parsed.ratingOrder;
-    }
-    saveRatings(data);
-    set(nextState);
+    set({ allRatings: data, fileStatus: "loaded JSON", ...persistImportedRatingPayload(parsed, data) });
     return data;
   },
 

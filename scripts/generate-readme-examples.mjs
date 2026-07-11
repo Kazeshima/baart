@@ -10,8 +10,12 @@ import { parseStudents } from "../src/utils/students.js";
 import { recalculateRatings, WEIGHT_EDITOR_MODES } from "../src/utils/scoring.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const outputDir = path.join(root, "docs", "assets", "examples");
+const comparisonMode = process.argv.includes("--compare");
+const outputDir = comparisonMode
+  ? path.join(root, ".tmp", "static-comparison")
+  : path.join(root, "docs", "assets", "examples");
 const hoshinoId = 10005;
+const yukariSwimsuitId = 10121;
 const fallbackRatingData = {
   [hoshinoId]: {
     blindshot: "S",
@@ -23,9 +27,35 @@ const fallbackRatingData = {
     overallScore: 5,
     overallAuto: true,
     costWeight: "half",
-    notes: "",
+    notes: "Reliable frontline control creates a useful counterattack window, although terrain and enemy damage type still matter.",
   },
 };
+const README_COMMENTS = Object.freeze({
+  en: "Hoshino anchors the front line and creates a reliable counterattack window, but terrain and enemy damage type still matter.",
+  zh: "星野能够稳住前排并创造反击窗口，但地形和对手的伤害类型仍会影响实战表现。",
+});
+const COMPARISON_COMMENTS = Object.freeze({
+  en: "Kadenokouji Yukari (Swimsuit) is a matchup-sensitive Arena option whose value changes with terrain, cover, opening skill order, enemy damage type, and whether the team survives the first burst cycle. This deliberately long comment verifies that the static card wraps every line inside its panel without scrolling, fading, clipping, or colliding with the Comments heading.",
+  zh: "勘解由小路  紫草（泳装）在竞技场里更像是针对环境的精密工具，而不是可以无脑放进任何队伍的角色。地形适性、掩体站位、开局技能牌序、对手伤害类型以及队伍能否撑过第一轮爆发都会改变她的实际价值。这段刻意加长的中英混排评价用于验证静态卡片能够完整换行，并且不会滚动、渐隐、裁切或与“评价”标题重叠。Arena PvP layout stress test.",
+});
+const comparisonRating = Object.freeze({
+  blindshot: "S",
+  counter: "A",
+  defense: "B",
+  counterDef: "C",
+  cost: "D",
+  overall: 3,
+  overallScore: 3.4,
+  overallAuto: false,
+  dimensionWeights: {
+    blindshot: "full",
+    counter: "full",
+    defense: "full",
+    counterDef: "full",
+    cost: "half",
+  },
+  costWeight: "half",
+});
 const storage = new Map();
 globalThis.localStorage = {
   getItem: key => storage.get(key) ?? null,
@@ -61,11 +91,11 @@ async function fetchWithRetries(url, attempts = 3) {
   throw lastError;
 }
 
-async function loadStudent(language) {
+async function loadStudent(language, studentId) {
   const data = await fetchJson(LANG_URLS[language]);
   const students = parseStudents(data);
-  const student = students.find(item => Number(item.id) === hoshinoId);
-  if (!student) throw new Error(`Student ${hoshinoId} not found in ${language} data.`);
+  const student = students.find(item => Number(item.id) === studentId);
+  if (!student) throw new Error(`Student ${studentId} not found in ${language} data.`);
   return student;
 }
 
@@ -102,12 +132,11 @@ async function inlineSvgImages(svg) {
 
 async function exportFontCss() {
   try {
-    const response = await fetchWithRetries("https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Long+Cang");
-    if (!response.ok) return "";
-    let css = await response.text();
-    const urls = Array.from(new Set([...css.matchAll(/url\((https:\/\/[^)]+)\)/g)].map(match => match[1])));
-    for (const url of urls) {
-      css = css.split(url).join(await dataUrlFromHref(url));
+    let css = await fs.readFile(path.join(root, "public", "assets", "fonts", "fonts.css"), "utf8");
+    const references = Array.from(new Set([...css.matchAll(/url\(["']?([^)'"\s]+)["']?\)/g)].map(match => match[1])));
+    for (const reference of references) {
+      const localHref = `/assets/fonts/${path.basename(reference)}`;
+      css = css.split(reference).join(await dataUrlFromHref(localHref));
     }
     return css;
   } catch {
@@ -115,6 +144,7 @@ async function exportFontCss() {
   }
 }
 
+if (comparisonMode) await fs.rm(outputDir, { recursive: true, force: true });
 await fs.mkdir(outputDir, { recursive: true });
 
 const vite = await createServer({
@@ -135,21 +165,38 @@ try {
     entryPoint: path.join(root, "scripts", "card-example-entry.jsx"),
     enableCaching: false,
   });
-  const baseRatings = normalizeRatings(ratingData[String(hoshinoId)]);
-  for (const { language, dataLanguage, output } of [
-    { language: "en", dataLanguage: "en", output: "hoshino-card-en.png" },
-    { language: "zh", dataLanguage: "zh", output: "hoshino-card-zh.png" },
-  ]) {
-    const student = await loadStudent(dataLanguage);
-    const svg = await inlineSvgImages(buildExportSVG(student, baseRatings, {
+  const cases = comparisonMode
+    ? ["zh", "en"].flatMap(language => ["light", "dark"].flatMap(theme => ["compact", "full"].flatMap(mode => [2, 4].map(overallLevel => ({
+        language,
+        dataLanguage: language,
+        theme,
+        mode,
+        overallLevel,
+        studentId: yukariSwimsuitId,
+        output: `${language}-${theme}-${mode}-overall-${overallLevel}.png`,
+      })))))
+    : [
+        { language: "en", dataLanguage: "en", theme: "light", mode: "compact", studentId: hoshinoId, output: "hoshino-card-en.png" },
+        { language: "zh", dataLanguage: "zh", theme: "dark", mode: "compact", studentId: hoshinoId, output: "hoshino-card-zh.png" },
+      ];
+
+  for (const { language, dataLanguage, theme, mode, overallLevel, studentId, output } of cases) {
+    const student = await loadStudent(dataLanguage, studentId);
+    const sourceRating = comparisonMode
+      ? { ...comparisonRating, overall: overallLevel, overallScore: overallLevel === 4 ? 5 : 2.6, notes: COMPARISON_COMMENTS[language] }
+      : { ...(ratingData[String(studentId)] || fallbackRatingData[studentId]), notes: README_COMMENTS[language] };
+    const ratings = normalizeRatings(sourceRating);
+    const svg = await inlineSvgImages(buildExportSVG(student, ratings, {
       season: "Street",
       arenaSeason: "S9",
       uiLanguage: language,
-      theme: language === "en" ? "light" : "dark",
-      mode: "compact",
+      theme,
+      mode,
       fontCss,
     }));
-    const inputProps = { svg };
+    const width = mode === "full" ? 1280 : 960;
+    const height = mode === "full" ? 720 : 540;
+    const inputProps = { svg, width, height };
     const composition = await selectComposition({ serveUrl, id: "CardExample", inputProps, chromeMode: "chrome-for-testing" });
     await renderStill({
       serveUrl,
@@ -165,4 +212,4 @@ try {
   await vite.close();
 }
 
-console.log(`Generated README examples in ${path.relative(root, outputDir)}.`);
+console.log(`Generated ${comparisonMode ? "static comparison renders" : "README examples"} in ${path.relative(root, outputDir)}.`);

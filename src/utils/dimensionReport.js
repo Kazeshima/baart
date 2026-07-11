@@ -1,7 +1,6 @@
-import { DIMENSIONS, OVERALL_COLORS, TIER_COLORS, TIER_SCORES } from "./constants.js";
-import { DIMENSION_LABELS, OVERALL_LABELS, localeFor, schoolLabel, t } from "./i18n.js";
-import { studentDisplayName } from "./studentDisplay.js";
-import { schoolIconPath } from "./schoolIcons.js";
+import { DIMENSIONS, TIER_COLORS, TIER_SCORES } from "./constants.js";
+import { DIMENSION_LABELS, localeFor, t } from "./i18n.js";
+import { createStudentRatingPresentation } from "./presentationModel.js";
 
 export const REPORT_DIRECTIONS = Object.freeze(["desc", "asc"]);
 
@@ -21,12 +20,14 @@ export function dimensionReportRows({ students, ratingsById, dimension, directio
       const ratings = ratingsById?.[student.id];
       const tier = ratings?.[dimensionKey];
       if (!Object.hasOwn(TIER_SCORES, tier)) return [];
+      const presentation = createStudentRatingPresentation({ student, ratings, language });
       return [{
         student,
         ratings,
         tier,
         score: TIER_SCORES[tier],
-        name: studentDisplayName(student, language),
+        name: presentation.identity.displayName,
+        presentation,
       }];
     })
     .sort((a, b) => (a.score - b.score) * sign || Number(a.student.id) - Number(b.student.id))
@@ -47,23 +48,22 @@ export function buildDimensionReportSvg({ rows, dimension, direction = "desc", l
   const title = `${arenaSeason} · ${dimensionLabel} · ${direction === "asc" ? t(language, "bottomToTop") : t(language, "topToBottom")}`;
   const renderedRows = rows.slice(0, Math.floor((height - 150) / rowHeight)).map((row, index) => {
     const y = 122 + index * rowHeight;
-    const overall = row.ratings.overall;
-    const overallColor = overall !== null && overall !== undefined ? OVERALL_COLORS[overall] : palette.sub;
-    const overallText = overall !== null && overall !== undefined ? OVERALL_LABELS[locale][overall] : "--";
-    const scoreText = row.ratings.overallScore !== null && row.ratings.overallScore !== undefined
-      ? Number(row.ratings.overallScore).toFixed(1)
+    const overallColor = row.presentation.overall.color || palette.sub;
+    const overallText = row.presentation.overall.level !== null ? row.presentation.overall.label : "--";
+    const scoreText = row.presentation.overall.score !== null && row.presentation.overall.score !== undefined
+      ? Number(row.presentation.overall.score).toFixed(1)
       : "--";
-    const icon = `https://schaledb.com/images/student/icon/${row.student.id}.webp`;
-    const schoolIcon = schoolIconPath(row.student.school);
-    const school = schoolLabel(language, row.student.school);
+    const icon = row.presentation.identity.avatarUrl;
+    const schoolIcon = row.presentation.identity.schoolIcon;
+    const school = row.presentation.identity.schoolLabel;
     return `
       <g transform="translate(32 ${y})">
         <rect x="0" y="0" width="896" height="54" rx="8" fill="${palette.panel}" stroke="${palette.border}"/>
         <text x="18" y="34" fill="${palette.sub}" font-size="20" font-weight="900" font-family="Rajdhani, Arial">#${row.rank}</text>
         <image href="${icon}" x="66" y="7" width="40" height="40" preserveAspectRatio="xMidYMid slice"/>
         <rect x="66" y="7" width="40" height="40" rx="5" fill="none" stroke="${palette.border}"/>
-        <text x="122" y="25" fill="${palette.text}" font-size="21" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif" xml:space="preserve">${esc(row.name)}</text>
-        <text x="122" y="43" fill="${palette.sub}" font-size="13" font-weight="700" font-family="Rajdhani, Arial">#${row.student.id}</text>
+        <text x="122" y="25" fill="${palette.text}" font-size="21" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif" xml:space="preserve">${esc(row.presentation.identity.displayName)}</text>
+        <text x="122" y="43" fill="${palette.sub}" font-size="13" font-weight="700" font-family="Rajdhani, Arial">#${row.presentation.identity.id}</text>
         ${schoolIcon ? `<image href="${schoolIcon}" x="184" y="24" width="22" height="22" preserveAspectRatio="xMidYMid meet" ${palette.iconFilter ? `filter="${palette.iconFilter}"` : ""}/>` : ""}
         <text x="${schoolIcon ? 212 : 184}" y="43" fill="${palette.sub}" font-size="13" font-weight="800" font-family="Rajdhani, Microsoft YaHei, sans-serif">${esc(school)}</text>
         <rect x="630" y="10" width="54" height="34" rx="5" fill="${TIER_COLORS[row.tier]}22" stroke="${TIER_COLORS[row.tier]}"/>
