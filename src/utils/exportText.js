@@ -80,9 +80,10 @@ export function wrapStaticExportText(value, maxUnits) {
   return lines;
 }
 
-export function fitStaticExportText(value, { width, height, maxFont = 28, minFont = 14, unitFactor = 0.54, lineHeight = 1.18 }) {
+export function fitStaticExportText(value, { width, height, maxFont = 28, minFont = 14, hardMinFont = 8, unitFactor = 0.54, lineHeight = 1.18 }) {
   const text = String(value || "").trim() || "—";
-  for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 1) {
+  const floor = Math.min(minFont, hardMinFont);
+  for (let fontSize = maxFont; fontSize >= floor; fontSize -= 0.5) {
     const maxUnits = Math.max(4, width / (fontSize * unitFactor));
     const lines = wrapStaticExportText(text, maxUnits);
     const gap = Math.ceil(fontSize * lineHeight);
@@ -90,8 +91,8 @@ export function fitStaticExportText(value, { width, height, maxFont = 28, minFon
       return { lines, fontSize, lineGap: gap };
     }
   }
-  const maxUnits = Math.max(4, width / (minFont * unitFactor));
+  const maxUnits = Math.max(4, width / (floor * unitFactor));
   const lines = wrapStaticExportText(text, maxUnits);
-  const lineGap = lines.length <= 1 ? Math.ceil(minFont * lineHeight) : Math.max(6, Math.floor(height / Math.max(1, lines.length - 0.1)));
-  return { lines, fontSize: minFont, lineGap };
+  const lineGap = Math.max(4, Math.floor(height / Math.max(1, lines.length)));
+  return { lines, fontSize: Math.min(floor, lineGap / lineHeight), lineGap };
 }

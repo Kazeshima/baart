@@ -181,7 +181,8 @@ try {
       ];
 
   for (const { language, dataLanguage, theme, mode, overallLevel, studentId, output } of cases) {
-    const student = await loadStudent(dataLanguage, studentId);
+    const loadedStudent = await loadStudent(dataLanguage, studentId);
+    const student = comparisonMode ? { ...loadedStudent, bulletType: "Explosion" } : loadedStudent;
     const sourceRating = comparisonMode
       ? { ...comparisonRating, overall: overallLevel, overallScore: overallLevel === 4 ? 5 : 2.6, notes: COMPARISON_COMMENTS[language] }
       : { ...(ratingData[String(studentId)] || fallbackRatingData[studentId]), notes: README_COMMENTS[language] };

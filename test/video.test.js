@@ -413,11 +413,11 @@ test("static export comment fitting handles real Chinese and English outlier com
     const fit = fitStaticExportText(item.text, item);
     assert.ok(fit.lines.length > 1);
     assert.ok(fit.fontSize <= item.maxFont);
-    assert.ok(fit.lines.length * fit.lineGap <= item.height + fit.lineGap);
+    assert.ok(fit.lines.length * fit.lineGap <= item.height);
   }
 });
 
-test("static export cards consume the shared presentation model without changing the baseline layout", async () => {
+test("static export cards consume the shared presentation model and unified output layout", async () => {
   const [facadeSource, source, exportHookSource, exportPipelineSource] = await Promise.all([
     readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/export/cardSvg.js", import.meta.url), "utf8"),
@@ -428,6 +428,9 @@ test("static export cards consume the shared presentation model without changing
   assert.match(source, /schoolMetaSvg\(presentation/);
   assert.match(source, /filter="\$\{p\.iconFilter\}"/);
   assert.match(source, /overallPanelSvg\(presentation, 594, 42/);
+  assert.match(source, /panelWidth: 330, panelHeight: 330/);
+  assert.match(source, /panelWidth: 620, panelHeight: 464/);
+  assert.match(source, /backgroundDecor\(width, height, p\)/);
   assert.match(facadeSource, /useCardExport\(buildExportSVG\)/);
   assert.match(facadeSource, /function ExportPreviewModal/);
   assert.match(exportHookSource, /setExportPreview\(\{/);
@@ -449,6 +452,7 @@ test("static export visual QA covers both card sizes, languages, themes, and mea
   ]);
   assert.match(generatorSource, /process\.argv\.includes\("--compare"\)/);
   assert.match(generatorSource, /const yukariSwimsuitId = 10121/);
+  assert.match(generatorSource, /bulletType: "Explosion"/);
   assert.match(generatorSource, /\["zh", "en"\]/);
   assert.match(generatorSource, /\["light", "dark"\]/);
   assert.match(generatorSource, /\["compact", "full"\]/);
@@ -490,6 +494,10 @@ test("video comparison QA renders both languages and themes with cached assets",
   assert.match(source, /for \(const language of \["zh", "en"\]\)/);
   assert.match(source, /for \(const theme of \["light", "dark"\]\)/);
   assert.match(source, /for \(const overallLevel of \[2, 4\]\)/);
+  assert.match(source, /Number\(item\.id\) === 10121/);
+  assert.match(source, /bulletType: "Explosion"/);
+  assert.match(source, /portraitOpacity: 1/);
+  assert.match(source, /hold-late/);
   assert.match(source, /prepareRenderAssetMap/);
   assert.match(source, /renderStill/);
 });

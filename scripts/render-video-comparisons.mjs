@@ -3,32 +3,39 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bundle } from "@remotion/bundler";
 import { renderStill, selectComposition } from "@remotion/renderer";
-import { getTimeline } from "../video/core/config.js";
+import { DEFAULT_VIDEO_SETTINGS, getTimeline } from "../video/core/config.js";
 import { parseVideoProject } from "../video/core/manifest.js";
 import { createRenderAssetServer, prepareRenderAssetMap } from "../video/core/renderAssets.js";
+import { LANG_URLS } from "../src/utils/constants.js";
+import { parseStudents } from "../src/utils/students.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputDir = path.join(root, ".tmp", "video-comparison");
 const cacheDir = path.join(root, ".cache", "render-assets");
 const fixture = JSON.parse(await fs.readFile(path.join(root, "test", "fixtures", "render-project.json"), "utf8"));
 
+const comparisonComments = Object.freeze({
+  en: "Kadenokouji Yukari (Swimsuit) is a matchup-sensitive Arena option whose value changes with terrain, cover, opening skill order, enemy damage type, and whether the team survives the first burst cycle. This long comment verifies wrapping and scrolling against the final output layout.",
+  zh: "勘解由小路  紫草（泳装）在竞技场里更像是针对环境的精密工具。地形适性、掩体站位、开局技能牌序、对手伤害类型以及队伍能否撑过第一轮爆发都会改变她的实际价值。这段中英混排评价用于验证最终视频布局中的换行和滚动。Arena PvP layout stress test.",
+});
+
+const studentsByLanguage = Object.fromEntries(await Promise.all(["zh", "en"].map(async language => {
+  const response = await fetch(LANG_URLS[language]);
+  if (!response.ok) throw new Error(`Student data HTTP ${response.status}`);
+  const student = parseStudents(await response.json()).find(item => Number(item.id) === 10121);
+  if (!student) throw new Error(`Student 10121 missing from ${language} data`);
+  return [language, student];
+})));
+
 function localizedRecord(language, overallLevel) {
-  const zh = language === "zh";
   return {
     ...fixture.records[0],
-    student: {
-      ...fixture.records[0].student,
-      name: zh ? "艾米" : "Eimi",
-      familyName: zh ? "和泉元" : "Izumimoto",
-      personalName: zh ? "艾米" : "Eimi",
-    },
+    student: { ...studentsByLanguage[language], bulletType: "Explosion" },
     ratings: {
       ...fixture.records[0].ratings,
       overall: overallLevel,
       overallScore: overallLevel === 4 ? 5 : 2.6,
-      notes: zh
-        ? "前排站位与自我回复能争取反击窗口，地形和伤害类型仍然重要。"
-        : "Front-line sustain buys a counterattack window. Terrain still matters.",
+      notes: comparisonComments[language],
     },
   };
 }
@@ -38,11 +45,13 @@ function comparisonProject(language, theme, overallLevel = 2) {
     ...fixture,
     settings: {
       ...fixture.settings,
+      ...DEFAULT_VIDEO_SETTINGS,
       width: 1920,
       height: 1080,
       uiLanguage: language,
       dataLanguage: language,
       theme,
+      portraitOpacity: 1,
       outputName: `comparison-${language}-${theme}`,
     },
     records: [localizedRecord(language, overallLevel)],
@@ -88,6 +97,20 @@ try {
         logLevel: "error",
       });
       console.log(`Rendered ${language}/${theme}/overall-${overallLevel} comparison frame ${frame}.`);
+      if (overallLevel === 2) {
+        const holdFrame = Math.max(frame, timeline.fadeOutStart - Math.max(2, Math.round(project.settings.fps * 0.35)));
+        await renderStill({
+          serveUrl,
+          composition,
+          inputProps,
+          frame: holdFrame,
+          output: path.join(outputDir, `${language}-${theme}-hold-late.png`),
+          imageFormat: "png",
+          chromeMode: "chrome-for-testing",
+          logLevel: "error",
+        });
+        console.log(`Rendered ${language}/${theme}/hold-late comparison frame ${holdFrame}.`);
+      }
       }
     }
   }

@@ -14,9 +14,12 @@ export function StudentIdentity({ student, language = "zh", presentation, nameCl
   </>;
 }
 
-export function StudentFactIndicator({ ImageComponent = "img", icon, label, color, className = "type-badge", title }) {
+export function StudentFactIndicator({ ImageComponent = "img", icon, label, color, className = "type-badge", title, output = false }) {
   const Image = ImageComponent;
-  return <div className={className} title={title} style={{ border: `1px solid ${color}`, borderColor: color, color, background: `${color}22` }}>
+  const style = output
+    ? { "--fact-color": color, borderColor: color, color }
+    : { border: `1px solid ${color}`, borderColor: color, color, background: `${color}22` };
+  return <div className={className} title={title} style={style}>
     <Image className="student-fact-icon" src={icon} alt={label} />
     <span>{label}</span>
   </div>;
@@ -26,9 +29,9 @@ export function StudentTypeIndicators({ student, language, presentation, ImageCo
   const model = presentation || createStudentRatingPresentation({ student, language });
   const className = variant === "video" ? "video-fact-chip" : "type-badge";
   return <>
-    <StudentFactIndicator ImageComponent={ImageComponent} className={className} {...model.facts.attack} />
-    <StudentFactIndicator ImageComponent={ImageComponent} className={className} {...model.facts.defense} />
-    {variant === "video" ? <StudentFactIndicator ImageComponent={ImageComponent} className={className} icon={model.facts.cover.icon} label={model.facts.cover.label} color={model.facts.cover.active ? "#38bdf8" : mutedColor} /> : null}
+    <StudentFactIndicator ImageComponent={ImageComponent} className={className} output={variant === "video"} {...model.facts.attack} />
+    <StudentFactIndicator ImageComponent={ImageComponent} className={className} output={variant === "video"} {...model.facts.defense} />
+    {variant === "video" ? <StudentFactIndicator ImageComponent={ImageComponent} className={className} output icon={model.facts.cover.icon} label={model.facts.cover.label} color={model.facts.cover.active ? "#38bdf8" : mutedColor} /> : null}
   </>;
 }
 

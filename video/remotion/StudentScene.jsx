@@ -5,11 +5,7 @@ import OverallBadge from "../../src/components/presentation/OverallBadge.jsx";
 import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators } from "../../src/components/presentation/StudentPresentation.jsx";
 import { COMMENT_SCROLL_BOTTOM_CLEARANCE, COMMENT_SCROLL_TOP_GAP, commentScrollDistanceFromHeights, commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll, sceneFadeOpacity } from "../core/config.js";
 import AnimatedRadar from "./AnimatedRadar.jsx";
-
-const palettes = {
-  dark: { bg: "#06080f", text: "#e8f0fe", muted: "#4a6080" },
-  light: { bg: "#e4edf5", text: "#1b2b3d", muted: "#71839a" },
-};
+import { outputTheme, outputThemeCssVariables } from "../../src/utils/outputVisualTokens.js";
 
 function enterStyle(frame, start, duration = 16, distance = 28) {
   const progress = phaseProgress(frame, start, duration);
@@ -34,7 +30,7 @@ export default function StudentScene({ record, settings }) {
   const qualityMode = settings.renderQualityMode || "balanced";
   const fastRender = qualityMode === "fast" || profile.disableShadows;
   const AssetImg = useCallback(({ src, ...props }) => <Img {...props} src={settings.assetMap?.[src] || src} />, [settings.assetMap]);
-  const palette = palettes[settings.theme] || palettes.dark;
+  const palette = outputTheme(settings.theme);
   const presentation = useMemo(() => createStudentRatingPresentation({
     student,
     ratings,
@@ -76,12 +72,12 @@ export default function StudentScene({ record, settings }) {
   const commentMaskClass = hasQualityCommentMask ? "video-comments__viewport--quality" : "video-comments__viewport--no-mask";
 
   return (
-    <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text }}>
+    <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text, ...outputThemeCssVariables(settings.theme) }}>
       {!profile.disableGrid ? <div className="video-scene__grid" /> : null}
+      <div className="video-scene__academy-mark" />
       {!profile.disablePortrait ? <div className="video-portrait" style={{ opacity: settings.portraitOpacity }}>
         <AssetImg src={presentation.identity.portraitUrl} />
       </div> : null}
-      <div className="video-portrait-shade" />
 
       <header className="video-title" style={enterStyle(frame, timeline.infoStart, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-title__season">{settings.arenaSeason} · ARENA GUIDE</div>
