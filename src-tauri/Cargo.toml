@@ -1,6 +1,6 @@
 [package]
 name = "baart"
-version = "1.1.5"
+version = "1.1.6"
 description = "Blue Archive Arena Rating Tool"
 authors = ["Kazeshima"]
 edition = "2021"
