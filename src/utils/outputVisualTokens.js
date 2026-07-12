@@ -41,6 +41,48 @@ const OUTPUT_THEMES = Object.freeze({
   }),
 });
 
+export const FULL_OUTPUT_LAYOUT = Object.freeze({
+  canvas: Object.freeze({ width: 1920, height: 1080 }),
+  portrait: Object.freeze({ x: 500, top: 36, bottom: 36, width: 900 }),
+  right: Object.freeze({
+    x: 900,
+    width: 830,
+    overallTop: 48,
+    overallHeight: 214,
+    radarTop: 278,
+    radarHeight: 752,
+  }),
+  comments: Object.freeze({ x: 74, top: 626, width: 700, height: 352 }),
+});
+
+export function scaleFullOutputLayout(width) {
+  const scale = width / FULL_OUTPUT_LAYOUT.canvas.width;
+  const scaled = value => Math.round(value * scale * 100) / 100;
+  return {
+    scale,
+    portrait: {
+      x: scaled(FULL_OUTPUT_LAYOUT.portrait.x),
+      top: scaled(FULL_OUTPUT_LAYOUT.portrait.top),
+      bottom: scaled(FULL_OUTPUT_LAYOUT.portrait.bottom),
+      width: scaled(FULL_OUTPUT_LAYOUT.portrait.width),
+    },
+    right: {
+      x: scaled(FULL_OUTPUT_LAYOUT.right.x),
+      width: scaled(FULL_OUTPUT_LAYOUT.right.width),
+      overallTop: scaled(FULL_OUTPUT_LAYOUT.right.overallTop),
+      overallHeight: scaled(FULL_OUTPUT_LAYOUT.right.overallHeight),
+      radarTop: scaled(FULL_OUTPUT_LAYOUT.right.radarTop),
+      radarHeight: scaled(FULL_OUTPUT_LAYOUT.right.radarHeight),
+    },
+    comments: {
+      x: scaled(FULL_OUTPUT_LAYOUT.comments.x),
+      top: scaled(FULL_OUTPUT_LAYOUT.comments.top),
+      width: scaled(FULL_OUTPUT_LAYOUT.comments.width),
+      height: scaled(FULL_OUTPUT_LAYOUT.comments.height),
+    },
+  };
+}
+
 export function outputTheme(theme = "dark") {
   return OUTPUT_THEMES[theme] || OUTPUT_THEMES.dark;
 }
@@ -61,7 +103,6 @@ export function outputThemeCssVariables(theme = "dark") {
     "--output-canvas": tokens.bg,
     "--output-panel": tokens.panel,
     "--output-card": tokens.card,
-    "--output-stroke": tokens.stroke,
     "--output-stroke": tokens.stroke,
     "--output-text": tokens.text,
     "--output-sub": tokens.sub,

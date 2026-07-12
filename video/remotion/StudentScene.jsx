@@ -42,6 +42,7 @@ export default function StudentScene({ record, settings }) {
   const overallSpring = spring({ frame: frame - timeline.overallStart, fps, config: { damping: 14, stiffness: 115, mass: 0.8 } });
   const infoEnterFrames = Math.max(1, Math.round(settings.infoEnterDuration * fps));
   const cardOpacity = sceneFadeOpacity(frame, timeline);
+  const terrainEdgeAngle = ((frame / Math.max(1, fps * 2.4)) * 360) % 360;
   const hasQualityCommentMask = !profile.disableCommentMask && qualityMode === "quality";
   const commentTopGap = hasQualityCommentMask ? COMMENT_SCROLL_TOP_GAP : 0;
   const commentBottomClearance = hasQualityCommentMask ? COMMENT_SCROLL_BOTTOM_CLEARANCE : 0;
@@ -72,9 +73,11 @@ export default function StudentScene({ record, settings }) {
   const commentMaskClass = hasQualityCommentMask ? "video-comments__viewport--quality" : "video-comments__viewport--no-mask";
 
   return (
-    <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text, ...outputThemeCssVariables(settings.theme) }}>
+    <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text, "--terrain-edge-angle": `${terrainEdgeAngle}deg`, ...outputThemeCssVariables(settings.theme) }}>
       {!profile.disableGrid ? <div className="video-scene__grid" /> : null}
       <div className="video-scene__academy-mark" />
+      <div className="video-scene__corner video-scene__corner--top" />
+      <div className="video-scene__corner video-scene__corner--bottom" />
       {!profile.disablePortrait ? <div className="video-portrait" style={{ opacity: settings.portraitOpacity }}>
         <AssetImg src={presentation.identity.portraitUrl} />
       </div> : null}

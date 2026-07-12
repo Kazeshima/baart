@@ -2,7 +2,7 @@ import { localeFor, t } from "../utils/i18n.js";
 import { createRadarRenderModel } from "../utils/radarRenderModel.js";
 import { fitStaticExportText } from "../utils/exportText.js";
 import { createStudentRatingPresentation } from "../utils/presentationModel.js";
-import { outputTheme } from "../utils/outputVisualTokens.js";
+import { outputTheme, scaleFullOutputLayout } from "../utils/outputVisualTokens.js";
 import { CARD_DIMENSIONS as CARD } from "./exportPipeline.js";
 
 function esc(value) {
@@ -43,8 +43,7 @@ function noteBlock(text, x, y, width, height, uiLanguage, p, options = {}) {
   return `
   <g>
     <clipPath id="${clipId}"><rect x="${x + paddingX}" y="${y + paddingTop - fit.fontSize}" width="${textWidth}" height="${textHeight + fit.fontSize}"/></clipPath>
-    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="8" fill="${p.card}" fill-opacity="${options.opacity || p.cardOpacity || "0.76"}" stroke="${p.stroke}"/>
-    <path d="M ${x + 8} ${y} Q ${x} ${y} ${x} ${y + 8} V ${y + height - 8} Q ${x} ${y + height} ${x + 8} ${y + height}" fill="none" stroke="${p.pink}" stroke-width="3"/>
+    ${accentPanelRect(x, y, width, height, p, { fill: p.card, opacity: options.opacity || p.cardOpacity || "0.76", accent: "pink" })}
     ${options.hideLabel ? "" : `<text x="${x + 16}" y="${labelY}" fill="${p.gold}" font-size="${options.labelSize || 17}" font-weight="900" letter-spacing=".06em">${esc(label)}</text>`}
     <text clip-path="url(#${clipId})" x="${x + paddingX}" y="${textY}" fill="${p.text}" font-size="${fit.fontSize}" font-weight="700">
       ${fit.lines.map((line, i) => `<tspan x="${x + paddingX}" dy="${i === 0 ? 0 : fit.lineGap}">${esc(line)}</tspan>`).join("")}
@@ -78,6 +77,13 @@ function schoolMetaSvg(presentation, x, y, p, options = {}) {
 
 function panelRect(x, y, width, height, p, options = {}) {
   return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${options.rx || 8}" fill="${options.fill || p.card}" fill-opacity="${options.opacity || p.cardOpacity || "0.76"}" stroke="${options.stroke || p.stroke}" ${options.strokeWidth ? `stroke-width="${options.strokeWidth}"` : ""}/>`;
+}
+
+function accentPanelRect(x, y, width, height, p, options = {}) {
+  const rx = options.rx || 8;
+  const gradient = options.accent === "pink" ? "edgePink" : "edgeCyan";
+  return `${panelRect(x, y, width, height, p, options)}
+    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" fill="none" stroke="url(#${gradient})" stroke-width="${options.accentWidth || 2.4}"/>`;
 }
 
 function overallPanelSvg(presentation, x, y, width, height, p, options = {}) {
@@ -133,6 +139,23 @@ function defs(p) {
       <stop offset="0" stop-color="#172033"/>
       <stop offset="1" stop-color="#0b1020"/>
     </linearGradient>
+    <linearGradient id="edgeCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0" stop-color="${p.pink}"/>
+      <stop offset="0.18" stop-color="${p.cyan}"/>
+      <stop offset="0.7" stop-color="${p.cyan}" stop-opacity="0.82"/>
+      <stop offset="1" stop-color="${p.stroke}" stop-opacity="0.32"/>
+    </linearGradient>
+    <linearGradient id="edgePink" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0" stop-color="${p.pink}"/>
+      <stop offset="0.48" stop-color="${p.pink}" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="${p.cyan}" stop-opacity="0.42"/>
+    </linearGradient>
+    <linearGradient id="terrainSpectrum" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0" stop-color="${p.cyan}"/>
+      <stop offset="0.34" stop-color="${p.pink}"/>
+      <stop offset="0.68" stop-color="${p.gold}"/>
+      <stop offset="1" stop-color="${p.cyan}"/>
+    </linearGradient>
     <pattern id="academyGrid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M 48 0 L 0 0 0 48" fill="none" stroke="${p.grid}" stroke-width="1"/></pattern>
     <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="${p.shadow}" flood-opacity="0.22"/>
@@ -145,22 +168,26 @@ function defs(p) {
       <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="#ffffff" flood-opacity="0.72"/>
       <feDropShadow dx="0" dy="0" stdDeviation="1.3" flood-color="#7dd3fc" flood-opacity="0.32"/>
     </filter>
+    <filter id="edgeGlow" x="-30%" y="-40%" width="160%" height="180%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
   </defs>`;
 }
 
 function backgroundDecor(width, height, p) {
   const cx = width * 0.56;
-  const cy = height * 0.45;
-  const radius = height * 0.29;
+  const cy = height * 0.394;
+  const radius = height * 0.282;
   return `
   <rect width="${width}" height="${height}" fill="url(#academyGrid)" opacity="0.24"/>
   <g fill="none" stroke="${p.cyan}" opacity="0.13">
     <circle cx="${cx}" cy="${cy}" r="${radius}" stroke-width="2"/>
-    <circle cx="${cx}" cy="${cy}" r="${radius + height * 0.045}" stroke-width="1"/>
+    <circle cx="${cx}" cy="${cy}" r="${radius + height * 0.031}" stroke-width="1"/>
+    <circle cx="${cx}" cy="${cy}" r="${radius + height * 0.085}" stroke="${p.pink}" stroke-width="1" opacity="0.72"/>
     <line x1="${cx - radius - 30}" y1="${cy}" x2="${cx + radius + 30}" y2="${cy}"/>
     <line x1="${cx}" y1="${cy - radius - 30}" x2="${cx}" y2="${cy + radius + 30}"/>
   </g>
-  <path d="M ${width - 180} 24 H ${width - 40} V 78" fill="none" stroke="${p.cyan}" stroke-width="2" opacity="0.42"/>
+  <path d="M ${width - 180} 48 H ${width - 40} V 92" fill="none" stroke="${p.cyan}" stroke-width="2" opacity="0.42"/>
   <path d="M 26 ${height - 90} V ${height - 26} H 170" fill="none" stroke="${p.pink}" stroke-width="2" opacity="0.34"/>
   <text x="${width - 40}" y="26" text-anchor="end" fill="${p.cyan}" opacity="0.42" font-family="Share Tech Mono, monospace" font-size="12" letter-spacing="2">SCHALE / ARENA ANALYSIS</text>`;
 }
@@ -226,6 +253,7 @@ ${backgroundDecor(width, height, p)}
 function buildFullSVG(student, ratings, options) {
   const { width, height, radar } = CARD.full;
   const p = palette(options.theme);
+  const layout = scaleFullOutputLayout(width);
   const presentation = createStudentRatingPresentation({ student, ratings, language: options.uiLanguage, activeSeason: options.season });
   const portraitUrl = presentation.identity.portraitUrl;
   const displayName = presentation.identity.displayName;
@@ -240,24 +268,23 @@ ${commonStyles(p, options.fontCss)}
 <rect width="${width}" height="${height}" fill="url(#bg)"/>
 ${backgroundDecor(width, height, p)}
 <g class="ui">
-  <image href="${portraitUrl}" x="290" y="24" width="700" height="${height - 48}" preserveAspectRatio="xMidYMid meet" opacity="0.58"/>
+  <image href="${portraitUrl}" x="${layout.portrait.x}" y="${layout.portrait.top}" width="${layout.portrait.width}" height="${height - layout.portrait.top - layout.portrait.bottom}" preserveAspectRatio="xMidYMid meet" opacity="1"/>
 
-  <text x="48" y="58" fill="#f0b429" font-size="23" font-weight="900" letter-spacing=".07em">${esc(options.arenaSeason || "")} · ARENA GUIDE</text>
-  <text x="48" y="122" fill="${p.text}" font-size="${titleSize}" font-weight="900" xml:space="preserve">${esc(displayName)}</text>
-  <text x="50" y="160" class="sub mono">${esc(presentation.identity.developerName)} · #${presentation.identity.id}</text>
-  ${schoolMetaSvg(presentation, 48, 202, p, { fontSize: 34, iconSize: 58, maxChars: presentation.locale === "en" ? 18 : 12 })}
+  <text x="48" y="52" fill="${p.gold}" font-size="21" font-weight="900" letter-spacing=".07em">${esc(options.arenaSeason || "")} · ARENA GUIDE</text>
+  <text x="48" y="110" fill="${p.text}" font-size="${Math.min(titleSize, 54)}" font-weight="900" xml:space="preserve">${esc(displayName)}</text>
+  <text x="50" y="148" class="sub mono">${esc(presentation.identity.developerName)} · #${presentation.identity.id}</text>
+  ${schoolMetaSvg(presentation, 48, 184, p, { fontSize: 32, iconSize: 56, maxChars: presentation.locale === "en" ? 18 : 12 })}
 
-  ${panelRect(48, 228, 514, 144, p, { fill: p.card, opacity: "0.82" })}
-  <text x="66" y="265" class="value" font-size="30">${esc(trimText(presentation.role.summary, presentation.locale === "en" ? 34 : 28))}</text>
-  <text x="66" y="304" class="value" font-size="25">${esc(trimText(presentation.weapon.summary, presentation.locale === "en" ? 44 : 34))}</text>
-  ${typeChips(presentation, 66, 324, p, { width: 150, height: 42, fontSize: 18, iconSize: 26, gap: 10 })}
-  ${coverMark(presentation, 386, 324, p, { width: 158, height: 42, fontSize: 18, iconSize: 26 })}
-  ${terrainStrip(presentation, 48, 386, p, { compactWidth: 124, upgradeWidth: 170, height: 54, iconSize: 36, rankWidth: 56, rankHeight: 30, gap: 10 })}
-  ${noteBlock(presentation.notes, 48, 454, 522, 204, options.uiLanguage, p, { maxFont: 23, minFont: 11, hardMinFont: 8, paddingTop: 48, paddingBottom: 14, labelY: 486, textY: 510, labelSize: 20, opacity: "0.82" })}
+  <text x="50" y="228" class="value" font-size="30">${esc(trimText(presentation.role.summary, presentation.locale === "en" ? 34 : 28))}</text>
+  ${typeChips(presentation, 50, 246, p, { width: 142, height: 44, fontSize: 19, iconSize: 27, gap: 10 })}
+  ${coverMark(presentation, 354, 246, p, { width: 158, height: 44, fontSize: 19, iconSize: 27 })}
+  <text x="50" y="326" class="value" font-size="25">${esc(trimText(presentation.weapon.summary, presentation.locale === "en" ? 44 : 34))}</text>
+  ${terrainStrip(presentation, 50, 340, p, { compactWidth: 112, upgradeWidth: 164, height: 48, iconSize: 34, rankWidth: 52, rankHeight: 28, gap: 9 })}
+  ${noteBlock(presentation.notes, layout.comments.x, layout.comments.top, layout.comments.width, layout.comments.height, options.uiLanguage, p, { maxFont: 23, minFont: 11, hardMinFont: 8, paddingTop: 48, paddingBottom: 14, labelY: layout.comments.top + 32, textY: layout.comments.top + 56, labelSize: 20, opacity: "0.82" })}
 
-  ${overallPanelSvg(presentation, 600, 42, 620, 138, p, { titleWidth: 142, ratingSize: presentation.locale === "en" ? 60 : 82, scoreSize: presentation.locale === "en" ? 58 : 64, titleSize: 23, minRatingSize: 34, contentGap: 24 })}
-  ${buildRadarSVG(presentation, { x: 600, y: 194, size: radar, panelWidth: 620, panelHeight: 464, chartSize: 420, theme: options.theme, labelFontScale: 1.18 })}
-  ${weightSummarySvg(presentation, p, width - 40, height - 34, 15, { anchor: "end" })}
+  ${overallPanelSvg(presentation, layout.right.x, layout.right.overallTop, layout.right.width, layout.right.overallHeight, p, { titleWidth: 125, ratingSize: presentation.locale === "en" ? 54 : 75, scoreSize: presentation.locale === "en" ? 53 : 57, titleSize: 23, minRatingSize: 32, contentGap: 20 })}
+  ${buildRadarSVG(presentation, { x: layout.right.x, y: layout.right.radarTop, size: radar, panelWidth: layout.right.width, panelHeight: layout.right.radarHeight, chartSize: 427, theme: options.theme, labelFontScale: 1.18 })}
+  ${weightSummarySvg(presentation, p, width - 40, height - 40, 15, { anchor: "end" })}
   <text x="48" y="${height - 34}" class="watermark">BAART</text>
 </g>
 </svg>`;
@@ -322,9 +349,9 @@ function terrainStrip(presentation, x, y, p = palette(), options = {}) {
     const arrowX = rank1X + (rank2X - rank1X) / 2 + rankWidth / 2;
     cursor += width + gap;
     return `
-    <rect x="${tx}" y="${y}" width="${width}" height="${height}" fill="${p.card}" fill-opacity="0.42"/>
-    <line x1="${tx}" y1="${y + height}" x2="${tx + width}" y2="${y + height}" stroke="${active ? p.gold : p.stroke}" stroke-width="2"/>
-    ${active ? `<line x1="${tx}" y1="${y + height}" x2="${tx + Math.min(34, width * 0.28)}" y2="${y + height}" stroke="${p.pink}" stroke-width="2"/>` : ""}
+    <rect x="${tx}" y="${y}" width="${width}" height="${height}" rx="${active ? 6 : 0}" fill="${p.card}" fill-opacity="0.42" ${active ? `stroke="url(#terrainSpectrum)" stroke-width="2.4"` : ""}/>
+    ${active ? "" : `<line x1="${tx}" y1="${y + height}" x2="${tx + width}" y2="${y + height}" stroke="${p.stroke}" stroke-width="1.5"/>`}
+    ${active ? `<rect x="${tx - 1}" y="${y - 1}" width="${width + 2}" height="${height + 2}" rx="7" fill="none" stroke="url(#terrainSpectrum)" stroke-width="3" opacity="0.34" filter="url(#edgeGlow)"/>` : ""}
     <image href="${terrain.icon}" x="${terrainX}" y="${y + (height - iconSize) / 2}" width="${iconSize}" height="${iconSize}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
     <image href="${terrain.rankIcon}" x="${rank1X}" y="${y + (height - rankHeight) / 2}" height="${rankHeight}" width="${rankWidth}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>
     ${hasUpgrade ? `<text x="${arrowX}" y="${y + height / 2 + 6}" text-anchor="middle" fill="${active ? "#f0b429" : p.sub}" font-size="17" font-weight="900">→</text><image href="${terrain.upgradedRankIcon}" x="${rank2X}" y="${y + (height - rankHeight) / 2}" height="${rankHeight}" width="${rankWidth}" ${p.iconFilter ? `filter="${p.iconFilter}"` : ""}/>` : ""}`;
@@ -384,8 +411,7 @@ function buildRadarSVG(presentation, options) {
 
   return `
   <g>
-    <rect x="${x}" y="${y}" width="${panelWidth}" height="${panelHeight}" rx="8" fill="${p.radarBg}" fill-opacity="${p.panelOpacity}" stroke="${p.stroke}"/>
-    <path d="M ${x + 8} ${y} H ${x + panelWidth - 8} Q ${x + panelWidth} ${y} ${x + panelWidth} ${y + 8}" fill="none" stroke="${p.cyan}" stroke-width="3"/>
+    ${accentPanelRect(x, y, panelWidth, panelHeight, p, { fill: p.radarBg, opacity: p.panelOpacity, accent: "cyan" })}
     ${rings}${axes}
     <polygon points="${polyStr}" fill="${fillColor}35" stroke="${fillColor}" stroke-width="3" stroke-linejoin="round"/>
     ${dataPoints.map(([px, py], i) => scores[i] > 0 ? `<circle cx="${px}" cy="${py}" r="5" fill="${dimensions[i].tierColor}" stroke="#06080f" stroke-width="2"/>` : "").join("")}

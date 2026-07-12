@@ -38,6 +38,7 @@ import { benchmarkOutputIo, classifyRenderBottleneck, selectBenchmarkConcurrency
 import { vt } from "../video/core/i18n.js";
 import { buildDimensionReportSvg, dimensionReportRows } from "../src/utils/dimensionReport.js";
 import { fitStaticExportText, wrapStaticExportText } from "../src/utils/exportText.js";
+import { FULL_OUTPUT_LAYOUT, scaleFullOutputLayout } from "../src/utils/outputVisualTokens.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -429,8 +430,13 @@ test("static export cards consume the shared presentation model and unified outp
   assert.match(source, /filter="\$\{p\.iconFilter\}"/);
   assert.match(source, /overallPanelSvg\(presentation, 594, 42/);
   assert.match(source, /panelWidth: 330, panelHeight: 330/);
-  assert.match(source, /panelWidth: 620, panelHeight: 464/);
+  assert.match(source, /scaleFullOutputLayout\(width\)/);
+  assert.match(source, /panelWidth: layout\.right\.width, panelHeight: layout\.right\.radarHeight/);
   assert.match(source, /backgroundDecor\(width, height, p\)/);
+  assert.match(source, /id="edgeCyan"/);
+  assert.match(source, /accent: "cyan"/);
+  assert.match(source, /url\(#terrainSpectrum\)/);
+  assert.doesNotMatch(source, /preserveAspectRatio="xMidYMid meet" opacity="0\.58"/);
   assert.match(facadeSource, /useCardExport\(buildExportSVG\)/);
   assert.match(facadeSource, /function ExportPreviewModal/);
   assert.match(exportHookSource, /setExportPreview\(\{/);
@@ -442,6 +448,27 @@ test("static export cards consume the shared presentation model and unified outp
   assert.match(source, /function buildFullSVG[\s\S]*typeChips\(presentation/);
   assert.doesNotMatch(source.match(/function buildFullSVG[\s\S]*?function coverMark/)?.[0] || "", /studentMetaRows|>\$\{esc\(k\)\}/);
   assert.doesNotMatch(source.match(/function buildFullSVG[\s\S]*?function coverMark/)?.[0] || "", /panelRect\(600, 198, 620, 450/);
+});
+
+test("full static output scales the canonical video geometry exactly", () => {
+  const layout = scaleFullOutputLayout(1280);
+  assert.equal(FULL_OUTPUT_LAYOUT.canvas.width, 1920);
+  assert.equal(layout.scale, 2 / 3);
+  assert.equal(layout.right.x, 600);
+  assert.ok(Math.abs(layout.right.width - 553.33) < 0.01);
+  assert.ok(Math.abs(layout.comments.x - 49.33) < 0.01);
+  assert.equal(layout.portrait.x, 333.33);
+});
+
+test("video output uses deterministic frame-driven terrain edges and matching decorations", async () => {
+  const [sceneSource, cssSource] = await Promise.all([
+    readFile(new URL("../video/remotion/StudentScene.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../video/video.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(sceneSource, /--terrain-edge-angle/);
+  assert.match(sceneSource, /video-scene__corner--top/);
+  assert.match(cssSource, /conic-gradient\(from var\(--terrain-edge-angle\)/);
+  assert.doesNotMatch(cssSource, /@keyframes/);
 });
 
 test("static export visual QA covers both card sizes, languages, themes, and meaningful comments", async () => {
