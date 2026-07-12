@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { invoke, isTauri } from "@tauri-apps/api/core";
 import { DEFAULT_RATINGS } from "../utils/constants.js";
+import { downloadBrowserText, openTextFile, saveDownload, saveTextAs } from "../services/fileTransport.js";
 import {
   WEIGHT_EDITOR_MODES,
   WEIGHT_MODES,
@@ -56,29 +56,6 @@ function prepareStoredRating(rating, state) {
   if (state.weightMode !== WEIGHT_MODES.shared) return rating;
   const { dimensionWeightShares, dimensionWeights, costWeight, unassignedWeightShare, weightEditorMode, ...rest } = rating;
   return rest;
-}
-
-function downloadTextFile(filename, contents) {
-  const blob = new Blob([contents], { type: "application/json;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function downloadBlob(filename, blob) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function downloadBinaryFile(filename, bytes, type = "application/octet-stream") {
-  downloadBlob(filename, new Blob([bytes], { type }));
 }
 
 const JSON_FILTER = [{ name: "JSON", extensions: ["json"] }];
@@ -290,18 +267,9 @@ export const useRatingStore = create((set, get) => ({
   saveAllRatings: async () => {
     persistRatings(get().allRatings);
     const contents = JSON.stringify(createRatingsExportPayload(get()), null, 2);
-    if (isTauri()) {
-      const path = await invoke("save_text_as", {
-        defaultName: "ba_pvp_ratings.json",
-        contents,
-        filters: JSON_FILTER,
-      });
-      if (path) set({ fileStatus: path });
-      return path;
-    }
-    downloadTextFile("ba_pvp_ratings.json", contents);
-    set({ fileStatus: "ba_pvp_ratings.json" });
-    return "ba_pvp_ratings.json";
+    const path = await saveTextAs({ filename: "ba_pvp_ratings.json", contents, filters: JSON_FILTER });
+    if (path) set({ fileStatus: path });
+    return path;
   },
 
   exportRatingsJSON: async () => {
@@ -318,8 +286,7 @@ export const useRatingStore = create((set, get) => ({
   },
 
   loadRatingsFromFile: async () => {
-    if (!isTauri()) return null;
-    const text = await invoke("open_text_file", { filters: JSON_FILTER });
+    const text = await openTextFile(JSON_FILTER);
     if (!text) return null;
     const parsed = parseRatingsPayload(JSON.parse(text));
     const data = normalizeRatingCollection(parsed.ratings);
@@ -328,39 +295,15 @@ export const useRatingStore = create((set, get) => ({
   },
 
   saveExportFile: async (relativePath, contents) => {
-    downloadTextFile(relativePath.split("/").pop(), contents);
+    downloadBrowserText(relativePath.split("/").pop(), contents);
     set({ fileStatus: relativePath });
     return relativePath;
   },
 
   downloadFile: (filename, contents, type) => {
-    if (isTauri()) {
-      const extension = filename.split(".").pop()?.toLowerCase() || "txt";
-      const filters = [{ name: extension.toUpperCase(), extensions: [extension] }];
-      if (contents instanceof Uint8Array) {
-        return invoke("save_bytes_as", {
-          defaultName: filename,
-          bytes: Array.from(contents),
-          filters,
-        }).then(path => {
-          if (path) set({ fileStatus: path });
-          return path;
-        });
-      }
-      return invoke("save_text_as", {
-        defaultName: filename,
-        contents,
-        filters,
-      }).then(path => {
-        if (path) set({ fileStatus: path });
-        return path;
-      });
-    }
-    if (contents instanceof Uint8Array) {
-      downloadBinaryFile(filename, contents, type);
-    } else {
-      downloadBlob(filename, new Blob([contents], { type }));
-    }
-    set({ fileStatus: filename });
+    return saveDownload({ filename, contents, type }).then(path => {
+      if (path) set({ fileStatus: path });
+      return path;
+    });
   },
 }));

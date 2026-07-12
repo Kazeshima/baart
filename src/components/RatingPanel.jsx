@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import RadarChart from "./RadarChart.jsx";
+import { WeightShareControl } from "./weights/WeightInputs.jsx";
 import {
   DIMENSIONS, TIERS, TIER_COLORS,
 } from "../utils/constants.js";
@@ -13,45 +13,6 @@ const TIER_BG = {
 };
 
 const PRESET_WEIGHTS = ["none", "half", "full"];
-
-function WeightNumberInput({ value, onCommit }) {
-  const [draft, setDraft] = useState(Number(value).toFixed(1));
-
-  useEffect(() => {
-    setDraft(Number(value).toFixed(1));
-  }, [value]);
-
-  const commit = () => {
-    const numeric = Number(draft);
-    if (Number.isFinite(numeric)) {
-      const committed = onCommit(numeric);
-      setDraft(Number(committed ?? value).toFixed(1));
-    } else {
-      setDraft(Number(value).toFixed(1));
-    }
-  };
-
-  return (
-    <input
-      className="dim-weight-input"
-      type="number"
-      min="0"
-      max="100"
-      step="0.1"
-      value={draft}
-      onChange={event => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={event => {
-        if (event.key === "Enter") {
-          event.currentTarget.blur();
-        } else if (event.key === "Escape") {
-          setDraft(Number(value).toFixed(1));
-          event.currentTarget.blur();
-        }
-      }}
-    />
-  );
-}
 
 export default function RatingPanel() {
   const {
@@ -142,19 +103,14 @@ export default function RatingPanel() {
                 })}
               </div>
               {isFineMode ? (
-                <label className="dim-weight-row dim-weight-row--slider">
-                  <span>{t(uiLanguage, "dimensionWeight")}</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={currentWeightShare}
-                    onChange={event => setDimensionWeightShare(dim.key, Number(event.target.value))}
-                  />
-                  <WeightNumberInput value={currentWeightShare} onCommit={value => commitDimensionWeightShare(dim.key, value)} />
-                  <strong>{formatWeightShare(currentWeightShare)}</strong>
-                </label>
+                <WeightShareControl
+                  className="dim-weight-row dim-weight-row--slider"
+                  numberClassName="dim-weight-input"
+                  label={t(uiLanguage, "dimensionWeight")}
+                  value={currentWeightShare}
+                  onChange={value => setDimensionWeightShare(dim.key, value)}
+                  onCommit={value => commitDimensionWeightShare(dim.key, value)}
+                />
               ) : (
                 <div className="dim-weight-row dim-weight-row--presets">
                   <span>{t(uiLanguage, "dimensionWeight")}</span>

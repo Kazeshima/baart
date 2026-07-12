@@ -2,18 +2,12 @@ import { useMemo } from "react";
 import { DIMENSIONS, TIER_SCORES, TIER_COLORS, OVERALL_COLORS } from "../utils/constants.js";
 import { DIMENSION_LABELS, localeFor } from "../utils/i18n.js";
 import {
-  RADAR_ANGLES, RADAR_CENTER, RADAR_LEVELS, RADAR_RADIUS, RADAR_VIEWBOX,
-  radarPoint, radarPolygon, radarRevealCircle, radarScanPoint, radarScanTrail,
+  RADAR_CENTER, RADAR_RADIUS, RADAR_VIEWBOX,
+  radarPolygon, radarRevealCircle, radarScanPoint, radarScanTrail,
 } from "../utils/radar.js";
+import { createRadarRenderModel, revealRadarPoints } from "../utils/radarRenderModel.js";
 
 const SIZE = RADAR_VIEWBOX;
-const RING_POLYGONS = Array.from({ length: RADAR_LEVELS }, (_, lvl) => {
-  const radius = RADAR_RADIUS * ((lvl + 1) / RADAR_LEVELS);
-  return radarPolygon(RADAR_ANGLES.map(angle => radarPoint(angle, radius)));
-});
-const AXIS_TARGETS = RADAR_ANGLES.map(angle => radarPoint(angle, RADAR_RADIUS));
-const LABEL_POINTS = RADAR_ANGLES.map(angle => radarPoint(angle, RADAR_RADIUS + 58));
-
 function LabelText({ label, x, y, labelColor, scoreColor, score, resultProgress = 1, labelFontScale = 1 }) {
   const isLongZh = /进攻对策性|特防对策性/.test(label);
   const labelSize = 17 * labelFontScale;
@@ -54,17 +48,21 @@ export default function RadarChart({
   labelFontScale = 1,
 }) {
   const labels = DIMENSION_LABELS[localeFor(language)] || DIMENSION_LABELS.zh;
-
-  // Data polygon
-  const targetPoints = useMemo(() => DIMENSIONS.map((d, i) => {
-    const score = ratings[d.key] !== null ? TIER_SCORES[ratings[d.key]] : 0;
-    const frac  = score / 5;
-    return radarPoint(RADAR_ANGLES[i], RADAR_RADIUS * frac);
-  }), [ratings]);
-  const polygonPoints = targetPoints.map(([targetX, targetY]) => [
-    RADAR_CENTER + (targetX - RADAR_CENTER) * polygonProgress,
-    RADAR_CENTER + (targetY - RADAR_CENTER) * polygonProgress,
-  ]);
+  const dimensions = useMemo(() => DIMENSIONS.map(dimension => ({
+    key: dimension.key,
+    label: labels[dimension.key][0],
+    tier: ratings[dimension.key],
+    score: ratings[dimension.key] !== null ? TIER_SCORES[ratings[dimension.key]] : 0,
+    tierColor: TIER_COLORS[ratings[dimension.key]] || "#4a6080",
+  })), [labels, ratings]);
+  const radarModel = useMemo(() => createRadarRenderModel(dimensions, {
+    centerX: RADAR_CENTER,
+    centerY: RADAR_CENTER,
+    radius: RADAR_RADIUS,
+    labelRadius: RADAR_RADIUS + 58,
+  }), [dimensions]);
+  const targetPoints = radarModel.data.map(dimension => dimension.point);
+  const polygonPoints = revealRadarPoints(radarModel, polygonProgress);
 
   const fillColor = ratings.overall !== null && ratings.overall !== undefined
     ? OVERALL_COLORS[ratings.overall]
@@ -95,12 +93,12 @@ export default function RadarChart({
       /> : null}
 
       {/* Background rings */}
-      {RING_POLYGONS.map((points, lvl) => {
+      {radarModel.rings.map((points, lvl) => {
         const transform = ringProgress < 1 ? `translate(${RADAR_CENTER} ${RADAR_CENTER}) scale(${ringProgress}) translate(${-RADAR_CENTER} ${-RADAR_CENTER})` : undefined;
         return (
           <polygon
             key={lvl}
-            points={points}
+            points={radarPolygon(points)}
             transform={transform}
             fill="none"
             stroke="#1e2d42"
@@ -110,7 +108,7 @@ export default function RadarChart({
       })}
 
       {/* Axis lines */}
-      {AXIS_TARGETS.map(([targetX, targetY], i) => {
+      {radarModel.axes.map(([targetX, targetY], i) => {
         const progress = axisProgress[i] ?? 1;
         const x = RADAR_CENTER + (targetX - RADAR_CENTER) * progress;
         const y = RADAR_CENTER + (targetY - RADAR_CENTER) * progress;
@@ -138,14 +136,14 @@ export default function RadarChart({
       })}
 
       {/* Labels */}
-      {DIMENSIONS.map((d, i) => {
-        const [x, y] = LABEL_POINTS[i];
-        const score = ratings[d.key];
-        const tierColor = score ? TIER_COLORS[score] : "#4a6080";
+      {radarModel.data.map((dimension, i) => {
+        const [x, y] = dimension.labelPoint;
+        const score = dimension.tier;
+        const tierColor = score ? dimension.tierColor : "#4a6080";
         return (
           <g key={i}>
             <g opacity={dataProgress[i] ?? 1}>
-              <LabelText label={labels[d.key][0]} x={x} y={y} labelColor={labelColor} scoreColor={tierColor} score={score} resultProgress={dataProgress[i] ?? 1} labelFontScale={labelFontScale} />
+              <LabelText label={dimension.label} x={x} y={y} labelColor={labelColor} scoreColor={tierColor} score={score} resultProgress={dataProgress[i] ?? 1} labelFontScale={labelFontScale} />
             </g>
           </g>
         );

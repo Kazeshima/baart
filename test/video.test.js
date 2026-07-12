@@ -28,6 +28,7 @@ import { timestampRating } from "../src/utils/ratingTimestamps.js";
 import { OVERALL_LABELS, schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
 import { RADAR_ANGLES, RADAR_RADIUS, radarPoint, radarRevealCircle, radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
+import { createRadarRenderModel, revealRadarPoints } from "../src/utils/radarRenderModel.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import { schoolIconPath } from "../src/utils/schoolIcons.js";
 import { runWorker } from "../video/sidecar/worker.mjs";
@@ -270,6 +271,18 @@ test("radar reveal points fade in at final coordinates", () => {
   assert.equal(complete.opacity, 1);
 });
 
+test("shared radar render model preserves rings, axes, labels, and reveal geometry", () => {
+  const dimensions = RADAR_ANGLES.map((_, index) => ({ key: `${index}`, score: index + 1 }));
+  const model = createRadarRenderModel(dimensions, { centerX: 210, centerY: 210, radius: RADAR_RADIUS, labelRadius: RADAR_RADIUS + 58 });
+  assert.equal(model.rings.length, 5);
+  assert.equal(model.axes.length, 5);
+  assert.equal(model.labels.length, 5);
+  assert.equal(model.data.length, 5);
+  assert.deepEqual(model.axes[0], radarPoint(RADAR_ANGLES[0], RADAR_RADIUS));
+  assert.deepEqual(revealRadarPoints(model, 0), Array.from({ length: 5 }, () => [210, 210]));
+  assert.deepEqual(revealRadarPoints(model, 1), model.data.map(dimension => dimension.point));
+});
+
 test("school names localize without changing canonical English keys", () => {
   assert.equal(schoolLabel("zh", "Millennium"), "千年科学学园");
   assert.equal(schoolLabel("zh", "WildHunt"), "狂猎艺术学院");
@@ -405,13 +418,20 @@ test("static export comment fitting handles real Chinese and English outlier com
 });
 
 test("static export cards consume the shared presentation model without changing the baseline layout", async () => {
-  const source = await readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8");
+  const [facadeSource, source, exportHookSource, exportPipelineSource] = await Promise.all([
+    readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/export/cardSvg.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/export/useCardExport.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/export/exportPipeline.js", import.meta.url), "utf8"),
+  ]);
   assert.match(source, /createStudentRatingPresentation\(\{ student, ratings, language: options\.uiLanguage/);
   assert.match(source, /schoolMetaSvg\(presentation/);
   assert.match(source, /filter="\$\{p\.iconFilter\}"/);
   assert.match(source, /overallPanelSvg\(presentation, 594, 42/);
-  assert.match(source, /setExportPreview\(\{/);
-  assert.match(source, /function ExportPreviewModal/);
+  assert.match(facadeSource, /useCardExport\(buildExportSVG\)/);
+  assert.match(facadeSource, /function ExportPreviewModal/);
+  assert.match(exportHookSource, /setExportPreview\(\{/);
+  assert.match(exportPipelineSource, /makeStoredZip/);
   assert.match(source, /fill="\$\{p\.sub\}" font-size="\$\{labelSize/);
   assert.match(source, /fill="\$\{scoreColor\}" font-size="\$\{scoreSize\}">\$\{tier\}/);
   assert.match(source, /upgradeWidth: 174/);
@@ -442,7 +462,7 @@ test("static export visual QA covers both card sizes, languages, themes, and mea
 test("video and static adapters consume the shared semantic presentation model", async () => {
   const [videoSource, exportSource] = await Promise.all([
     readFile(new URL("../video/remotion/StudentScene.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/export/cardSvg.js", import.meta.url), "utf8"),
   ]);
   assert.match(videoSource, /createStudentRatingPresentation/);
   assert.match(exportSource, /createStudentRatingPresentation/);
@@ -452,15 +472,16 @@ test("video and static adapters consume the shared semantic presentation model",
 });
 
 test("production surfaces load prepared local fonts without runtime Google Fonts calls", async () => {
-  const [exportSource, themeSource, remotionSource, packageSource] = await Promise.all([
-    readFile(new URL("../src/components/ExportCard.jsx", import.meta.url), "utf8"),
+  const [exportSource, exportPipelineSource, themeSource, remotionSource, packageSource] = await Promise.all([
+    readFile(new URL("../src/export/cardSvg.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/export/exportPipeline.js", import.meta.url), "utf8"),
     readFile(new URL("../src/styles/theme.css", import.meta.url), "utf8"),
     readFile(new URL("../video/remotion/index.jsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
-  assert.match(exportSource, /\/assets\/fonts\/fonts\.css/);
+  assert.match(exportPipelineSource, /\/assets\/fonts\/fonts\.css/);
   assert.match(themeSource, /@import url\("\.\.\/\.\.\/public\/assets\/fonts\/fonts\.css"\)/);
-  assert.doesNotMatch(`${exportSource}\n${themeSource}\n${remotionSource}`, /fonts\.googleapis|@remotion\/google-fonts/);
+  assert.doesNotMatch(`${exportSource}\n${exportPipelineSource}\n${themeSource}\n${remotionSource}`, /fonts\.googleapis|@remotion\/google-fonts/);
   assert.match(packageSource, /prepare-fonts\.mjs/);
 });
 
