@@ -16,6 +16,7 @@ import {
   getTimeline,
   predictRenderConcurrency,
   resolveRenderConcurrency,
+  radarScanVisibility,
   sceneFadeOpacity,
   totalDurationInFrames,
   validateVideoSettings,
@@ -27,7 +28,7 @@ import { readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
 import { OVERALL_LABELS, schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
-import { RADAR_ANGLES, RADAR_RADIUS, radarPoint, radarRevealCircle, radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
+import { RADAR_ANGLES, RADAR_RADIUS, radarPoint, radarRevealCircle, radarRippleProfile, radarScanBeam, radarScanPoint, radarScanTrail } from "../src/utils/radar.js";
 import { createRadarRenderModel, revealRadarPoints } from "../src/utils/radarRenderModel.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import { schoolIconPath } from "../src/utils/schoolIcons.js";
@@ -48,9 +49,12 @@ test("timeline assigns every student the same frame count", () => {
   const timeline = getTimeline(DEFAULT_VIDEO_SETTINGS);
   assert.equal(timeline.duration, 360);
   assert.equal(timeline.radarDuration, 45);
+  assert.equal(timeline.radarFadeOut, 14);
+  assert.equal(timeline.radarVisualEnd, timeline.radarEnd + timeline.radarFadeOut);
   assert.equal(timeline.pointDuration, 14);
   assert.equal(timeline.polygonDuration, 17);
   assert.ok(timeline.polygonStart >= timeline.radarEnd);
+  assert.ok(timeline.polygonStart >= timeline.radarVisualEnd);
   assert.ok(timeline.polygonStart >= timeline.radarDataEnd);
   assert.equal(totalDurationInFrames(3, DEFAULT_VIDEO_SETTINGS), timeline.duration * 3);
   assert.ok(timeline.overallEnd <= timeline.fadeOutStart);
@@ -198,6 +202,9 @@ test("video project manifests validate and retain reproducible records", () => {
   assert.equal(parseVideoProject({ ...fixture, settings: { ...fixture.settings, format: "jpeg" } }).settings.format, "jpeg");
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, width: 1000, height: 1000 } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, rippleOpacity: 2 } }));
+  assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, scanAfterglowOpacity: 2 } }));
+  assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, scanBeamColor: "cyan" } }));
+  assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, scanBeamCenterWidth: 2, scanBeamEdgeWidth: 4 } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, radarPointDuration: 0 } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, radarPolygonDuration: 0 } }));
   assert.throws(() => parseVideoProject({ ...fixture, settings: { ...fixture.settings, uiLanguage: "jp" } }));
@@ -212,6 +219,8 @@ test("legacy manifests receive defaults and imported snapshots retain ratings", 
   assert.equal(partial.settings.renderConcurrency, "adaptive");
   assert.equal(partial.settings.weightMode, "shared");
   assert.equal(partial.settings.renderQualityMode, "balanced");
+  assert.equal(partial.settings.radarScanFadeOutDuration, DEFAULT_VIDEO_SETTINGS.radarScanFadeOutDuration);
+  assert.equal(partial.settings.scanBeamColor, DEFAULT_VIDEO_SETTINGS.scanBeamColor);
   const ratings = ratingsFromProjectRecords(partial.records);
   assert.equal(ratings["10001"].notes, partial.records[0].ratings.notes);
   assert.deepEqual(partial.records.map(record => record.student), fixture.records.map(record => record.student));
@@ -253,6 +262,11 @@ test("radar scan geometry and synchronized dimension reveals are deterministic",
     assert.equal(trail.length, 20);
     assert.ok(trail.every(segment => segment.points.split(" ").flatMap(point => point.split(",").map(Number)).every(Number.isFinite)));
     assert.ok(radarScanPoint(progress).every(Number.isFinite));
+    const beam = radarScanBeam(progress, { centerWidth: 8, edgeWidth: 1.5 });
+    assert.equal(beam.points.length, 4);
+    assert.ok(beam.points.flat().every(Number.isFinite));
+    assert.ok(Math.abs(Math.hypot(beam.points[0][0] - beam.points[3][0], beam.points[0][1] - beam.points[3][1]) - 8) < 1e-9);
+    assert.ok(Math.abs(Math.hypot(beam.points[1][0] - beam.points[2][0], beam.points[1][1] - beam.points[2][1]) - 1.5) < 1e-9);
   }
   assert.equal(dimensionScanFrame(timeline, 0), timeline.radarStart);
   assert.equal(dimensionScanFrame(timeline, 4), timeline.radarStart + Math.round(timeline.radarDuration * 0.8));
@@ -270,6 +284,28 @@ test("radar reveal points fade in at final coordinates", () => {
   assert.equal(quarter.opacity, 0.25);
   assert.equal(complete.r, 4);
   assert.equal(complete.opacity, 1);
+});
+
+test("radar scan decays smoothly after its sweep before disappearing", () => {
+  const timeline = getTimeline(DEFAULT_VIDEO_SETTINGS);
+  assert.equal(radarScanVisibility(timeline.radarStart - 1, timeline), 0);
+  assert.equal(radarScanVisibility(timeline.radarEnd, timeline), 1);
+  const middle = radarScanVisibility(timeline.radarEnd + Math.floor(timeline.radarFadeOut / 2), timeline);
+  assert.ok(middle > 0 && middle < 1);
+  assert.equal(radarScanVisibility(timeline.radarVisualEnd, timeline), 0);
+});
+
+test("radar ripple profiles scale monotonically from S through D and exclude E", () => {
+  const profiles = ["S", "A", "B", "C", "D"].map(tier => radarRippleProfile(tier, { count: 6 }));
+  for (let index = 1; index < profiles.length; index += 1) {
+    assert.ok(profiles[index - 1].count >= profiles[index].count);
+    assert.ok(profiles[index - 1].durationScale > profiles[index].durationScale);
+    assert.ok(profiles[index - 1].radiusScale > profiles[index].radiusScale);
+    assert.ok(profiles[index - 1].opacityScale > profiles[index].opacityScale);
+    assert.ok(profiles[index - 1].strokeWidth > profiles[index].strokeWidth);
+  }
+  assert.equal(radarRippleProfile("D", { count: 3 }).count, 1);
+  assert.equal(radarRippleProfile("E", { count: 6 }).count, 0);
 });
 
 test("shared radar render model preserves rings, axes, labels, and reveal geometry", () => {

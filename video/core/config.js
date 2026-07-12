@@ -20,10 +20,15 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   infoEnterDuration: 0.53,
   infoEnterDistance: 28,
   radarScanDuration: 1.5,
+  radarScanFadeOutDuration: 0.45,
   radarPointDuration: 0.45,
   radarPolygonDuration: 0.55,
   radarScanTrailDegrees: 48,
   radarScanTrailSegments: 10,
+  scanBeamColor: "#38bdf8",
+  scanAfterglowOpacity: 0.18,
+  scanBeamCenterWidth: 7,
+  scanBeamEdgeWidth: 1.2,
   overallReveal: 0.7,
   overallDelay: 0.2,
   overallGlowStrength: 50,
@@ -72,10 +77,12 @@ export function getTimeline(settings = DEFAULT_VIDEO_SETTINGS) {
   const radarStart = Math.max(fadeIn, infoEnd);
   const radarDuration = frames(value.radarScanDuration, fps);
   const radarEnd = radarStart + radarDuration;
+  const radarFadeOut = frames(value.radarScanFadeOutDuration, fps);
+  const radarVisualEnd = radarEnd + radarFadeOut;
   const pointDuration = frames(value.radarPointDuration, fps);
   const lastPointStart = radarStart + Math.round(radarDuration * (4 / 5));
   const radarDataEnd = lastPointStart + pointDuration;
-  const polygonStart = Math.max(radarEnd, radarDataEnd);
+  const polygonStart = Math.max(radarVisualEnd, radarDataEnd);
   const polygonDuration = frames(value.radarPolygonDuration, fps);
   const polygonEnd = polygonStart + polygonDuration;
   const overallStart = polygonEnd + frames(value.overallDelay, fps);
@@ -93,6 +100,8 @@ export function getTimeline(settings = DEFAULT_VIDEO_SETTINGS) {
     radarStart,
     radarDuration,
     radarEnd,
+    radarFadeOut,
+    radarVisualEnd,
     pointDuration,
     radarDataEnd,
     polygonStart,
@@ -121,11 +130,13 @@ export function validateVideoSettings(settings) {
   if (!['mp4', 'png', 'jpeg'].includes(value.format)) errors.push("Output format must be MP4, PNG frames, or JPEG frames.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
   if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");
+  if (!Number.isFinite(value.radarScanFadeOutDuration) || value.radarScanFadeOutDuration < 0) errors.push("Radar scan fade-out duration must be finite and non-negative.");
   if (!Number.isFinite(value.radarPointDuration) || value.radarPointDuration <= 0) errors.push("Radar point duration must be positive.");
   if (!Number.isFinite(value.radarPolygonDuration) || value.radarPolygonDuration <= 0) errors.push("Radar polygon duration must be positive.");
   const nonNegativeFields = [
     "fadeIn", "fadeOut", "infoStagger", "infoEnterDuration", "infoEnterDistance",
     "overallReveal", "overallDelay", "overallGlowStrength", "rippleDuration", "rippleScale",
+    "scanBeamCenterWidth", "scanBeamEdgeWidth",
     "commentScrollDelay", "commentScrollSpeed",
   ];
   if (nonNegativeFields.some(key => !Number.isFinite(value[key]) || value[key] < 0)) {
@@ -135,7 +146,9 @@ export function validateVideoSettings(settings) {
   if (!["fitHold", "fixedSpeed"].includes(value.commentScrollMode)) errors.push("Comment scroll mode must be Fit Hold or Fixed Speed.");
   if (!Number.isInteger(value.radarScanTrailSegments) || value.radarScanTrailSegments < 0 || value.radarScanTrailSegments > 24) errors.push("Radar trail segments must be between 0 and 24.");
   if (!Number.isFinite(value.radarScanTrailDegrees) || value.radarScanTrailDegrees < 0 || value.radarScanTrailDegrees > 180) errors.push("Radar trail length must be between 0 and 180 degrees.");
-  if (value.rippleOpacity < 0 || value.rippleOpacity > 1 || value.scanBeamIntensity < 0 || value.scanBeamIntensity > 1 || value.portraitOpacity < 0 || value.portraitOpacity > 1) {
+  if (value.scanBeamCenterWidth <= 0 || value.scanBeamCenterWidth > 24 || value.scanBeamEdgeWidth > value.scanBeamCenterWidth) errors.push("Radar scan width must taper from a 0-24px center width to a smaller edge width.");
+  if (!/^#[0-9a-f]{6}$/i.test(String(value.scanBeamColor || ""))) errors.push("Radar scan color must be a six-digit hexadecimal color.");
+  if (value.rippleOpacity < 0 || value.rippleOpacity > 1 || value.scanBeamIntensity < 0 || value.scanBeamIntensity > 1 || value.scanAfterglowOpacity < 0 || value.scanAfterglowOpacity > 1 || value.portraitOpacity < 0 || value.portraitOpacity > 1) {
     errors.push("Opacity values must be between 0 and 1.");
   }
   if (!String(value.outputName || "").trim()) errors.push("Output filename is required.");
@@ -198,6 +211,14 @@ export function totalDurationInFrames(studentCount, settings) {
 
 export function dimensionScanFrame(timeline, index, count = 5) {
   return timeline.radarStart + Math.round(timeline.radarDuration * (index / count));
+}
+
+export function radarScanVisibility(frame, timeline) {
+  if (frame < timeline.radarStart || frame >= timeline.radarVisualEnd) return 0;
+  if (frame <= timeline.radarEnd || timeline.radarFadeOut <= 0) return 1;
+  const progress = phaseProgress(frame, timeline.radarEnd, timeline.radarFadeOut);
+  const smooth = progress * progress * (3 - 2 * progress);
+  return 1 - smooth;
 }
 
 export function sceneFadeOpacity(frame, timeline) {

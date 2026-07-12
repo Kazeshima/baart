@@ -6,7 +6,7 @@ import { usesTauriRenderTransport } from "../render-client.js";
 import { vt } from "../core/i18n.js";
 import { benchmarkBottleneckTranslationKey, downloadJson } from "../core/studio.js";
 import ScoringSettingsPanel from "./ScoringSettingsPanel.jsx";
-import { NumberControl, SortableStudent } from "./StudioControls.jsx";
+import { ColorControl, NumberControl, SortableStudent } from "./StudioControls.jsx";
 
 export default function VideoSettingsSidebar({
   activeRender,
@@ -73,6 +73,7 @@ export default function VideoSettingsSidebar({
       <NumberControl label={vt(language, "infoEnterDuration")} value={settings.infoEnterDuration} step={0.05} onChange={value => updateSetting("infoEnterDuration", value)} />
       <NumberControl label={vt(language, "infoEnterDistance")} value={settings.infoEnterDistance} step={2} onChange={value => updateSetting("infoEnterDistance", value)} />
       <NumberControl label={vt(language, "radarScanDuration")} value={settings.radarScanDuration} min={0.5} step={0.1} onChange={value => updateSetting("radarScanDuration", value)} />
+      <NumberControl label={vt(language, "radarScanFadeOut")} value={settings.radarScanFadeOutDuration} min={0} step={0.05} onChange={value => updateSetting("radarScanFadeOutDuration", value)} />
       <NumberControl label={vt(language, "radarPointDuration")} value={settings.radarPointDuration} min={0.1} step={0.05} onChange={value => updateSetting("radarPointDuration", value)} />
       <NumberControl label={vt(language, "radarPolygonDuration")} value={settings.radarPolygonDuration} min={0.1} step={0.05} onChange={value => updateSetting("radarPolygonDuration", value)} />
       <NumberControl label={vt(language, "overallDelay")} value={settings.overallDelay} step={0.05} onChange={value => updateSetting("overallDelay", value)} />
@@ -80,6 +81,10 @@ export default function VideoSettingsSidebar({
     </section>
     <section className="studio-panel"><h2>{vt(language, "effects")}</h2>
       <NumberControl label={vt(language, "scanIntensity")} value={settings.scanBeamIntensity} min={0} max={1} step={0.05} onChange={value => updateSetting("scanBeamIntensity", value)} />
+      <ColorControl label={vt(language, "scanColor")} value={settings.scanBeamColor} onChange={value => updateSetting("scanBeamColor", value)} />
+      <NumberControl label={vt(language, "scanAfterglowOpacity")} value={settings.scanAfterglowOpacity} min={0} max={1} step={0.02} onChange={value => updateSetting("scanAfterglowOpacity", value)} />
+      <NumberControl label={vt(language, "scanBeamCenterWidth")} value={settings.scanBeamCenterWidth} min={0.5} max={24} step={0.5} onChange={value => updateSetting("scanBeamCenterWidth", value)} />
+      <NumberControl label={vt(language, "scanBeamEdgeWidth")} value={settings.scanBeamEdgeWidth} min={0} max={settings.scanBeamCenterWidth} step={0.1} onChange={value => updateSetting("scanBeamEdgeWidth", value)} />
       <NumberControl label={vt(language, "scanTrailDegrees")} value={settings.radarScanTrailDegrees} min={0} max={180} step={2} onChange={value => updateSetting("radarScanTrailDegrees", value)} />
       <NumberControl label={vt(language, "scanTrailSegments")} value={settings.radarScanTrailSegments} min={0} max={24} step={1} onChange={value => updateSetting("radarScanTrailSegments", value)} />
       <NumberControl label={vt(language, "overallGlow")} value={settings.overallGlowStrength} min={0} step={5} onChange={value => updateSetting("overallGlowStrength", value)} />

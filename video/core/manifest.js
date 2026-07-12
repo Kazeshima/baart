@@ -49,10 +49,15 @@ export const videoSettingsSchema = z.object({
   infoEnterDuration: finiteNonNegative,
   infoEnterDistance: finiteNonNegative,
   radarScanDuration: z.number().finite().positive(),
+  radarScanFadeOutDuration: finiteNonNegative,
   radarPointDuration: z.number().finite().positive(),
   radarPolygonDuration: z.number().finite().positive(),
   radarScanTrailDegrees: z.number().finite().min(0).max(180),
   radarScanTrailSegments: z.number().int().min(0).max(24),
+  scanBeamColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+  scanAfterglowOpacity: opacity,
+  scanBeamCenterWidth: z.number().finite().positive().max(24),
+  scanBeamEdgeWidth: z.number().finite().nonnegative().max(24),
   overallReveal: finiteNonNegative,
   overallDelay: finiteNonNegative,
   overallGlowStrength: finiteNonNegative,
@@ -74,7 +79,9 @@ export const videoSettingsSchema = z.object({
   weightEditorMode: z.enum(["fine", "preset"]),
   sharedDimensionWeightShares: weightSharesSchema.transform(value => normalizeFineWeightState({ dimensionWeightShares: value }).dimensionWeightShares),
   sharedDimensionWeights: dimensionWeightsSchema.transform(value => normalizeDimensionWeights({ dimensionWeights: value })),
-}).refine(value => value.width * 9 === value.height * 16, { message: "Resolution must use a 16:9 aspect ratio.", path: ["width"] });
+})
+  .refine(value => value.width * 9 === value.height * 16, { message: "Resolution must use a 16:9 aspect ratio.", path: ["width"] })
+  .refine(value => value.scanBeamEdgeWidth <= value.scanBeamCenterWidth, { message: "Scan beam edge width must not exceed center width.", path: ["scanBeamEdgeWidth"] });
 
 export const videoProjectSchema = z.object({
   version: z.literal(VIDEO_PROJECT_VERSION),

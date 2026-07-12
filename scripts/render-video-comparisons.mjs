@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bundle } from "@remotion/bundler";
 import { renderStill, selectComposition } from "@remotion/renderer";
-import { DEFAULT_VIDEO_SETTINGS, getTimeline } from "../video/core/config.js";
+import { DEFAULT_VIDEO_SETTINGS, dimensionScanFrame, getTimeline } from "../video/core/config.js";
 import { parseVideoProject } from "../video/core/manifest.js";
 import { createRenderAssetServer, prepareRenderAssetMap } from "../video/core/renderAssets.js";
 import { LANG_URLS } from "../src/utils/constants.js";
@@ -33,6 +33,11 @@ function localizedRecord(language, overallLevel) {
     student: { ...studentsByLanguage[language], bulletType: "Explosion" },
     ratings: {
       ...fixture.records[0].ratings,
+      blindshot: "S",
+      counter: "A",
+      defense: "B",
+      counterDef: "C",
+      cost: "D",
       overall: overallLevel,
       overallScore: overallLevel === 4 ? 5 : 2.6,
       notes: comparisonComments[language],
@@ -110,6 +115,30 @@ try {
           logLevel: "error",
         });
         console.log(`Rendered ${language}/${theme}/hold-late comparison frame ${holdFrame}.`);
+        if (language === "en" && theme === "light") {
+          const radarFrames = [
+            ["radar-scan-mid", timeline.radarStart + Math.round(timeline.radarDuration * 0.55)],
+            ["radar-scan-end", timeline.radarEnd],
+            ["radar-decay-mid", timeline.radarEnd + Math.max(1, Math.round(timeline.radarFadeOut * 0.5))],
+            ["radar-decay-late", Math.max(timeline.radarEnd, timeline.radarVisualEnd - 1)],
+            ["radar-ripple-s", dimensionScanFrame(timeline, 0) + timeline.pointDuration + 2],
+            ["radar-ripple-b", dimensionScanFrame(timeline, 2) + timeline.pointDuration + 2],
+            ["radar-ripple-d", dimensionScanFrame(timeline, 4) + timeline.pointDuration + 2],
+          ];
+          for (const [name, radarFrame] of radarFrames) {
+            await renderStill({
+              serveUrl,
+              composition,
+              inputProps,
+              frame: radarFrame,
+              output: path.join(outputDir, `${name}.png`),
+              imageFormat: "png",
+              chromeMode: "chrome-for-testing",
+              logLevel: "error",
+            });
+            console.log(`Rendered ${name} comparison frame ${radarFrame}.`);
+          }
+        }
       }
       }
     }

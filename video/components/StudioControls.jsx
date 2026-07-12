@@ -9,6 +9,10 @@ export function NumberControl({ label, value, onChange, min = 0, max, step = 0.1
   return <label className="studio-control"><span>{label}</span><input type="number" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))} /></label>;
 }
 
+export function ColorControl({ label, value, onChange }) {
+  return <label className="studio-control"><span>{label}</span><input type="color" value={value} onChange={event => onChange(event.target.value)} /></label>;
+}
+
 export function SortableStudent({ record, language }) {
   const id = String(record.student.id);
   const sortable = useSortable({ id });

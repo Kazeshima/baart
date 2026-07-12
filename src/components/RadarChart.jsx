@@ -3,7 +3,7 @@ import { DIMENSIONS, TIER_SCORES, TIER_COLORS, OVERALL_COLORS } from "../utils/c
 import { DIMENSION_LABELS, localeFor } from "../utils/i18n.js";
 import {
   RADAR_CENTER, RADAR_RADIUS, RADAR_VIEWBOX,
-  radarPolygon, radarRevealCircle, radarScanPoint, radarScanTrail,
+  radarPolygon, radarRevealCircle, radarScanBeam, radarScanTrail,
 } from "../utils/radar.js";
 import { createRadarRenderModel, revealRadarPoints } from "../utils/radarRenderModel.js";
 
@@ -42,6 +42,10 @@ export default function RadarChart({
   polygonOpacity = 1,
   scanProgress = null,
   scanBeamIntensity = 0,
+  scanBeamColor = "#38bdf8",
+  scanAfterglowOpacity = 0.18,
+  scanBeamCenterWidth = 7,
+  scanBeamEdgeWidth = 1.2,
   scanTrailSegments = 10,
   scanTrailDegrees = 48,
   labelColor = "var(--text-secondary)",
@@ -67,8 +71,9 @@ export default function RadarChart({
   const fillColor = ratings.overall !== null && ratings.overall !== undefined
     ? OVERALL_COLORS[ratings.overall]
     : "#4a6080";
-  const scanPoint = scanProgress !== null && scanBeamIntensity > 0 ? radarScanPoint(scanProgress) : null;
-  const scanTrail = scanPoint ? radarScanTrail(scanProgress, scanTrailSegments, scanTrailDegrees) : [];
+  const hasScan = scanProgress !== null && (scanBeamIntensity > 0 || scanAfterglowOpacity > 0);
+  const scanBeam = hasScan ? radarScanBeam(scanProgress, { centerWidth: scanBeamCenterWidth, edgeWidth: scanBeamEdgeWidth }) : null;
+  const scanTrail = hasScan ? radarScanTrail(scanProgress, scanTrailSegments, scanTrailDegrees) : [];
 
   return (
     <svg
@@ -76,19 +81,22 @@ export default function RadarChart({
       viewBox={`0 0 ${RADAR_VIEWBOX} ${RADAR_VIEWBOX}`}
       style={{ display: "block", overflow: "visible" }}
     >
+      {scanBeam ? <defs>
+        <linearGradient id="radar-scan-beam" gradientUnits="userSpaceOnUse" x1={scanBeam.start[0]} y1={scanBeam.start[1]} x2={scanBeam.end[0]} y2={scanBeam.end[1]}>
+          <stop offset="0%" stopColor={scanBeamColor} stopOpacity="1" />
+          <stop offset="58%" stopColor={scanBeamColor} stopOpacity="0.66" />
+          <stop offset="100%" stopColor={scanBeamColor} stopOpacity="0.16" />
+        </linearGradient>
+      </defs> : null}
       {scanTrail.map((segment, index) => <polygon
         key={`scan-trail-${index}`}
         points={segment.points}
-        fill="#38bdf8"
-        opacity={scanBeamIntensity * 0.11 * segment.opacity}
+        fill={scanBeamColor}
+        opacity={scanAfterglowOpacity * segment.opacity}
       />)}
-      {scanPoint ? <line
-        x1={RADAR_CENTER}
-        y1={RADAR_CENTER}
-        x2={scanPoint[0]}
-        y2={scanPoint[1]}
-        stroke="#38bdf8"
-        strokeWidth={2.4}
+      {scanBeam ? <polygon
+        points={scanBeam.polygon}
+        fill="url(#radar-scan-beam)"
         opacity={scanBeamIntensity}
       /> : null}
 
