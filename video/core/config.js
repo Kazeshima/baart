@@ -1,5 +1,12 @@
 import { DEFAULT_DIMENSION_WEIGHT_SHARES } from "../../src/utils/constants.js";
 import { DEFAULT_DIMENSION_WEIGHTS, WEIGHT_EDITOR_MODES, normalizeDimensionWeights, normalizeFineWeightState, normalizeWeightEditorMode, normalizeWeightMode } from "../../src/utils/scoring.js";
+import {
+  DEFAULT_PRODUCTION_ASSET_LAYER_SETTINGS,
+  PRODUCTION_ASSET_LAYERS,
+  normalizeProductionAssetLayerSettings,
+  normalizeProductionAssetLayers,
+  normalizeProductionAssetStudentIds,
+} from "./productionAssets.js";
 
 export const VIDEO_PROJECT_VERSION = 1;
 export const COMMENT_SCROLL_TOP_GAP = 28;
@@ -11,8 +18,12 @@ export const DEFAULT_VIDEO_SETTINGS = Object.freeze({
   fps: 30,
   renderConcurrency: "adaptive",
   renderQualityMode: "balanced",
+  renderMode: "guide",
   format: "mp4",
   outputName: "baart-arena-ratings",
+  productionAssetStudentIds: null,
+  productionAssetLayers: [...PRODUCTION_ASSET_LAYERS],
+  productionAssetLayerSettings: normalizeProductionAssetLayerSettings(DEFAULT_PRODUCTION_ASSET_LAYER_SETTINGS),
   studentDuration: 12,
   fadeIn: 0.7,
   fadeOut: 0.7,
@@ -127,7 +138,19 @@ export function validateVideoSettings(settings) {
   const fineState = normalizeFineWeightState({ dimensionWeightShares: value.sharedDimensionWeightShares });
   if (value.weightEditorMode === WEIGHT_EDITOR_MODES.fine && fineState.unassignedWeightShare > 0) errors.push("Fine weights must be fully assigned before rendering.");
   normalizeDimensionWeights({ dimensionWeights: value.sharedDimensionWeights });
-  if (!['mp4', 'png', 'jpeg'].includes(value.format)) errors.push("Output format must be MP4, PNG frames, or JPEG frames.");
+  if (!["guide", "productionAssets"].includes(value.renderMode)) errors.push("Render mode must be Guide or Production Assets.");
+  if (value.renderMode === "productionAssets") {
+    if (!["png", "prores"].includes(value.format)) errors.push("Production assets must use transparent PNG frames or ProRes 4444.");
+    if (normalizeProductionAssetStudentIds(value.productionAssetStudentIds)?.length === 0) errors.push("Select at least one student for production assets.");
+    if (normalizeProductionAssetLayers(value.productionAssetLayers).length === 0) errors.push("Select at least one production asset layer.");
+  } else if (!["mp4", "png", "jpeg"].includes(value.format)) {
+    errors.push("Guide output must be MP4, PNG frames, or JPEG frames.");
+  }
+  const layerSettings = normalizeProductionAssetLayerSettings(value.productionAssetLayerSettings);
+  if (PRODUCTION_ASSET_LAYERS.some(layer => {
+    const item = layerSettings[layer];
+    return !Number.isFinite(item.x) || !Number.isFinite(item.y) || !Number.isFinite(item.scale) || item.scale < 0.1 || item.scale > 3 || !Number.isFinite(item.opacity) || item.opacity < 0 || item.opacity > 1;
+  })) errors.push("Production asset layer transforms are invalid.");
   if (value.studentDuration <= 0) errors.push("Student duration must be positive.");
   if (!Number.isFinite(value.radarScanDuration) || value.radarScanDuration <= 0) errors.push("Radar scan duration must be positive.");
   if (!Number.isFinite(value.radarScanFadeOutDuration) || value.radarScanFadeOutDuration < 0) errors.push("Radar scan fade-out duration must be finite and non-negative.");

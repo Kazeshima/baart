@@ -10,6 +10,7 @@ button, input, select { font: inherit; }
 .studio-layout { display: grid; grid-template-columns: minmax(520px, 1fr) 370px; height: calc(100vh - 58px); min-height: 0; align-items: stretch; overflow: hidden; }
 .studio-preview { min-width: 0; min-height: 0; padding: 22px; align-self: stretch; overflow-y: auto; }
 .studio-player-shell { overflow: hidden; border: 1px solid var(--border-bright); border-radius: 8px; background: #000; box-shadow: 0 18px 55px #0007; }
+.studio-player-shell--transparent { background-color: #cbd5e1; background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%); background-position: 0 0, 0 12px, 12px -12px, -12px 0; background-size: 24px 24px; }
 .studio-empty { aspect-ratio: 16 / 9; display: grid; place-items: center; color: var(--text-muted); }
 .studio-status, .studio-render-status { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-secondary); font-size: 13px; }
 .studio-timeline { margin-top: 10px; display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 10px; color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }
@@ -20,7 +21,7 @@ button, input, select { font: inherit; }
 .studio-render-logs summary { padding: 8px 10px; cursor: pointer; color: var(--text-muted); font-weight: 700; }
 .studio-render-logs pre { max-height: 180px; margin: 0; padding: 0 10px 10px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); line-height: 1.45; }
 .studio-error { margin-top: 10px; padding: 9px 11px; border: 1px solid #ef4444; border-radius: 5px; color: #ef4444; }
-.studio-sidebar { min-height: 0; padding: 18px; overflow-y: auto; border-left: 1px solid var(--border); background: var(--bg-panel); display: flex; flex-direction: column; gap: 12px; }
+.studio-sidebar { min-height: 0; padding: 18px 18px 78px; overflow-y: auto; border-left: 1px solid var(--border); background: var(--bg-panel); display: flex; flex-direction: column; gap: 12px; }
 .studio-panel { padding-bottom: 13px; border-bottom: 1px solid var(--border); display: grid; gap: 8px; }
 .studio-panel h2 { margin: 0 0 2px; color: var(--text-muted); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
 .studio-control { min-height: 30px; display: grid; grid-template-columns: 1fr 145px; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; }
@@ -49,6 +50,16 @@ button, input, select { font: inherit; }
 .studio-benchmark button { height: 28px; padding: 0 10px; border: 1px solid var(--border-bright); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: pointer; }
 .studio-benchmark button:disabled { opacity: .45; cursor: not-allowed; }
 .studio-benchmark span { min-width: 0; line-height: 1.35; }
+.studio-subhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-secondary); font-size: 12px; font-weight: 800; }
+.studio-subhead > div { display: flex; gap: 5px; }
+.studio-subhead button { min-height: 25px; padding: 0 7px; border: 1px solid var(--border-bright); border-radius: 5px; background: var(--bg-card); color: var(--text-secondary); cursor: pointer; font-size: 11px; }
+.studio-asset-students { max-height: 210px; overflow-y: auto; display: grid; gap: 4px; padding: 5px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); }
+.studio-asset-students label { min-width: 0; min-height: 28px; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: var(--text-primary); font-size: 12px; }
+.studio-asset-students span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-asset-students small { color: var(--text-muted); font-family: var(--font-mono); }
+.studio-asset-layers { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.studio-asset-layers label { min-width: 0; min-height: 30px; padding: 0 7px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-card); color: var(--text-secondary); font-size: 12px; }
+.studio-asset-layers span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-order-list { max-height: 270px; overflow-y: auto; display: grid; gap: 5px; }
 .studio-order-item { min-width: 0; min-height: 48px; padding: 5px 8px; display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: auto auto; align-items: center; column-gap: 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-card); color: var(--text-primary); cursor: grab; touch-action: none; overflow: hidden; }
 .studio-order-item > span:not(.studio-order-handle) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -57,7 +68,7 @@ button, input, select { font: inherit; }
 [data-theme="light"] .studio-school-icon { filter: drop-shadow(0 1px 1px rgba(15, 23, 42, .85)) drop-shadow(0 0 3px rgba(15, 23, 42, .5)); }
 .studio-order-handle { color: var(--text-muted); }
 .studio-status span:first-child { white-space: pre-wrap; }
-.studio-render-button { position: sticky; bottom: 12px; height: 42px; border: 1px solid var(--accent-gold); border-radius: 6px; background: #1a1404; color: var(--accent-gold); font-weight: 800; cursor: pointer; }
+.studio-render-button { position: sticky; z-index: 8; bottom: 0; min-height: 42px; flex: 0 0 42px; border: 1px solid var(--accent-gold); border-radius: 6px; background: #1a1404; color: var(--accent-gold); box-shadow: 0 -10px 24px var(--bg-panel); font-weight: 800; cursor: pointer; }
 .studio-render-button:disabled { opacity: .4; cursor: not-allowed; }
 @media (max-width: 1050px) {
   body { overflow: auto; }

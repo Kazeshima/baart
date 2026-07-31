@@ -15,6 +15,7 @@
     "video:render": "npm run prepare:assets && node video/render-cli.mjs",
     "video:profile": "npm run prepare:assets && node video/profile-render.mjs",
     "video:smoke": "npm run prepare:assets && node video/smoke-render.mjs",
+    "video:assets-smoke": "npm run prepare:assets && node video/smoke-production-assets.mjs",
     "video:compositions": "npm run prepare:assets && remotion compositions video/remotion/index.jsx",
     "video:compare": "npm run prepare:assets && node scripts/render-video-comparisons.mjs",
     "static:compare": "npm run prepare:assets && node scripts/generate-readme-examples.mjs --compare",

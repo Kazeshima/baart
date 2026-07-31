@@ -18,6 +18,7 @@ import {
 import { parseStudents } from "../src/utils/students.js";
 import { studentDisplayName } from "../src/utils/studentDisplay.js";
 import ArenaRatingVideo from "./remotion/ArenaRatingVideo.jsx";
+import ArenaProductionAsset from "./remotion/ArenaProductionAsset.jsx";
 import { DEFAULT_VIDEO_SETTINGS, getTimeline, totalDurationInFrames, validateVideoSettings } from "./core/config.js";
 import {
   mergeRatedStudents,
@@ -32,6 +33,7 @@ import { usePreviewTelemetry } from "./hooks/usePreviewTelemetry.js";
 import { useVideoRenderJob } from "./hooks/useVideoRenderJob.js";
 import VideoSettingsSidebar from "./components/VideoSettingsSidebar.jsx";
 import { formatDuration } from "./core/studio.js";
+import { PRODUCTION_ASSET_LAYERS, normalizeProductionAssetLayerSettings } from "./core/productionAssets.js";
 
 const PROJECT_KEY = "baart_video_project_settings";
 
@@ -41,6 +43,7 @@ function initialVideoSettings(saved) {
   return {
     ...DEFAULT_VIDEO_SETTINGS,
     ...savedSettings,
+    productionAssetLayerSettings: normalizeProductionAssetLayerSettings(savedSettings.productionAssetLayerSettings),
     ...sharedWeightSettings,
   };
 }
@@ -53,6 +56,8 @@ export default function VideoStudio() {
   const [fetchedRecords, setFetchedRecords] = useState([]);
   const [snapshotRecords, setSnapshotRecords] = useState(null);
   const [loadError, setLoadError] = useState("");
+  const [previewLayer, setPreviewLayer] = useState(PRODUCTION_ASSET_LAYERS[0]);
+  const [previewStudentId, setPreviewStudentId] = useState(null);
   const playerRef = useRef(null);
   const importRef = useRef(null);
   const language = settings.uiLanguage;
@@ -97,19 +102,34 @@ export default function VideoStudio() {
   const projectResult = useMemo(() => safeCreateVideoProject({ records, settings, order }), [records, settings, order]);
   const project = projectResult.success ? projectResult.data : null;
   const ordered = useMemo(() => project ? orderedProjectRecords(project) : [], [project]);
+  useEffect(() => {
+    if (!ordered.length) {
+      setPreviewStudentId(null);
+      return;
+    }
+    if (!ordered.some(record => Number(record.student.id) === Number(previewStudentId))) {
+      setPreviewStudentId(Number(ordered[0].student.id));
+    }
+  }, [ordered, previewStudentId]);
   const settingsErrors = validateVideoSettings(settings);
   const schemaErrors = projectResult.success ? [] : projectResult.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`);
-  const errors = [...new Set([...settingsErrors, ...schemaErrors])];
-  const durationInFrames = project ? totalDurationInFrames(records.length, settings) : 1;
+  const productionMode = settings.renderMode === "productionAssets";
+  const selectedProductionIds = settings.productionAssetStudentIds === null ? null : new Set(settings.productionAssetStudentIds);
+  const productionSelectedCount = selectedProductionIds === null ? records.length : records.filter(record => selectedProductionIds.has(Number(record.student.id))).length;
+  const selectionErrors = productionMode && records.length && productionSelectedCount === 0 ? [vt(language, "noAssetStudents")] : [];
+  const errors = [...new Set([...settingsErrors, ...schemaErrors, ...selectionErrors])];
+  const durationInFrames = project ? (productionMode ? getTimeline(settings).duration : totalDurationInFrames(records.length, settings)) : 1;
   const { currentFrame, setCurrentFrame, previewFps } = usePreviewTelemetry({
     playerRef,
-    recordsLength: records.length,
+    recordsLength: productionMode ? Math.min(1, records.length) : records.length,
     targetFps: settings.fps,
     durationInFrames,
   });
   const timeline = getTimeline(settings);
   const currentIndex = records.length ? Math.min(records.length - 1, Math.floor(currentFrame / Math.max(1, timeline.duration))) : 0;
-  const currentStudent = ordered[currentIndex]?.student;
+  const currentStudent = productionMode
+    ? ordered.find(record => Number(record.student.id) === Number(previewStudentId))?.student
+    : ordered[currentIndex]?.student;
 
   const updateSetting = useCallback((key, value) => setSettings(current => {
     const next = { ...current, [key]: value };
@@ -209,8 +229,8 @@ export default function VideoStudio() {
     <header className="studio-header"><div><strong>BAART</strong><span>{vt(language, "studio")}</span></div><a href="./index.html">{vt(language, "back")}</a></header>
     <main className="studio-layout">
       <section className="studio-preview">
-        <div className="studio-player-shell">
-          {project && records.length ? <Player ref={playerRef} component={ArenaRatingVideo} inputProps={{ project }} durationInFrames={durationInFrames} compositionWidth={1920} compositionHeight={1080} fps={settings.fps} controls style={{ width: "100%", aspectRatio: "16 / 9" }} /> : <div className="studio-empty">{vt(language, "empty")}</div>}
+        <div className={`studio-player-shell ${productionMode ? "studio-player-shell--transparent" : ""}`}>
+          {project && records.length ? <Player key={productionMode ? "production" : "guide"} ref={playerRef} component={productionMode ? ArenaProductionAsset : ArenaRatingVideo} inputProps={productionMode ? { project, studentId: previewStudentId, layer: previewLayer } : { project }} durationInFrames={durationInFrames} compositionWidth={1920} compositionHeight={1080} fps={settings.fps} controls style={{ width: "100%", aspectRatio: "16 / 9", background: "transparent" }} /> : <div className="studio-empty">{vt(language, "empty")}</div>}
         </div>
         {project && records.length ? <label className="studio-timeline">
           <span>{currentFrame} / {durationInFrames - 1}</span>
@@ -249,10 +269,14 @@ export default function VideoStudio() {
         ordered={ordered}
         outputLocation={outputLocation}
         project={project}
+        previewLayer={previewLayer}
+        previewStudentId={previewStudentId}
         recordsCount={records.length}
         runBenchmark={runBenchmark}
         setOrder={setOrder}
         setOutputLocation={setOutputLocation}
+        setPreviewLayer={setPreviewLayer}
+        setPreviewStudentId={setPreviewStudentId}
         setSettings={setSettings}
         settings={settings}
         startRender={startRender}

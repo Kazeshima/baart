@@ -1,8 +1,10 @@
 * { box-sizing: border-box; }
 .video-scene { position: absolute; inset: 0; overflow: hidden; font-family: var(--font-ui); background: var(--output-canvas); }
-.video-scene::after { content: "SCHALE  /  ARENA ANALYSIS"; position: absolute; right: 72px; top: 24px; z-index: 1; color: var(--output-cyan); opacity: .34; font-family: var(--font-mono); font-size: 17px; letter-spacing: .18em; }
+.video-scene__analysis-label { position: absolute; right: 72px; top: 24px; z-index: 1; color: var(--output-cyan); opacity: .34; font-family: var(--font-mono); font-size: 17px; letter-spacing: .18em; }
 .video-scene--fast * { box-shadow: none !important; text-shadow: none !important; }
 .video-scene__grid { position: absolute; z-index: 0; inset: 0; opacity: .28; background-image: linear-gradient(var(--output-grid) 1px, transparent 1px), linear-gradient(90deg, var(--output-grid) 1px, transparent 1px); background-size: 72px 72px; mask-image: linear-gradient(90deg, #000 0%, #000 48%, transparent 84%); }
+.video-scene--production-asset { background: transparent !important; }
+.video-production-layer { position: absolute; inset: 0; }
 .video-scene__academy-mark { position: absolute; z-index: 0; left: 770px; top: 120px; width: 610px; height: 610px; border: 2px solid var(--output-cyan); border-radius: 50%; opacity: .12; box-shadow: 0 0 0 34px color-mix(in srgb, var(--output-cyan) 22%, transparent), 0 0 0 92px color-mix(in srgb, var(--output-pink) 13%, transparent); }
 .video-scene__academy-mark::before, .video-scene__academy-mark::after { content: ""; position: absolute; left: 50%; top: -58px; width: 2px; height: 726px; background: var(--output-cyan); opacity: .45; transform-origin: center; }
 .video-scene__academy-mark::after { transform: rotate(90deg); }

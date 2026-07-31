@@ -7,3 +7,10 @@ export function readPngDimensions(buffer) {
   if (buffer.toString("ascii", 12, 16) !== "IHDR") throw new Error("PNG is missing its IHDR chunk.");
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
+
+export function readPngColorType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 26 || !buffer.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    throw new Error("Not a PNG file.");
+  }
+  return buffer[25];
+}

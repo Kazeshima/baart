@@ -6,6 +6,7 @@ import { StudentIdentity, StudentTerrainIndicators, StudentTypeIndicators } from
 import { COMMENT_SCROLL_BOTTOM_CLEARANCE, COMMENT_SCROLL_TOP_GAP, commentScrollDistanceFromHeights, commentScrollOffset, getTimeline, phaseProgress, estimateCommentScroll, sceneFadeOpacity } from "../core/config.js";
 import AnimatedRadar from "./AnimatedRadar.jsx";
 import { outputTheme, outputThemeCssVariables } from "../../src/utils/outputVisualTokens.js";
+import { productionAssetLayerStyle } from "../core/productionAssets.js";
 
 function enterStyle(frame, start, duration = 16, distance = 28) {
   const progress = phaseProgress(frame, start, duration);
@@ -20,7 +21,7 @@ function videoTitleFontSize(displayName) {
   return 100;
 }
 
-export default function StudentScene({ record, settings }) {
+export default function StudentScene({ record, settings, productionLayer = null }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const scale = useCurrentScale();
@@ -71,18 +72,27 @@ export default function StudentScene({ record, settings }) {
   const scrollDistance = measuredScrollDistance ?? scroll.distance;
   const scrollY = profile.disableCommentScroll ? 0 : commentScrollOffset({ frame, distance: scrollDistance, timeline, settings, fps });
   const commentMaskClass = hasQualityCommentMask ? "video-comments__viewport--quality" : "video-comments__viewport--no-mask";
+  const productionMode = Boolean(productionLayer);
+  const layer = (name, children) => {
+    if (!productionMode) return children;
+    if (productionLayer !== name) return null;
+    return <div className={`video-production-layer video-production-layer--${name}`} style={productionAssetLayerStyle(settings.productionAssetLayerSettings, name)}>{children}</div>;
+  };
 
   return (
-    <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: palette.bg, color: palette.text, "--terrain-edge-angle": `${terrainEdgeAngle}deg`, ...outputThemeCssVariables(settings.theme) }}>
-      {!profile.disableGrid ? <div className="video-scene__grid" /> : null}
-      <div className="video-scene__academy-mark" />
-      <div className="video-scene__corner video-scene__corner--top" />
-      <div className="video-scene__corner video-scene__corner--bottom" />
-      {!profile.disablePortrait ? <div className="video-portrait" style={{ opacity: settings.portraitOpacity }}>
+    <div className={`video-scene baart-theme ${fastRender ? "video-scene--fast" : ""} ${productionMode ? "video-scene--production-asset" : ""}`} data-theme={settings.theme} style={{ opacity: cardOpacity, background: productionMode ? "transparent" : palette.bg, color: palette.text, "--terrain-edge-angle": `${terrainEdgeAngle}deg`, ...outputThemeCssVariables(settings.theme) }}>
+      {layer("decorations", <>
+        {!profile.disableGrid ? <div className="video-scene__grid" /> : null}
+        <div className="video-scene__academy-mark" />
+        <div className="video-scene__corner video-scene__corner--top" />
+        <div className="video-scene__corner video-scene__corner--bottom" />
+        <div className="video-scene__analysis-label">SCHALE&nbsp; / &nbsp;ARENA ANALYSIS</div>
+      </>)}
+      {layer("portrait", !profile.disablePortrait ? <div className="video-portrait" style={{ opacity: settings.portraitOpacity }}>
         <AssetImg src={presentation.identity.portraitUrl} />
-      </div> : null}
+      </div> : null)}
 
-      <header className="video-title" style={enterStyle(frame, timeline.infoStart, infoEnterFrames, settings.infoEnterDistance)}>
+      {layer("specs", <><header className="video-title" style={enterStyle(frame, timeline.infoStart, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-title__season">{settings.arenaSeason} · ARENA GUIDE</div>
         <StudentIdentity student={student} language={settings.uiLanguage} presentation={presentation} nameClassName="video-title__name" metaClassName="video-title__meta" nameStyle={{ fontSize: titleFontSize }} ImageComponent={AssetImg} />
       </header>
@@ -94,24 +104,24 @@ export default function StudentScene({ record, settings }) {
         </div> : null}
         <div className="video-weapon">{presentation.weapon.key} {presentation.weapon.label} · {presentation.labels.range} {presentation.weapon.range}</div>
         <StudentTerrainIndicators student={student} activeSeason={settings.season} language={settings.uiLanguage} presentation={presentation} ImageComponent={AssetImg} variant="video" />
-      </section>
+      </section></>)}
 
-      {!profile.disableComments ? <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2, infoEnterFrames, settings.infoEnterDistance)}>
+      {layer("comments", !profile.disableComments ? <section className="video-comments" style={enterStyle(frame, timeline.infoStart + timeline.infoStep * 2, infoEnterFrames, settings.infoEnterDistance)}>
         <div className="video-section-label">{presentation.labels.comments}</div>
         <div ref={commentViewportRef} className={`video-comments__viewport ${commentMaskClass}`} style={{ "--comment-scroll-top-gap": `${commentTopGap}px` }}>
           <div ref={commentTextRef} className="video-comments__text" style={{ transform: `translateY(${-scrollY}px)` }}>{presentation.notes || "—"}</div>
         </div>
-      </section> : null}
+      </section> : null)}
 
-      <section className="video-radar-panel" style={enterStyle(frame, timeline.radarStart - Math.round(fps * 0.25), Math.max(1, Math.round(settings.infoEnterDuration * fps)), 18)}>
+      {layer("radar", <><section className="video-radar-panel" style={enterStyle(frame, timeline.radarStart - Math.round(fps * 0.25), Math.max(1, Math.round(settings.infoEnterDuration * fps)), 18)}>
         <AnimatedRadar ratings={ratings} language={settings.uiLanguage} settings={settings} size={640} />
       </section>
       <div className="video-weights" style={enterStyle(frame, timeline.radarStart, Math.max(1, Math.round(settings.infoEnterDuration * fps)), 12)}>
         <span className="video-weights__label">{presentation.labels.weightsUsed}</span>
         {presentation.dimensions.map(dimension => <span key={dimension.key}>{dimension.label} <strong>{dimension.weightLabel}</strong></span>)}
-      </div>
+      </div></>)}
 
-      <section className="video-overall" style={{
+      {layer("overall", <section className="video-overall" style={{
         opacity: overallSpring,
         transform: `scale(${0.82 + overallSpring * 0.18})`,
         borderColor: overallColor,
@@ -119,7 +129,7 @@ export default function StudentScene({ record, settings }) {
       }}>
         <div className="video-section-label">{presentation.labels.overall}</div>
         <OverallBadge overall={ratings.overall} overallScore={ratings.overallScore} language={settings.uiLanguage} className="video-overall__badge" />
-      </section>
+      </section>)}
     </div>
   );
 }

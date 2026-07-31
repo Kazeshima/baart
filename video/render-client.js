@@ -21,9 +21,9 @@ export async function readJsonResponse(response) {
   return value;
 }
 
-export async function chooseRenderOutput(format, outputName) {
+export async function chooseRenderOutput(format, outputName, renderMode = "guide") {
   if (!usesTauriRenderTransport()) return null;
-  return invoke("select_video_output", { format, outputName });
+  return invoke("select_video_output", { format, outputName, renderMode });
 }
 
 export async function startRenderJob(project, outputLocation = "") {

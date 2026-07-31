@@ -204,6 +204,21 @@ fn renderer_work_dir(app_cache_dir: &Path) -> PathBuf {
     app_cache_dir.join("renderer-runtime")
 }
 
+fn unique_assets_path(parent: &Path, output_name: &str) -> PathBuf {
+    let base = format!("{}-production-assets", safe_output_name(output_name));
+    let first = parent.join(&base);
+    if !first.exists() {
+        return first;
+    }
+    for suffix in 2..10_000 {
+        let candidate = parent.join(format!("{base}-{suffix}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    parent.join(format!("{base}-{}", epoch_millis()))
+}
+
 struct RendererResourcePaths {
     worker: PathBuf,
     serve_url: PathBuf,
@@ -322,9 +337,17 @@ fn finish_render_cleanup(manager: &VideoRenderManager, remove_output: bool) {
 }
 
 #[tauri::command]
-fn select_video_output(format: String, output_name: String) -> Result<Option<String>, String> {
+fn select_video_output(format: String, output_name: String, render_mode: String) -> Result<Option<String>, String> {
     let name = safe_output_name(&output_name);
-    let selected = match format.as_str() {
+    let selected = if render_mode == "productionAssets" {
+        if !matches!(format.as_str(), "png" | "prores") {
+            return Err("production assets require PNG or ProRes 4444".to_string());
+        }
+        rfd::FileDialog::new()
+            .set_title("Select parent folder for production assets")
+            .pick_folder()
+            .map(|parent| unique_assets_path(&parent, &name))
+    } else { match format.as_str() {
         "mp4" => rfd::FileDialog::new()
             .add_filter("MP4 Video", &["mp4"])
             .set_file_name(format!("{name}.mp4"))
@@ -334,7 +357,7 @@ fn select_video_output(format: String, output_name: String) -> Result<Option<Str
             .pick_folder()
             .map(|parent| unique_frames_path(&parent, &name)),
         _ => return Err("unsupported render format".to_string()),
-    };
+    }};
     Ok(selected.map(|path| path.to_string_lossy().to_string()))
 }
 
@@ -342,13 +365,30 @@ fn parse_project_format(project: &serde_json::Value) -> Result<&str, String> {
     project.get("settings")
         .and_then(|settings| settings.get("format"))
         .and_then(serde_json::Value::as_str)
-        .filter(|format| matches!(*format, "mp4" | "png" | "jpeg"))
+        .filter(|format| matches!(*format, "mp4" | "png" | "jpeg" | "prores"))
         .ok_or_else(|| "project settings contain an invalid render format".to_string())
 }
 
-fn validate_output_path(format: &str, output: &Path) -> Result<(), String> {
+fn parse_project_render_mode(project: &serde_json::Value) -> Result<&str, String> {
+    project.get("settings")
+        .and_then(|settings| settings.get("renderMode"))
+        .and_then(serde_json::Value::as_str)
+        .filter(|mode| matches!(*mode, "guide" | "productionAssets"))
+        .ok_or_else(|| "project settings contain an invalid render mode".to_string())
+}
+
+fn validate_output_path(render_mode: &str, format: &str, output: &Path) -> Result<(), String> {
     if !output.is_absolute() {
         return Err("render output must be an absolute path".to_string());
+    }
+    if render_mode == "productionAssets" {
+        if !matches!(format, "png" | "prores") {
+            return Err("production assets require PNG or ProRes 4444".to_string());
+        }
+        if output.exists() {
+            return Err("production asset output folder already exists".to_string());
+        }
+        return Ok(());
     }
     if format == "mp4" && output.extension().and_then(|value| value.to_str()).map(|value| value.eq_ignore_ascii_case("mp4")) != Some(true) {
         return Err("MP4 output must use the .mp4 extension".to_string());
@@ -434,8 +474,9 @@ fn start_video_render(
         }
     }
     let format = parse_project_format(&project)?;
+    let render_mode = parse_project_render_mode(&project)?;
     let output = PathBuf::from(output_location);
-    validate_output_path(format, &output)?;
+    validate_output_path(render_mode, format, &output)?;
     if format == "mp4" && output.exists() {
         std::fs::remove_file(&output).map_err(|error| format!("failed to replace selected output: {error}"))?;
     }
@@ -696,10 +737,13 @@ mod tests {
 
     #[test]
     fn validates_output_extensions_and_absolute_paths() {
-        assert!(validate_output_path("mp4", Path::new(r"C:\video\ratings.mp4")).is_ok());
-        assert!(validate_output_path("mp4", Path::new(r"C:\video\ratings.png")).is_err());
-        assert!(validate_output_path("png", Path::new("relative-folder")).is_err());
-        assert!(validate_output_path("jpeg", Path::new(r"C:\video\ratings-frames")).is_ok());
+        assert!(validate_output_path("guide", "mp4", Path::new(r"C:\video\ratings.mp4")).is_ok());
+        assert!(validate_output_path("guide", "mp4", Path::new(r"C:\video\ratings.png")).is_err());
+        assert!(validate_output_path("guide", "png", Path::new("relative-folder")).is_err());
+        assert!(validate_output_path("guide", "jpeg", Path::new(r"C:\video\ratings-frames")).is_ok());
+        assert!(validate_output_path("productionAssets", "png", Path::new(r"C:\video\assets")).is_ok());
+        assert!(validate_output_path("productionAssets", "prores", Path::new(r"C:\video\assets")).is_ok());
+        assert!(validate_output_path("productionAssets", "mp4", Path::new(r"C:\video\assets")).is_err());
     }
 
     #[test]

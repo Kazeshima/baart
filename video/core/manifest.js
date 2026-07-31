@@ -10,11 +10,23 @@ import {
 } from "../../src/utils/scoring.js";
 import { DEFAULT_VIDEO_SETTINGS, VIDEO_PROJECT_VERSION } from "./config.js";
 import { DEFAULT_ORDER, sortRatingRecords } from "./sorting.js";
+import {
+  PRODUCTION_ASSET_LAYERS,
+  normalizeProductionAssetLayerSettings,
+  normalizeProductionAssetLayers,
+  normalizeProductionAssetStudentIds,
+} from "./productionAssets.js";
 
 const finiteNonNegative = z.number().finite().nonnegative();
 const opacity = z.number().finite().min(0).max(1);
 const weightSharesSchema = z.object(Object.fromEntries(DIMENSIONS.map(({ key }) => [key, z.number().finite().min(0).max(100)])));
 const dimensionWeightsSchema = z.object(Object.fromEntries(DIMENSIONS.map(({ key }) => [key, z.enum(["none", "half", "full"])])));
+const productionLayerSettingsSchema = z.object(Object.fromEntries(PRODUCTION_ASSET_LAYERS.map(layer => [layer, z.object({
+  x: z.number().finite().min(-1920).max(1920),
+  y: z.number().finite().min(-1080).max(1080),
+  scale: z.number().finite().min(0.1).max(3),
+  opacity,
+})])));
 
 export const videoSettingsSchema = z.object({
   width: z.number().int().min(640).max(7680),
@@ -40,8 +52,12 @@ export const videoSettingsSchema = z.object({
     z.literal(16),
   ]).transform(value => String(value)),
   renderQualityMode: z.enum(["quality", "balanced", "fast"]),
-  format: z.enum(["mp4", "png", "jpeg"]),
+  renderMode: z.enum(["guide", "productionAssets"]),
+  format: z.enum(["mp4", "png", "jpeg", "prores"]),
   outputName: z.string().trim().min(1).max(128),
+  productionAssetStudentIds: z.array(z.number().int().positive()).nullable().transform(normalizeProductionAssetStudentIds),
+  productionAssetLayers: z.array(z.enum(PRODUCTION_ASSET_LAYERS)).transform(normalizeProductionAssetLayers),
+  productionAssetLayerSettings: productionLayerSettingsSchema.transform(normalizeProductionAssetLayerSettings),
   studentDuration: z.number().finite().positive(),
   fadeIn: finiteNonNegative,
   fadeOut: finiteNonNegative,
@@ -81,7 +97,9 @@ export const videoSettingsSchema = z.object({
   sharedDimensionWeights: dimensionWeightsSchema.transform(value => normalizeDimensionWeights({ dimensionWeights: value })),
 })
   .refine(value => value.width * 9 === value.height * 16, { message: "Resolution must use a 16:9 aspect ratio.", path: ["width"] })
-  .refine(value => value.scanBeamEdgeWidth <= value.scanBeamCenterWidth, { message: "Scan beam edge width must not exceed center width.", path: ["scanBeamEdgeWidth"] });
+  .refine(value => value.scanBeamEdgeWidth <= value.scanBeamCenterWidth, { message: "Scan beam edge width must not exceed center width.", path: ["scanBeamEdgeWidth"] })
+  .refine(value => value.renderMode !== "productionAssets" || ["png", "prores"].includes(value.format), { message: "Production assets require PNG or ProRes 4444.", path: ["format"] })
+  .refine(value => value.renderMode !== "guide" || ["mp4", "png", "jpeg"].includes(value.format), { message: "Guide output requires MP4, PNG, or JPEG.", path: ["format"] });
 
 export const videoProjectSchema = z.object({
   version: z.literal(VIDEO_PROJECT_VERSION),
@@ -134,6 +152,9 @@ export function createVideoProject({ records, settings, order }) {
         dimensionWeightShares: settings?.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
       }).dimensionWeightShares,
       sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: settings?.sharedDimensionWeights || DEFAULT_DIMENSION_WEIGHTS }),
+      productionAssetStudentIds: normalizeProductionAssetStudentIds(settings?.productionAssetStudentIds),
+      productionAssetLayers: normalizeProductionAssetLayers(settings?.productionAssetLayers),
+      productionAssetLayerSettings: normalizeProductionAssetLayerSettings(settings?.productionAssetLayerSettings),
     },
     order: { ...DEFAULT_ORDER, ...order },
     records,
@@ -153,6 +174,9 @@ export function safeCreateVideoProject(value) {
         dimensionWeightShares: value.settings?.sharedDimensionWeightShares || DEFAULT_DIMENSION_WEIGHT_SHARES,
       }).dimensionWeightShares,
       sharedDimensionWeights: normalizeDimensionWeights({ dimensionWeights: value.settings?.sharedDimensionWeights || DEFAULT_DIMENSION_WEIGHTS }),
+      productionAssetStudentIds: normalizeProductionAssetStudentIds(value.settings?.productionAssetStudentIds),
+      productionAssetLayers: normalizeProductionAssetLayers(value.settings?.productionAssetLayers),
+      productionAssetLayerSettings: normalizeProductionAssetLayerSettings(value.settings?.productionAssetLayerSettings),
     },
     order: { ...DEFAULT_ORDER, ...value.order },
     records: value.records || [],

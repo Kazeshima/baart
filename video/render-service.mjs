@@ -3,9 +3,14 @@ import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import { makeCancelSignal, renderFrames, renderMedia, selectComposition } from "@remotion/renderer";
-import { parseVideoProject } from "./core/manifest.js";
+import { orderedProjectRecords, parseVideoProject } from "./core/manifest.js";
 import { clampProgress, resolveRenderConcurrency, validateVideoSettings } from "./core/config.js";
 import { createRenderAssetServer, prepareRenderAssetMap } from "./core/renderAssets.js";
+import {
+  buildProductionAssetTasks,
+  productionAssetTaskOutput,
+  selectedProductionAssetRecords,
+} from "./core/productionAssets.js";
 
 const videoDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(videoDir, "..");
@@ -165,6 +170,133 @@ async function renderProject({ project, serveUrl, composition, inputProps, outpu
   return output;
 }
 
+function productionAssetManifest(project, tasks, outputs, durationInFrames) {
+  const {
+    assetMap: _assetMap,
+    renderProfile: _renderProfile,
+    renderFrameRange: _renderFrameRange,
+    renderImageFormat: _renderImageFormat,
+    ...portableSettings
+  } = project.settings;
+  const students = new Map();
+  tasks.forEach((task, index) => {
+    const id = String(task.studentId);
+    if (!students.has(id)) {
+      students.set(id, {
+        id: task.studentId,
+        name: task.record.student.name,
+        devName: task.record.student.devName || "",
+        folder: task.studentFolder,
+        layers: [],
+      });
+    }
+    students.get(id).layers.push({
+      layer: task.layer,
+      output: outputs[index].replaceAll("\\", "/"),
+    });
+  });
+  return {
+    version: 1,
+    kind: "baart-production-assets",
+    generatedAt: new Date().toISOString(),
+    canvas: { width: project.settings.width, height: project.settings.height },
+    fps: project.settings.fps,
+    durationInFrames,
+    durationSeconds: durationInFrames / project.settings.fps,
+    format: project.settings.format,
+    alpha: true,
+    settings: portableSettings,
+    students: [...students.values()],
+  };
+}
+
+export function productionCompositionForTask(composition, inputProps) {
+  return { ...composition, props: inputProps };
+}
+
+async function renderProductionAssetProject({ project, serveUrl, output, callbacks, cancellation, binariesDirectory }) {
+  const tasks = buildProductionAssetTasks(orderedProjectRecords(project), project.settings);
+  if (!tasks.length) throw new Error("Select at least one student and one production asset layer.");
+  await fs.mkdir(output, { recursive: true });
+  const firstProps = { project, studentId: tasks[0].studentId, layer: tasks[0].layer };
+  const composition = await selectComposition({
+    serveUrl,
+    id: "ArenaProductionAsset",
+    inputProps: firstProps,
+    chromeMode: "chrome-for-testing",
+    binariesDirectory,
+  });
+  const frameCount = composition.durationInFrames;
+  const totalFrames = frameCount * tasks.length;
+  const startedAt = Date.now();
+  const options = renderOptions(project);
+  const onBrowserDownload = browserDownloadCallback(callbacks);
+  const onBrowserLog = log => { if (log?.text) callbacks.onLog?.(log.text); };
+  const outputs = [];
+
+  for (const [index, task] of tasks.entries()) {
+    const relativeParts = productionAssetTaskOutput("", task, project.settings.format).filter(Boolean);
+    const taskOutput = path.join(output, ...relativeParts);
+    const relativeOutput = path.relative(output, taskOutput);
+    outputs.push(relativeOutput);
+    await fs.mkdir(project.settings.format === "prores" ? path.dirname(taskOutput) : taskOutput, { recursive: true });
+    callbacks.onStatus?.("rendering");
+    callbacks.onLog?.(`Production asset ${index + 1}/${tasks.length}: student ${task.studentId}, ${task.layer}.`);
+    const inputProps = { project, studentId: task.studentId, layer: task.layer };
+    const taskComposition = productionCompositionForTask(composition, inputProps);
+    const emitProgress = rendered => callbacks.onProgress?.(
+      clampProgress(0.08 + (((index * frameCount) + rendered) / totalFrames) * 0.92),
+      progressMeta((index * frameCount) + rendered, totalFrames, startedAt),
+    );
+    if (project.settings.format === "png") {
+      await renderFrames({
+        serveUrl,
+        composition: taskComposition,
+        inputProps,
+        outputDir: taskOutput,
+        imageFormat: "png",
+        imageSequencePattern: "frame-[frame].[ext]",
+        ...options,
+        chromeMode: "chrome-for-testing",
+        binariesDirectory,
+        cancelSignal: cancellation.cancelSignal,
+        onBrowserDownload,
+        onBrowserLog,
+        onStart: () => undefined,
+        onFrameUpdate: emitProgress,
+      });
+    } else {
+      await renderMedia({
+        serveUrl,
+        composition: taskComposition,
+        inputProps,
+        outputLocation: taskOutput,
+        codec: "prores",
+        proResProfile: "4444",
+        imageFormat: "png",
+        pixelFormat: "yuva444p10le",
+        ...options,
+        chromeMode: "chrome-for-testing",
+        binariesDirectory,
+        cancelSignal: cancellation.cancelSignal,
+        onBrowserDownload,
+        onBrowserLog,
+        overwrite: true,
+        licenseKey: null,
+        isProduction: true,
+        onProgress: progress => {
+          callbacks.onStatus?.(progress.renderedFrames >= frameCount ? "encoding" : "rendering");
+          emitProgress(progress.renderedFrames);
+        },
+      });
+    }
+  }
+
+  const manifest = productionAssetManifest(project, tasks, outputs, frameCount);
+  await fs.writeFile(path.join(output, "production-assets.json"), JSON.stringify(manifest, null, 2));
+  return output;
+}
+
 export async function renderVideoProject(rawProject, callbacks = {}, options = {}) {
   const project = parseVideoProject(rawProject);
   const errors = validateVideoSettings(project.settings);
@@ -183,7 +315,16 @@ export async function renderVideoProject(rawProject, callbacks = {}, options = {
   const assetCacheDir = options.assetCacheDir || path.join(process.cwd(), ".cache", "render-assets");
   const assetServer = await createRenderAssetServer(assetCacheDir);
   try {
-    const assetResult = await prepareRenderAssetMap(project, { cacheDir: assetCacheDir, baseUrl: assetServer.baseUrl, publicDir: path.join(rootDir, "public") });
+    const assetProject = project.settings.renderMode === "productionAssets"
+      ? {
+          ...project,
+          records: selectedProductionAssetRecords(
+            orderedProjectRecords(project),
+            project.settings.productionAssetStudentIds,
+          ),
+        }
+      : project;
+    const assetResult = await prepareRenderAssetMap(assetProject, { cacheDir: assetCacheDir, baseUrl: assetServer.baseUrl, publicDir: path.join(rootDir, "public") });
     for (const failure of assetResult.failures) callbacks.onLog?.(`Asset cache warning: ${failure}`);
     callbacks.onLog?.(`Render asset cache: ${assetResult.cacheDir}`);
     const renderProjectData = {
@@ -197,6 +338,25 @@ export async function renderVideoProject(rawProject, callbacks = {}, options = {
       },
     };
     const inputProps = { project: renderProjectData };
+    const base = safeName(project.settings.outputName);
+    if (project.settings.renderMode === "productionAssets") {
+      const output = options.outputLocation || await uniqueOutput(`${base}-production-assets`);
+      try {
+        const result = await renderProductionAssetProject({
+          project: renderProjectData,
+          serveUrl,
+          output,
+          callbacks,
+          cancellation,
+          binariesDirectory: options.binariesDirectory,
+        });
+        callbacks.onProgress?.(1);
+        return result;
+      } catch (error) {
+        await fs.rm(output, { recursive: true, force: true });
+        throw error;
+      }
+    }
     const composition = await selectComposition({
       serveUrl,
       id: "ArenaRatingVideo",
@@ -207,7 +367,6 @@ export async function renderVideoProject(rawProject, callbacks = {}, options = {
     if (cancelled) throw new Error("Render cancelled.");
 
     callbacks.onStatus?.("rendering");
-    const base = safeName(project.settings.outputName);
     const output = options.outputLocation || (project.settings.format === "png" || project.settings.format === "jpeg"
       ? await uniqueOutput(`${base}-frames`)
       : await uniqueOutput(base, ".mp4"));
@@ -259,6 +418,7 @@ export async function benchmarkRenderConcurrency(rawProject, options = {}) {
         ...baseProject,
         settings: {
           ...baseProject.settings,
+          renderMode: "guide",
           format: baseProject.settings.format === "jpeg" ? "jpeg" : "png",
           renderConcurrency: candidate,
           outputName: `benchmark-${safeName(candidate)}-${trial + 1}`,
@@ -345,6 +505,7 @@ export async function benchmarkRenderConcurrency(rawProject, options = {}) {
       ...baseProject,
       settings: {
         ...baseProject.settings,
+        renderMode: "guide",
         format: imageFormat,
         renderConcurrency: bestConcurrency,
         outputName: `benchmark-format-${imageFormat}`,

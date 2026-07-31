@@ -47,7 +47,7 @@ export function useVideoRenderJob({ project, settings, language, savedSettings, 
     try {
       let destination = outputLocation;
       if (usesTauriRenderTransport() && !destination) {
-        destination = await chooseRenderOutput(settings.format, settings.outputName);
+        destination = await chooseRenderOutput(settings.format, settings.outputName, settings.renderMode);
         if (!destination) return;
         setOutputLocation(destination);
       }
@@ -70,7 +70,7 @@ export function useVideoRenderJob({ project, settings, language, savedSettings, 
 
   const chooseDestination = async () => {
     try {
-      const destination = await chooseRenderOutput(settings.format, settings.outputName);
+      const destination = await chooseRenderOutput(settings.format, settings.outputName, settings.renderMode);
       if (destination) setOutputLocation(destination);
     } catch (error) {
       setRenderJob({ status: "error", error: error instanceof Error ? error.message : String(error), progress: 0 });

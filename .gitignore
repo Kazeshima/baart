@@ -21,3 +21,6 @@ Thumbs.db
 /src-tauri/binaries/baart-node-*.exe
 /src-tauri/generated/
 /video/sidecar/node_modules/
+
+# Local compositing experiments
+/blender-template/

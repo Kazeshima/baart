@@ -113,6 +113,7 @@ const requiredRuntimeFiles = [
   path.join(runtimeAppDir, "video", "render-service.mjs"),
   path.join(runtimeAppDir, "video", "core", "manifest.js"),
   path.join(runtimeAppDir, "video", "core", "renderAssets.js"),
+  path.join(runtimeAppDir, "video", "core", "productionAssets.js"),
   path.join(runtimeAppDir, "src", "utils", "constants.js"),
   path.join(runtimeAppDir, "src", "utils", "schoolIcons.js"),
   path.join(runtimeAppDir, "src", "utils", "studentDisplay.js"),

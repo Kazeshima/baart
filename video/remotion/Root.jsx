@@ -1,7 +1,8 @@
 import React from "react";
 import { Composition } from "remotion";
 import ArenaRatingVideo from "./ArenaRatingVideo.jsx";
-import { DEFAULT_VIDEO_SETTINGS, totalDurationInFrames } from "../core/config.js";
+import ArenaProductionAsset from "./ArenaProductionAsset.jsx";
+import { DEFAULT_VIDEO_SETTINGS, getTimeline, totalDurationInFrames } from "../core/config.js";
 import { createVideoProject } from "../core/manifest.js";
 
 const defaultProject = createVideoProject({
@@ -33,8 +34,21 @@ export const calculateArenaMetadata = ({ props }) => ({
   defaultOutName: props.project.settings.outputName,
 });
 
+export const calculateProductionAssetMetadata = ({ props }) => ({
+  durationInFrames: getTimeline(props.project.settings).duration,
+  fps: props.project.settings.fps,
+  width: 1920,
+  height: 1080,
+  props,
+  defaultCodec: "prores",
+  defaultVideoImageFormat: "png",
+  defaultPixelFormat: "yuva444p10le",
+  defaultProResProfile: "4444",
+  defaultOutName: `${props.project.settings.outputName}-production-asset.mov`,
+});
+
 export function RemotionRoot() {
-  return <Composition
+  return <><Composition
     id="ArenaRatingVideo"
     component={ArenaRatingVideo}
     durationInFrames={totalDurationInFrames(defaultProject.records.length, defaultProject.settings)}
@@ -43,7 +57,16 @@ export function RemotionRoot() {
     height={defaultProject.settings.height}
     defaultProps={{ project: defaultProject }}
     calculateMetadata={calculateArenaMetadata}
-  />;
+  /><Composition
+    id="ArenaProductionAsset"
+    component={ArenaProductionAsset}
+    durationInFrames={getTimeline(defaultProject.settings).duration}
+    fps={defaultProject.settings.fps}
+    width={defaultProject.settings.width}
+    height={defaultProject.settings.height}
+    defaultProps={{ project: defaultProject, studentId: defaultProject.records[0].student.id, layer: "decorations" }}
+    calculateMetadata={calculateProductionAssetMetadata}
+  /></>;
 }
 
 export { defaultProject };

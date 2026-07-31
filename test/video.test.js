@@ -24,7 +24,7 @@ import {
 import { createVideoProject, parseVideoProject, ratingsFromProjectRecords } from "../video/core/manifest.js";
 import { normalizeRatingOrder, ratingRecordsFromStudents, sortRatingRecords } from "../video/core/sorting.js";
 import { applyJobProgress, browserDownloadPercent, cancelJob, isActiveRenderStatus } from "../video/core/renderJob.js";
-import { readPngDimensions } from "../video/core/png.js";
+import { readPngColorType, readPngDimensions } from "../video/core/png.js";
 import { timestampRating } from "../src/utils/ratingTimestamps.js";
 import { OVERALL_LABELS, schoolLabel } from "../src/utils/i18n.js";
 import { parseStudents } from "../src/utils/students.js";
@@ -35,11 +35,18 @@ import { schoolIconPath } from "../src/utils/schoolIcons.js";
 import { runWorker } from "../video/sidecar/worker.mjs";
 import { collectRenderAssetUrls, renderAssetCacheKey, studentPortraitUrl } from "../video/core/renderAssets.js";
 import { createProfileCases, safeProfileName } from "../video/core/profile.js";
-import { benchmarkOutputIo, classifyRenderBottleneck, selectBenchmarkConcurrencyCandidates } from "../video/render-service.mjs";
+import { benchmarkOutputIo, classifyRenderBottleneck, productionCompositionForTask, selectBenchmarkConcurrencyCandidates } from "../video/render-service.mjs";
 import { vt } from "../video/core/i18n.js";
 import { buildDimensionReportSvg, dimensionReportRows } from "../src/utils/dimensionReport.js";
 import { fitStaticExportText, wrapStaticExportText } from "../src/utils/exportText.js";
 import { FULL_OUTPUT_LAYOUT, scaleFullOutputLayout } from "../src/utils/outputVisualTokens.js";
+import {
+  PRODUCTION_ASSET_LAYERS,
+  buildProductionAssetTasks,
+  normalizeProductionAssetLayerSettings,
+  productionAssetLayerStyle,
+  productionAssetTaskOutput,
+} from "../video/core/productionAssets.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/video-project.json", import.meta.url), "utf8"));
 const records = fixture.records;
@@ -63,6 +70,79 @@ test("timeline assigns every student the same frame count", () => {
 test("timing validation rejects phases longer than a student slot", () => {
   const errors = validateVideoSettings({ ...DEFAULT_VIDEO_SETTINGS, studentDuration: 2 });
   assert.ok(errors.some(error => error.includes("exceed")));
+});
+
+test("production asset settings migrate from guide manifests and validate alpha formats", () => {
+  const migrated = parseVideoProject(fixture);
+  assert.equal(migrated.settings.renderMode, "guide");
+  assert.deepEqual(migrated.settings.productionAssetLayers, PRODUCTION_ASSET_LAYERS);
+  assert.equal(migrated.settings.productionAssetStudentIds, null);
+  assert.equal(migrated.settings.productionAssetLayerSettings.radar.opacity, 1);
+  assert.deepEqual(validateVideoSettings({
+    ...DEFAULT_VIDEO_SETTINGS,
+    renderMode: "productionAssets",
+    format: "png",
+  }), []);
+  assert.deepEqual(validateVideoSettings({
+    ...DEFAULT_VIDEO_SETTINGS,
+    renderMode: "productionAssets",
+    format: "prores",
+  }), []);
+  assert.ok(validateVideoSettings({
+    ...DEFAULT_VIDEO_SETTINGS,
+    renderMode: "productionAssets",
+    format: "mp4",
+  }).some(error => error.includes("PNG") && error.includes("ProRes")));
+  assert.ok(validateVideoSettings({
+    ...DEFAULT_VIDEO_SETTINGS,
+    renderMode: "productionAssets",
+    format: "png",
+    productionAssetStudentIds: [],
+  }).some(error => error.includes("student")));
+  assert.ok(validateVideoSettings({
+    ...DEFAULT_VIDEO_SETTINGS,
+    renderMode: "productionAssets",
+    format: "png",
+    productionAssetLayers: [],
+  }).some(error => error.includes("layer")));
+});
+
+test("production asset tasks preserve student order and create one output per selected layer", () => {
+  const settings = {
+    ...DEFAULT_VIDEO_SETTINGS,
+    productionAssetStudentIds: [records[1].student.id],
+    productionAssetLayers: ["comments", "radar"],
+  };
+  const tasks = buildProductionAssetTasks(records, settings);
+  assert.deepEqual(tasks.map(task => task.id), [
+    `${records[1].student.id}:comments`,
+    `${records[1].student.id}:radar`,
+  ]);
+  assert.deepEqual(productionAssetTaskOutput("output", tasks[0], "png"), ["output", tasks[0].studentFolder, "comments"]);
+  assert.equal(productionAssetTaskOutput("output", tasks[1], "prores").at(-1), `${tasks[1].studentFolder}-radar.mov`);
+});
+
+test("production layer transforms clamp to safe canvas limits and remain deterministic", () => {
+  const settings = normalizeProductionAssetLayerSettings({
+    radar: { x: 2500, y: -2000, scale: 9, opacity: -1 },
+    comments: { x: 24, y: 18, scale: 0.85, opacity: 0.6 },
+  });
+  assert.deepEqual(settings.radar, { x: 1920, y: -1080, scale: 3, opacity: 0 });
+  assert.deepEqual(productionAssetLayerStyle(settings, "comments"), {
+    opacity: 0.6,
+    transform: "translate(24px, 18px) scale(0.85)",
+    transformOrigin: "center center",
+  });
+});
+
+test("production render tasks replace the composition's resolved layer props", () => {
+  const baseProps = { project: { id: "fixture" }, studentId: 10001, layer: "decorations" };
+  const taskProps = { project: baseProps.project, studentId: 10001, layer: "overall" };
+  const composition = { id: "ArenaProductionAsset", durationInFrames: 96, props: baseProps };
+  const resolved = productionCompositionForTask(composition, taskProps);
+  assert.equal(composition.props.layer, "decorations");
+  assert.equal(resolved.props.layer, "overall");
+  assert.deepEqual(resolved.props, taskProps);
 });
 
 test("render concurrency defaults to adaptive prediction and validates supported choices", () => {
@@ -364,12 +444,14 @@ test("render bottleneck classification separates IO from render or PNG encoding"
 
 test("PNG header reader reports exact supported render dimensions", () => {
   for (const [width, height] of [[1280, 720], [1920, 1080], [3840, 2160]]) {
-    const png = Buffer.alloc(24);
+    const png = Buffer.alloc(26);
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png);
     png.write("IHDR", 12, "ascii");
     png.writeUInt32BE(width, 16);
     png.writeUInt32BE(height, 20);
+    png[25] = 6;
     assert.deepEqual(readPngDimensions(png), { width, height });
+    assert.equal(readPngColorType(png), 6);
   }
   assert.throws(() => readPngDimensions(Buffer.from("not png")));
 });
