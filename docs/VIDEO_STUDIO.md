@@ -10,7 +10,26 @@ Video Studio renders every rated student as a 16:9 arena guide sequence. It uses
 npm run video:preview
 ```
 
-The preview page loads ratings from BAART local storage or an imported JSON/project manifest. It supports dark/light themes, English/Simplified Chinese UI, 720p/1080p/4K targets, MP4 output, PNG sequences, and JPEG sequences.
+The preview page loads ratings from BAART local storage or an imported JSON/project manifest. It supports dark/light themes, English/Simplified Chinese UI, 720p/1080p/4K targets, MP4 output, PNG sequences, JPEG sequences, and modular transparent production assets.
+
+## Production Assets
+
+Switch **Render mode** to **Production assets** when BAART graphics will be composited with gameplay in DaVinci Resolve, Blender, or another editor. This mode reuses the same deterministic student timeline but renders one student and one visual layer at a time on a transparent canvas.
+
+Available layers are:
+
+- Background decorations
+- Student portrait
+- Student identity and specs
+- Scrolling comments
+- Animated radar plot and score-weight footnote
+- Overall rating
+
+Use the student and layer checkboxes to choose the render matrix. Preview student/layer selectors inspect one isolated module before rendering. Every layer also has independent X/Y offset, scale, and opacity controls; the normal timing, radar, comment, theme, language, FPS, resolution, and quality controls remain active.
+
+All selected outputs have identical canvas dimensions, FPS, and per-student duration, so they align when placed at the same timeline origin. The output tree contains one folder per student and one subfolder per layer, plus `production-assets.json` with relative paths and synchronization metadata.
+
+Choose **Transparent PNG sequence** for lossless RGBA frames and broad editor compatibility. Choose **Transparent ProRes 4444 MOV** for one alpha-video file per layer. H.264 MP4 and JPEG are intentionally unavailable in this mode because they do not preserve the required alpha channel.
 
 ## Animation Flow
 

@@ -16,7 +16,7 @@ BAART 将 SchaleDB 的本地化学生资料与五个竞技场评分维度结合�
 - 本地自动保存，并支持便携 JSON 导入/导出。
 - 导出紧凑/完整 SVG 与 PNG 评级卡片，单卡导出会先预览再保存，并支持批量 ZIP 和维度排名报告 PNG。
 - 简体中文与英文界面，支持深色和浅色主题。
-- 可配置 Remotion 视频工作室，可预览 16:9 攻略视频，渲染 MP4、PNG 序列和 JPEG 序列。
+- 可配置 Remotion 视频工作室，既可渲染完整 16:9 攻略视频，也可按学生和图层输出透明制作素材，支持 MP4、PNG/JPEG 序列与 ProRes 4444。
 - Windows x64 Tauri 独立应用，内置 Node/Remotion sidecar 渲染器。
 
 ## 快速开始

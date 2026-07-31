@@ -16,7 +16,7 @@ BAART combines localized SchaleDB student metadata with five custom arena rating
 - Local autosave plus portable JSON import/export.
 - Compact/full SVG and PNG card exports with preview-before-save, batch ZIP export, and dimension ranking report PNGs.
 - English and Simplified Chinese UI with dark and light themes.
-- Configurable Remotion Video Studio for 16:9 arena guide previews, MP4 rendering, and PNG/JPEG frame sequences.
+- Configurable Remotion Video Studio for complete 16:9 guides and modular transparent production assets, with MP4, PNG/JPEG sequences, and ProRes 4444 output.
 - Standalone Windows x64 Tauri app with a bundled Node/Remotion sidecar renderer.
 
 ## Quick Start
