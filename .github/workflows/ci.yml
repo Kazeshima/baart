@@ -42,6 +42,9 @@ jobs:
       - name: Smoke-render Remotion video paths
         run: npm run video:smoke
 
+      - name: Smoke-render transparent ProRes production asset
+        run: npm run video:assets-smoke -- prores
+
       - name: Smoke-test packaged renderer runtime
         run: npm run renderer:smoke
 

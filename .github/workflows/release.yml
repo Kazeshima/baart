@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag, for example v1.1.6"
+        description: "Release tag, for example v1.2.0"
         required: true
-        default: "v1.1.6"
+        default: "v1.2.0"
       draft:
         description: "Create a draft release"
         required: true
@@ -46,6 +46,7 @@ jobs:
           npm test
           npm run build
           npm run video:compositions
+          npm run video:assets-smoke -- prores
           npm run renderer:smoke
           cargo test --manifest-path src-tauri/Cargo.toml
           cargo check --manifest-path src-tauri/Cargo.toml
@@ -58,9 +59,9 @@ jobs:
           tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseName: BAART ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseBody: |
-            BAART Windows x64 release.
+            BAART Windows x64 release with modular transparent video-production assets.
 
-            This build includes the standalone Remotion renderer runtime, generated local school icons, Windows installers, and a portable ZIP bundle with the required renderer resources.
+            Video Studio can render selected students and visual modules as synchronized RGBA PNG sequences or ProRes 4444 files for compositing in DaVinci Resolve, Blender, and other editors. This build includes the standalone Remotion renderer runtime, generated local school icons, Windows installers, and a portable ZIP bundle with the required renderer resources.
           releaseDraft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft == 'true' || false }}
           prerelease: false
           args: --target x86_64-pc-windows-msvc
